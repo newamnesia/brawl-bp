@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import HeroGrid, { HeroChip } from "../components/HeroGrid";
+import MapPicker, { MapBanner } from "../components/MapPicker";
 import Timer from "../components/Timer";
 import { disconnectSocket, getSocket, type RoomState } from "../lib/socket";
 import {
@@ -163,6 +164,14 @@ export default function Room() {
   }
 
   const bothJoined = state.players.length === 2;
+
+  // 地图选择：大厅中选手可操作
+  const handleSetGameMode = (mode: string | null) => {
+    socket.emit("set_game_mode", mode);
+  };
+  const handleSetMap = (mapId: string | null) => {
+    socket.emit("set_map", mapId);
+  };
 
   const allMembers = [...state.players, ...state.spectators];
   const myIsPlayer = myPlayer ? state.players.some((p) => p.id === myPlayer.id) : false;
@@ -390,6 +399,19 @@ export default function Room() {
             </>
           )}
 
+          {/* 地图选择 */}
+          {bothJoined && (
+            <MapPicker
+              gameMode={state.gameMode}
+              hostMapId={state.hostMapId}
+              guestMapId={state.guestMapId}
+              confirmedMapId={state.confirmedMapId}
+              myRole={myPlayer?.role === "host" ? "host" : myPlayer?.role === "guest" ? "guest" : "spectator"}
+              onSetGameMode={handleSetGameMode}
+              onSetMap={handleSetMap}
+            />
+          )}
+
           {!isHost && !isSpectator && bothJoined && state.firstPicker && (
             <p style={{ textAlign: "center", color: "var(--muted)", marginBottom: "1rem" }}>
               {state.firstPicker === "guest"
@@ -426,6 +448,7 @@ export default function Room() {
 
       {state.phase === "ban" && (
         <>
+          <MapBanner confirmedMapId={state.confirmedMapId} />
           <div className="phase-banner ban">禁用阶段 · 选择 3 个角色</div>
           <Timer endsAt={state.phaseEndsAt} label="剩余时间" />
           {isSpectator ? (
@@ -447,6 +470,7 @@ export default function Room() {
 
       {state.phase === "ban_reveal" && (
         <>
+          <MapBanner confirmedMapId={state.confirmedMapId} />
           <div className="phase-banner reveal">公布禁用结果</div>
           <Timer endsAt={state.phaseEndsAt} />
           <div className="team-panel">
@@ -472,6 +496,7 @@ export default function Room() {
 
       {(state.phase === "pick" || state.phase === "complete") && (
         <>
+          <MapBanner confirmedMapId={state.confirmedMapId} />
           <div className={`phase-banner ${state.phase === "complete" ? "complete" : "pick"}`}>
             {state.phase === "complete"
               ? state.timedOutBy

@@ -5,7 +5,9 @@ import {
   BAN_REVEAL_MS,
   BANS_PER_PLAYER,
   HEROES,
+  type GameMode,
   type LobbyRoom,
+  MAPS,
   PICK_DURATION_MS,
   PICK_TURNS,
   type Phase,
@@ -47,6 +49,10 @@ interface Room {
   pickTimer: ReturnType<typeof setTimeout> | null;
   timedOutBy: PlayerRole | null;
   pendingSwaps: Map<string, PendingSwap>; // requestId -> 换位申请
+  gameMode: GameMode | null;
+  hostMapId: string | null;
+  guestMapId: string | null;
+  confirmedMapId: string | null;
 }
 
 const rooms = new Map<string, Room>();
@@ -158,6 +164,10 @@ function buildRoomState(room: Room, viewer: Player): RoomState {
     timedOutBy: room.timedOutBy,
     pendingSwapToMe,
     mySwapRequestTo: outgoing ? outgoing.toId : null,
+    gameMode: room.gameMode,
+    hostMapId: room.hostMapId,
+    guestMapId: room.guestMapId,
+    confirmedMapId: room.confirmedMapId,
   };
 }
 
@@ -343,6 +353,10 @@ export function registerRoomHandlers(io: Server) {
           pickTimer: null,
           timedOutBy: null,
           pendingSwaps: new Map(),
+          gameMode: null,
+          hostMapId: null,
+          guestMapId: null,
+          confirmedMapId: null,
         };
         const player: Player = {
           id: socket.id,
@@ -426,6 +440,48 @@ export function registerRoomHandlers(io: Server) {
       room.roomName = trimmed || room.roomName;
       broadcastRoom(io, room);
       broadcastLobbyList(io);
+    });
+
+    // 设置游戏模式
+    socket.on("set_game_mode", (mode: GameMode | null) => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room || room.phase !== "lobby") return;
+      const player = room.players.get(socket.id);
+      if (!player) return;
+      // 验证 mode 合法
+      if (mode !== null && !MAPS.some((m) => m.mode === mode)) return;
+      room.gameMode = mode;
+      // 切换模式时重置双方地图选择
+      room.hostMapId = null;
+      room.guestMapId = null;
+      room.confirmedMapId = null;
+      broadcastRoom(io, room);
+    });
+
+    // 选择地图
+    socket.on("set_map", (mapId: string | null) => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room || room.phase !== "lobby") return;
+      const player = room.players.get(socket.id);
+      if (!player) return;
+      // 验证地图属于当前模式
+      if (mapId !== null && !MAPS.some((m) => m.id === mapId && m.mode === room.gameMode)) return;
+      if (player.role === "host") {
+        room.hostMapId = mapId;
+      } else {
+        room.guestMapId = mapId;
+      }
+      // 双方选了同一张地图 → 确认
+      if (room.hostMapId && room.hostMapId === room.guestMapId) {
+        room.confirmedMapId = room.hostMapId;
+      } else {
+        room.confirmedMapId = null;
+      }
+      broadcastRoom(io, room);
     });
 
     // 观战席加入：随时可加入，不限人数，BP 开始后也可加入

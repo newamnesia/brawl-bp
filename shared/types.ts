@@ -190,6 +190,14 @@ export interface RoomState {
   pendingSwapToMe: SwapRequest | null;
   /** 我发出的换位申请的目标 id（申请人视角），无则 null */
   mySwapRequestTo: string | null;
+  /** 房间选定的游戏模式（双方需一致才生效） */
+  gameMode: GameMode | null;
+  /** 选手1（host）选择的地图 id */
+  hostMapId: string | null;
+  /** 选手2（guest）选择的地图 id */
+  guestMapId: string | null;
+  /** 最终确定的地图 id（双方选了同一张则为确定） */
+  confirmedMapId: string | null;
 }
 
 /** 大厅列表项 */
@@ -200,6 +208,174 @@ export interface LobbyRoom {
   playerCount: number;
   spectatorCount: number;
   phase: Phase;
+}
+
+export type GameMode = "brawl_ball" | "gem_grab" | "hot_zone" | "bounty" | "knockout";
+
+export interface BrawlMap {
+  id: string;
+  name: string;
+  mode: GameMode;
+  thumbnail: string;
+}
+
+export const GAME_MODES: { id: GameMode; name: string; icon: string }[] = [
+  { id: "brawl_ball", name: "足球", icon: "/brawl-stars/res/img/modes/icon_brawl_ball.webp" },
+  { id: "gem_grab", name: "宝石", icon: "/brawl-stars/res/img/modes/icon_gem_grab.webp" },
+  { id: "hot_zone", name: "热区", icon: "/brawl-stars/res/img/modes/icon_hot_zone.webp" },
+  { id: "bounty", name: "赏金", icon: "/brawl-stars/res/img/modes/icon_bounty.webp" },
+  { id: "knockout", name: "淘汰", icon: "/brawl-stars/res/img/modes/icon_knockout.webp" },
+];
+
+export const MAPS_BASE_URL = "https://www.noff.gg";
+
+export const MAPS: BrawlMap[] = [
+  // ===== Brawl Ball (足球) =====
+  { id: "back_pocket", name: "Back Pocket", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/back_pocket_thumbnail.webp" },
+  { id: "backyard_bowl", name: "Backyard Bowl", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/backyard_bowl_thumbnail.webp" },
+  { id: "beach_ball", name: "Beach Ball", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/beach_ball_thumbnail.webp" },
+  { id: "center_stage", name: "Center Stage", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/center_stage_thumbnail.webp" },
+  { id: "flute_chutes", name: "Flute Chutes", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/flute_chutes_thumbnail.webp" },
+  { id: "goalies", name: "Goalies", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/goalies_thumbnail.webp" },
+  { id: "goalkeepers_dream", name: "Goalkeepers Dream", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/goalkeepers_dream_thumbnail.webp" },
+  { id: "grab_the_moment", name: "Grab The Moment", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/grab_the_moment_thumbnail.webp" },
+  { id: "grass_knot", name: "Grass Knot", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/grass_knot_thumbnail.webp" },
+  { id: "match_1123581321", name: "Match 1123581321", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/match_1123581321_thumbnail.webp" },
+  { id: "no_good_deed", name: "No Good Deed", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/no_good_deed_thumbnail.webp" },
+  { id: "nutmeg", name: "Nutmeg", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/nutmeg_thumbnail.webp" },
+  { id: "offside_trap", name: "Offside Trap", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/offside_trap_thumbnail.webp" },
+  { id: "penalty_kick", name: "Penalty Kick", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/penalty_kick_thumbnail.webp" },
+  { id: "pinball_dreams", name: "Pinball Dreams", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/pinball_dreams_thumbnail.webp" },
+  { id: "pinhole_punt", name: "Pinhole Punt", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/pinhole_punt_thumbnail.webp" },
+  { id: "priceless_cactus", name: "Priceless Cactus", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/priceless_cactus_thumbnail.webp" },
+  { id: "retina", name: "Retina", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/retina_thumbnail.webp" },
+  { id: "rooftop_runners", name: "Rooftop Runners", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/rooftop_runners_thumbnail.webp" },
+  { id: "second_try", name: "Second Try", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/second_try_thumbnail.webp" },
+  { id: "sidetrack", name: "Sidetrack", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/sidetrack_thumbnail.webp" },
+  { id: "singed_earth", name: "Singed Earth", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/singed_earth_thumbnail.webp" },
+  { id: "sneaky_fields", name: "Sneaky Fields", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/sneaky_fields_thumbnail.webp" },
+  { id: "spider_crawler", name: "Spider Crawler", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/spider_crawler_thumbnail.webp" },
+  { id: "spiraling_out", name: "Spiraling Out", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/spiraling_out_thumbnail.webp" },
+  { id: "sunny_soccer", name: "Sunny Soccer", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/sunny_soccer_thumbnail.webp" },
+  { id: "super_beach", name: "Super Beach", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/super_beach_thumbnail.webp" },
+  { id: "trickey", name: "Trickey", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/trickey_thumbnail.webp" },
+  { id: "triple_dribble", name: "Triple Dribble", mode: "brawl_ball", thumbnail: "/brawl-stars/res/img/maps/triple_dribble_thumbnail.webp" },
+
+  // ===== Gem Grab (宝石) =====
+  { id: "acute_angle", name: "Acute Angle", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/acute_angle_thumbnail.webp" },
+  { id: "afterparty", name: "Afterparty", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/afterparty_thumbnail.webp" },
+  { id: "ahead_of_the_curve", name: "Ahead of the Curve", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/ahead_of_the_curve_thumbnail.webp" },
+  { id: "atlas", name: "Atlas", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/atlas_thumbnail.webp" },
+  { id: "bear_trap", name: "Bear Trap", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/bear_trap_thumbnail.webp" },
+  { id: "crystal_arcade", name: "Crystal Arcade", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/crystal_arcade_thumbnail.webp" },
+  { id: "deathcap_trap", name: "Deathcap Trap", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/deathcap_trap_thumbnail.webp" },
+  { id: "double_swoosh", name: "Double Swoosh", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/double_swoosh_thumbnail.webp" },
+  { id: "extreme_nonchalance", name: "Extreme Nonchalance", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/extreme_nonchalance_thumbnail.webp" },
+  { id: "forest_clearing", name: "Forest Clearing", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/forest_clearing_thumbnail.webp" },
+  { id: "fortress_fall", name: "Fortress Fall", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/fortress_fall_thumbnail.webp" },
+  { id: "gem_fort", name: "Gem Fort", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/gem_fort_thumbnail.webp" },
+  { id: "hard_rock_mine", name: "Hard Rock Mine", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/hard_rock_mine_thumbnail.webp" },
+  { id: "last_stop", name: "Last Stop", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/last_stop_thumbnail.webp" },
+  { id: "lilygear_lake", name: "Lilygear Lake", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/lilygear_lake_thumbnail.webp" },
+  { id: "local_restaurants", name: "Local Restaurants", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/local_restaurants_thumbnail.webp" },
+  { id: "minecart_madness", name: "Minecart Madness", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/minecart_madness_thumbnail.webp" },
+  { id: "on_a_roll", name: "On A Roll", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/on_a_roll_thumbnail.webp" },
+  { id: "open_space", name: "Open Space", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/open_space_thumbnail.webp" },
+  { id: "picturesque", name: "Picturesque", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/picturesque_thumbnail.webp" },
+  { id: "railroad_robbery", name: "Railroad Robbery", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/railroad_robbery_thumbnail.webp" },
+  { id: "rustic_arcade", name: "Rustic Arcade", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/rustic_arcade_thumbnail.webp" },
+  { id: "satomi_springs", name: "Satomi Springs", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/satomi_springs_thumbnail.webp" },
+  { id: "snake_pit", name: "Snake Pit", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/snake_pit_thumbnail.webp" },
+  { id: "sneaky_sneak", name: "Sneaky Sneak", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/sneaky_sneak_thumbnail.webp" },
+  { id: "storage_sector", name: "Storage Sector", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/storage_sector_thumbnail.webp" },
+  { id: "undermine", name: "Undermine", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/undermine_thumbnail.webp" },
+  { id: "whisper_vale", name: "Whisper Vale", mode: "gem_grab", thumbnail: "/brawl-stars/res/img/maps/whisper_vale_thumbnail.webp" },
+
+  // ===== Hot Zone (热区) =====
+  { id: "abracadabra", name: "Abracadabra", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/abracadabra_thumbnail.webp" },
+  { id: "back_shuffle", name: "Back Shuffle", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/back_shuffle_thumbnail.webp" },
+  { id: "bejeweled", name: "Bejeweled", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/bejeweled_thumbnail.webp" },
+  { id: "dueling_beetles", name: "Dueling Beetles", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/dueling_beetles_thumbnail.webp" },
+  { id: "fishing_bed", name: "Fishing Bed", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/fishing_bed_thumbnail.webp" },
+  { id: "golden_bay", name: "Golden Bay", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/golden_bay_thumbnail.webp" },
+  { id: "hyacinth_house", name: "Hyacinth House", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/hyacinth_house_thumbnail.webp" },
+  { id: "in_the_liminal", name: "In The Liminal", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/in_the_liminal_thumbnail.webp" },
+  { id: "just_another_race_to_anywhere", name: "Just Another Race To Anywhere", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/just_another_race_to_anywhere_thumbnail.webp" },
+  { id: "local_businesses", name: "Local Businesses", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/local_businesses_thumbnail.webp" },
+  { id: "misty_meadows", name: "Misty Meadows", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/misty_meadows_thumbnail.webp" },
+  { id: "open_business", name: "Open Business", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/open_business_thumbnail.webp" },
+  { id: "open_zone", name: "Open Zone", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/open_zone_thumbnail.webp" },
+  { id: "parallel_plays", name: "Parallel Plays", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/parallel_plays_thumbnail.webp" },
+  { id: "playmaker", name: "Playmaker", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/playmaker_thumbnail.webp" },
+  { id: "reflections", name: "Reflections", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/reflections_thumbnail.webp" },
+  { id: "ring_of_fire", name: "Ring of Fire", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/ring_of_fire_thumbnail.webp" },
+  { id: "the_seven_pillars_of_humanity", name: "The Seven Pillars Of Humanity", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/the_seven_pillars_of_humanity_thumbnail.webp" },
+  { id: "ticket_to_die", name: "Ticket To Die", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/ticket_to_die_thumbnail.webp" },
+  { id: "zone_splitting", name: "Zone Splitting", mode: "hot_zone", thumbnail: "/brawl-stars/res/img/maps/zone_splitting_thumbnail.webp" },
+
+  // ===== Bounty (赏金) =====
+  { id: "brace_for_impact", name: "Brace For Impact", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/brace_for_impact_thumbnail.webp" },
+  { id: "canal_grande", name: "Canal Grande", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/canal_grande_thumbnail.webp" },
+  { id: "choral_chambers", name: "Choral Chambers", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/choral_chambers_thumbnail.webp" },
+  { id: "color_me_intrigued", name: "Color Me Intrigued", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/color_me_intrigued_thumbnail.webp" },
+  { id: "crowd_strike", name: "Crowd Strike", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/crowd_strike_thumbnail.webp" },
+  { id: "dont_turn_around", name: "Dont Turn Around", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/dont_turn_around_thumbnail.webp" },
+  { id: "dry_season", name: "Dry Season", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/dry_season_thumbnail.webp" },
+  { id: "flank_attack", name: "Flank Attack", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/flank_attack_thumbnail.webp" },
+  { id: "hideout", name: "Hideout", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/hideout_thumbnail.webp" },
+  { id: "hit_and_run", name: "Hit And Run", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/hit_and_run_thumbnail.webp" },
+  { id: "iris_intervention", name: "Iris Intervention", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/iris_intervention_thumbnail.webp" },
+  { id: "layer_cake", name: "Layer Cake", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/layer_cake_thumbnail.webp" },
+  { id: "shooting_star", name: "Shooting Star", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/shooting_star_thumbnail.webp" },
+  { id: "side_by_side", name: "Side By Side", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/side_by_side_thumbnail.webp" },
+  { id: "snake_prairie", name: "Snake Prairie", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/snake_prairie_thumbnail.webp" },
+  { id: "starrburst", name: "Starrburst", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/starrburst_thumbnail.webp" },
+  { id: "wall_hugging", name: "Wall Hugging", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/wall_hugging_thumbnail.webp" },
+  { id: "watermelons", name: "Watermelons", mode: "bounty", thumbnail: "/brawl-stars/res/img/maps/watermelons_thumbnail.webp" },
+
+  // ===== Knockout (淘汰) =====
+  { id: "a_ballad_about_minced_cutlets", name: "A Ballad About Minced Cutlets", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/a_ballad_about_minced_cutlets_thumbnail.webp" },
+  { id: "belles_rock", name: "Belles Rock", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/belles_rock_thumbnail.webp" },
+  { id: "between_the_rivers", name: "Between the Rivers", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/between_the_rivers_thumbnail.webp" },
+  { id: "call_of_the_water", name: "Call Of The Water", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/call_of_the_water_thumbnail.webp" },
+  { id: "chivalry", name: "Chivalry", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/chivalry_thumbnail.webp" },
+  { id: "close_quarters", name: "Close Quarters", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/close_quarters_thumbnail.webp" },
+  { id: "crab_claws", name: "Crab Claws", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/crab_claws_thumbnail.webp" },
+  { id: "deep_end", name: "Deep End", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/deep_end_thumbnail.webp" },
+  { id: "double_decker", name: "Double Decker", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/double_decker_thumbnail.webp" },
+  { id: "dragon_jaws", name: "Dragon Jaws", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/dragon_jaws_thumbnail.webp" },
+  { id: "flaring_phoenix", name: "Flaring Phoenix", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/flaring_phoenix_thumbnail.webp" },
+  { id: "flowing_springs", name: "Flowing Springs", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/flowing_springs_thumbnail.webp" },
+  { id: "four_levels", name: "Four Levels", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/four_levels_thumbnail.webp" },
+  { id: "goldarm_gulch", name: "Goldarm Gulch", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/goldarm_gulch_thumbnail.webp" },
+  { id: "h_for", name: "H For...", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/h_for..._thumbnail.webp" },
+  { id: "hard_lane", name: "Hard Lane", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/hard_lane_thumbnail.webp" },
+  { id: "healthy_middle_ground", name: "Healthy Middle Ground", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/healthy_middle_ground_thumbnail.webp" },
+  { id: "island_hopping", name: "Island Hopping", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/island_hopping_thumbnail.webp" },
+  { id: "konnakol", name: "Konnakol", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/konnakol_thumbnail.webp" },
+  { id: "mossy_crossing", name: "Mossy Crossing", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/mossy_crossing_thumbnail.webp" },
+  { id: "new_horizons", name: "New Horizons", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/new_horizons_thumbnail.webp" },
+  { id: "new_perspective", name: "New Perspective", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/new_perspective_thumbnail.webp" },
+  { id: "opening_move", name: "Opening Move", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/opening_move_thumbnail.webp" },
+  { id: "out_in_the_open", name: "Out in the Open", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/out_in_the_open_thumbnail.webp" },
+  { id: "party_for_you", name: "Party For You", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/party_for_you_thumbnail.webp" },
+  { id: "pinned_down", name: "Pinned Down", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/pinned_down_thumbnail.webp" },
+  { id: "streets_with_no_name", name: "Streets With No Name", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/streets_with_no_name_thumbnail.webp" },
+  { id: "sunset_spar", name: "Sunset Spar", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/sunset_spar_thumbnail.webp" },
+  { id: "think_ahead", name: "Think Ahead", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/think_ahead_thumbnail.webp" },
+  { id: "twilight_passage", name: "Twilight Passage", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/twilight_passage_thumbnail.webp" },
+];
+
+export const MAP_MAP = Object.fromEntries(MAPS.map((m) => [m.id, m]));
+
+/** 获取地图缩略图完整 URL */
+export function mapThumbnailUrl(map: BrawlMap): string {
+  return `${MAPS_BASE_URL}${map.thumbnail}`;
+}
+
+/** 获取模式图标完整 URL */
+export function modeIconUrl(mode: Pick<{ id: GameMode; name: string; icon: string }, "icon">): string {
+  return `${MAPS_BASE_URL}${mode.icon}`;
 }
 
 /** 中文名（英文名）格式 */
