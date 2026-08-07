@@ -621,7 +621,18 @@ export function registerRoomHandlers(io: Server) {
     socketToRoom.delete(socket.id);
     socket.leave(code);
 
-    // 观战席离开：不影响对局
+    // BP 已结束：保留结果，直到所有人（选手+观战席）都退出才销毁
+    if (room.phase === "complete") {
+      if (room.players.size === 0 && room.spectators.size === 0) {
+        destroyRoom(code);
+      } else {
+        broadcastRoom(io, room);
+      }
+      broadcastLobbyList(io);
+      return;
+    }
+
+    // 观战席离开（非 complete 阶段）：不影响对局
     if (!wasPlayer) {
       broadcastRoom(io, room);
       broadcastLobbyList(io);

@@ -8,14 +8,7 @@ import {
   HEROES,
   PICKS_PER_TEAM,
   PICK_TURNS,
-  type PlayerRole,
 } from "../../shared/types";
-
-function roleLabel(role: PlayerRole, firstPicker: PlayerRole | null): string {
-  if (!firstPicker) return role === "host" ? "选手1" : "选手2";
-  const isFirst = role === firstPicker;
-  return `${role === "host" ? "选手1" : "选手2"}（${isFirst ? "先手" : "后手"}）`;
-}
 
 /** 选手席位标签：按 players 数组顺序 选手1/选手2 */
 function playerSeatLabel(index: number): string {
@@ -169,8 +162,6 @@ export default function Room() {
     );
   }
 
-  const hostPlayer = state.players.find((p) => p.role === "host");
-  const guestPlayer = state.players.find((p) => p.role === "guest");
   const bothJoined = state.players.length === 2;
 
   const allMembers = [...state.players, ...state.spectators];
@@ -460,17 +451,17 @@ export default function Room() {
           <Timer endsAt={state.phaseEndsAt} />
           <div className="team-panel">
             <div className="team-box first">
-              <h3>{hostPlayer ? roleLabel("host", state.firstPicker) : "选手1"} 禁用</h3>
+              <h3>先手方 禁用</h3>
               <div className="picked-row">
-                {(state.hostBans ?? []).map((id) => (
+                {(state.firstPicker === "guest" ? (state.guestBans ?? []) : (state.hostBans ?? [])).map((id) => (
                   <HeroChip key={id} heroId={id} variant="ban" />
                 ))}
               </div>
             </div>
             <div className="team-box second">
-              <h3>{guestPlayer ? roleLabel("guest", state.firstPicker) : "选手2"} 禁用</h3>
+              <h3>后手方 禁用</h3>
               <div className="picked-row">
-                {(state.guestBans ?? []).map((id) => (
+                {(state.firstPicker === "guest" ? (state.hostBans ?? []) : (state.guestBans ?? [])).map((id) => (
                   <HeroChip key={id} heroId={id} variant="ban" />
                 ))}
               </div>
