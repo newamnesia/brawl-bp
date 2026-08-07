@@ -35,6 +35,7 @@ interface Room {
   banTimer: ReturnType<typeof setTimeout> | null;
   revealTimer: ReturnType<typeof setTimeout> | null;
   pickTimer: ReturnType<typeof setTimeout> | null;
+  surrenderedBy: PlayerRole | null;
 }
 
 const rooms = new Map<string, Room>();
@@ -117,6 +118,7 @@ function buildRoomState(room: Room, viewer: Player): RoomState {
     activeTeam,
     myTeam: room.firstPicker ? roleToTeam(viewer.role, room.firstPicker) : null,
     isMyTurn,
+    surrenderedBy: room.surrenderedBy,
   };
 }
 
@@ -239,6 +241,7 @@ export function registerRoomHandlers(io: Server) {
           banTimer: null,
           revealTimer: null,
           pickTimer: null,
+          surrenderedBy: null,
         };
         const player: Player = {
           id: socket.id,
@@ -351,6 +354,20 @@ export function registerRoomHandlers(io: Server) {
       if (!team) return;
       if (roleToTeam(player.role, room.firstPicker) !== team) return;
       applyPick(io, room, player.role, heroId);
+    });
+
+    socket.on("surrender", () => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room || room.phase !== "pick") return;
+      const player = room.players.get(socket.id);
+      if (!player) return;
+      room.surrenderedBy = player.role;
+      clearTimers(room);
+      room.phase = "complete";
+      room.phaseEndsAt = null;
+      broadcastRoom(io, room);
     });
 
     socket.on("leave_room", () => {

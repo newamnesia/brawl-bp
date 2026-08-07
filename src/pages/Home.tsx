@@ -95,6 +95,14 @@ export default function Home() {
 
         {error && <p className="error-msg">{error}</p>}
       </div>
+
+      <button
+        className="btn-secondary"
+        style={{ marginTop: "1rem", width: "100%" }}
+        onClick={() => navigate("/preview")}
+      >
+        角色预览（检查名称与图片配对）
+      </button>
     </div>
   );
 }

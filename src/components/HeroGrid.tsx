@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { HEROES, HERO_MAP } from "../../shared/types";
-
-const CDN_BASE =
-  "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders";
-
-function heroImg(cdnId: number): string {
-  return `${CDN_BASE}/${cdnId}.png`;
-}
+import {
+  HEROES,
+  HERO_MAP,
+  heroDisplayName,
+  heroImageUrl,
+} from "../../shared/types";
 
 // 简易模糊匹配：按子串顺序出现即命中（不要求连续）
 function fuzzyMatch(name: string, query: string): boolean {
@@ -45,13 +43,15 @@ export default function HeroGrid({
   const selectedSet = new Set(selectedIds);
   const disabledSet = new Set(disabledIds);
 
-  // 命中的角色列表（模糊匹配）
+  // 命中的角色列表（模糊匹配中英文）
   const matched = useMemo(() => {
     if (!query.trim()) return HEROES;
-    return HEROES.filter((h) => fuzzyMatch(h.name, query.trim()));
+    const q = query.trim();
+    return HEROES.filter(
+      (h) => fuzzyMatch(h.name, q) || fuzzyMatch(h.enName, q),
+    );
   }, [query]);
 
-  // 第一个匹配项用于回车定位
   const firstMatchId = matched[0]?.id ?? null;
 
   // 回车键：滚动到第一个匹配项并高亮
@@ -75,7 +75,7 @@ export default function HeroGrid({
               setFocusedId(firstMatchId);
             }
           }}
-          placeholder="搜索角色名（模糊匹配，回车定位）"
+          placeholder="搜索角色名（模糊匹配中英文，回车定位）"
           aria-label="搜索角色"
         />
         {query && (
@@ -95,14 +95,18 @@ export default function HeroGrid({
           const isSelected = selectedSet.has(hero.id);
           const isDisabled = disabledSet.has(hero.id);
           const isPicked = mode === "view" && isSelected;
-          const isMatched = query.trim() === "" || fuzzyMatch(hero.name, query.trim());
+          const isMatched =
+            query.trim() === "" ||
+            fuzzyMatch(hero.name, query.trim()) ||
+            fuzzyMatch(hero.enName, query.trim());
           const isFocused = focusedId === hero.id;
 
           let className = `hero-card rarity-${hero.rarity}`;
           if (isPicked) className += " picked";
           else if (isSelected) className += " selected";
           if (isDisabled) className += " disabled";
-          if (highlight && mode === "pick" && !isDisabled) className += " my-turn-highlight";
+          if (highlight && mode === "pick" && !isDisabled)
+            className += " my-turn-highlight";
           if (!isMatched) className += " search-dimmed";
           if (isFocused) className += " search-focused";
 
@@ -121,16 +125,17 @@ export default function HeroGrid({
                 if (mode === "ban") onToggle?.(hero.id);
                 else if (mode === "pick") onPick?.(hero.id);
               }}
-              title={hero.name}
+              title={heroDisplayName(hero)}
             >
               <img
                 className="hero-avatar"
-                src={heroImg(hero.cdnId)}
+                src={heroImageUrl(hero)}
                 alt={hero.name}
                 loading="lazy"
                 draggable={false}
               />
               <span className="hero-name">{hero.name}</span>
+              <span className="hero-en-name">{hero.enName}</span>
             </div>
           );
         })}
@@ -139,14 +144,20 @@ export default function HeroGrid({
   );
 }
 
-export function HeroChip({ heroId, variant }: { heroId: string; variant?: "ban" | "pick" }) {
+export function HeroChip({
+  heroId,
+  variant,
+}: {
+  heroId: string;
+  variant?: "ban" | "pick";
+}) {
   const hero = HERO_MAP[heroId];
   if (!hero) return null;
   return (
     <span className={`picked-chip ${variant === "ban" ? "ban-chip" : ""}`}>
       <img
         className="emoji chip-avatar"
-        src={heroImg(hero.cdnId)}
+        src={heroImageUrl(hero)}
         alt={hero.name}
         loading="lazy"
         draggable={false}

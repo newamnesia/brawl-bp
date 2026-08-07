@@ -351,8 +351,24 @@ input:focus {
 .hero-name {
   font-size: 0.72rem;
   font-weight: 700;
-  text-align: center;
-  line-height: 1.2;
+}
+
+.hero-en-name {
+  font-size: 0.55rem;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.empty-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 1.2rem;
 }
 
 .team-panel {
