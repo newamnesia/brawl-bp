@@ -22,6 +22,7 @@ export default function Room() {
   const [state, setState] = useState<RoomState | null>(null);
   const [closedMsg, setClosedMsg] = useState("");
   const [copied, setCopied] = useState(false);
+  const [localBans, setLocalBans] = useState<string[]>([]);
   const socket = getSocket();
 
   const inviteUrl = useMemo(
@@ -57,6 +58,25 @@ export default function Room() {
       socket.off("room_closed", onClosed);
     };
   }, [socket]);
+
+  // 服务器状态变更时同步本地 ban 列表
+  useEffect(() => {
+    setLocalBans(state?.myBans ?? []);
+  }, [state?.myBans]);
+
+  // 乐观更新：点击后立即反映到 UI，避免因网络往返导致重复点击 toggle off
+  const handleToggleBan = (heroId: string) => {
+    setLocalBans((prev) => {
+      const idx = prev.indexOf(heroId);
+      if (idx >= 0) {
+        return prev.filter((id) => id !== heroId);
+      } else if (prev.length < BANS_PER_PLAYER) {
+        return [...prev, heroId];
+      }
+      return prev;
+    });
+    socket.emit("toggle_ban", heroId);
+  };
 
   const leave = () => {
     socket.emit("leave_room");
@@ -167,8 +187,8 @@ export default function Room() {
           {!isHost && bothJoined && state.firstPicker && (
             <p style={{ textAlign: "center", color: "var(--muted)", marginBottom: "1rem" }}>
               {state.firstPicker === "guest"
-                ? "你将后手选角"
-                : "你将先手选角"}
+                ? "你将先手选角"
+                : "你将后手选角"}
             </p>
           )}
 
@@ -197,12 +217,12 @@ export default function Room() {
           <div className="phase-banner ban">禁用阶段 · 选择 3 个角色</div>
           <Timer endsAt={state.phaseEndsAt} label="剩余时间" />
           <p style={{ textAlign: "center", color: "var(--muted)", margin: "0.75rem 0" }}>
-            已禁用 {state.myBans.length}/{BANS_PER_PLAYER} · 对手已选 {state.opponentBanCount} 个（隐藏）
+            已禁用 {localBans.length}/{BANS_PER_PLAYER} · 对手已选 {state.opponentBanCount} 个（隐藏）
           </p>
           <HeroGrid
             mode="ban"
-            selectedIds={state.myBans}
-            onToggle={(id) => socket.emit("toggle_ban", id)}
+            selectedIds={localBans}
+            onToggle={handleToggleBan}
           />
         </>
       )}
