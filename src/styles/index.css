@@ -983,9 +983,8 @@ input:focus {
 }
 
 .map-confirmed-img {
-  width: 100%;
-  max-width: 320px;
-  height: auto;
+  width: auto;
+  height: 180px;
   border-radius: 8px;
   object-fit: cover;
 }
@@ -1011,9 +1010,9 @@ input:focus {
 /* 地图网格 */
 .map-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: 0.5rem;
-  max-height: 400px;
+  max-height: 480px;
   overflow-y: auto;
   padding-right: 0.25rem;
 }
@@ -1047,7 +1046,7 @@ input:focus {
 
 .map-thumbnail {
   width: 100%;
-  aspect-ratio: 16/9;
+  aspect-ratio: 1/2;
   object-fit: cover;
   display: block;
   pointer-events: none;
@@ -1104,8 +1103,8 @@ input:focus {
 }
 
 .map-banner-img {
-  width: 80px;
-  height: 45px;
+  width: 64px;
+  height: 96px;
   object-fit: cover;
   border-radius: 6px;
   flex-shrink: 0;
@@ -1138,7 +1137,7 @@ input:focus {
 /* ========== 单人地图预览 ========== */
 .map-preview-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: 0.75rem;
 }
 
@@ -1165,7 +1164,7 @@ input:focus {
 
 .map-preview-thumb {
   width: 100%;
-  aspect-ratio: 16/9;
+  aspect-ratio: 1/2;
   object-fit: cover;
   border-radius: 8px;
   display: block;
