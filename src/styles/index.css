@@ -229,6 +229,38 @@ input:focus {
   cursor: pointer;
   transition: border-color 0.15s, transform 0.1s, opacity 0.15s;
   user-select: none;
+  position: relative;
+}
+
+/* 稀有度配色（左侧色条 + 微背景） */
+.hero-card.rarity-starting {
+  border-left: 4px solid #d8d8d8;
+  background: rgba(216, 216, 216, 0.08);
+}
+.hero-card.rarity-rare {
+  border-left: 4px solid #6fcf5f;
+  background: rgba(111, 207, 95, 0.1);
+}
+.hero-card.rarity-super_rare {
+  border-left: 4px solid #4fc3f7;
+  background: rgba(79, 195, 247, 0.1);
+}
+.hero-card.rarity-epic {
+  border-left: 4px solid #b46cff;
+  background: rgba(180, 108, 255, 0.12);
+}
+.hero-card.rarity-mythic {
+  border-left: 4px solid #ff5252;
+  background: rgba(255, 82, 82, 0.12);
+}
+.hero-card.rarity-legendary {
+  border-left: 4px solid #ffc933;
+  background: rgba(255, 201, 51, 0.12);
+}
+.hero-card.rarity-extraordinary {
+  border-left: 4px solid;
+  border-image: linear-gradient(180deg, #ff5252, #ffc933, #4fc3f7, #b46cff) 1;
+  background: linear-gradient(135deg, rgba(255,82,82,0.1), rgba(79,195,247,0.1), rgba(180,108,255,0.1));
 }
 
 .hero-card:hover:not(.disabled) {
@@ -238,12 +270,12 @@ input:focus {
 
 .hero-card.selected {
   border-color: var(--red);
-  background: rgba(255, 82, 82, 0.15);
+  background: rgba(255, 82, 82, 0.25);
 }
 
 .hero-card.picked {
   border-color: var(--green);
-  background: rgba(105, 240, 174, 0.1);
+  background: rgba(105, 240, 174, 0.15);
   cursor: default;
 }
 

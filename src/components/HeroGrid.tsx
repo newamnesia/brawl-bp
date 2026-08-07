@@ -27,7 +27,7 @@ export default function HeroGrid({
         const isDisabled = disabledSet.has(hero.id);
         const isPicked = mode === "view" && isSelected;
 
-        let className = "hero-card";
+        let className = `hero-card rarity-${hero.rarity}`;
         if (isPicked) className += " picked";
         else if (isSelected) className += " selected";
         if (isDisabled) className += " disabled";
