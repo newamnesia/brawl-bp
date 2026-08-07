@@ -59,6 +59,23 @@ export default function Home() {
     );
   };
 
+  const handleJoinSpectator = (code: string) => {
+    setError("");
+    setLoading(true);
+    socket.emit(
+      "join_room_spectator",
+      { code, nickname },
+      (res: { ok: boolean; error?: string }) => {
+        setLoading(false);
+        if (!res.ok) {
+          setError(res.error ?? "加入失败");
+          return;
+        }
+        navigate(`/room/${code.toUpperCase().trim()}`);
+      },
+    );
+  };
+
   return (
     <div className="app-shell">
       <h1 className="page-title">荒野乱斗在线BP模拟</h1>
@@ -123,23 +140,43 @@ export default function Home() {
           <p className="lobby-empty">暂无开放房间，快去创建一个吧</p>
         ) : (
           <ul className="lobby-list">
-            {lobby.map((room) => (
-              <li key={room.code} className="lobby-item">
-                <div className="lobby-item-info">
-                  <span className="lobby-item-name">{room.roomName}</span>
-                  <span className="lobby-item-meta">
-                    房主：{room.hostNickname} · {room.playerCount}/2
-                  </span>
-                </div>
-                <button
-                  className="btn-secondary btn-sm"
-                  disabled={!nickname.trim() || loading}
-                  onClick={() => handleJoin(room.code)}
-                >
-                  加入
-                </button>
-              </li>
-            ))}
+            {lobby.map((room) => {
+              const phaseLabel =
+                room.phase === "lobby"
+                  ? "等待中"
+                  : room.phase === "ban"
+                    ? "禁选中"
+                    : room.phase === "ban_reveal"
+                      ? "公布禁选"
+                      : "选角中";
+              const canJoinPlayer = room.phase === "lobby" && room.playerCount < 2;
+              return (
+                <li key={room.code} className="lobby-item">
+                  <div className="lobby-item-info">
+                    <span className="lobby-item-name">{room.roomName}</span>
+                    <span className="lobby-item-meta">
+                      房主：{room.hostNickname} · 选手 {room.playerCount}/2 · 观战 {room.spectatorCount} · {phaseLabel}
+                    </span>
+                  </div>
+                  <div className="lobby-item-actions">
+                    <button
+                      className="btn-secondary btn-sm"
+                      disabled={!nickname.trim() || loading || !canJoinPlayer}
+                      onClick={() => handleJoin(room.code)}
+                    >
+                      选手加入
+                    </button>
+                    <button
+                      className="btn-secondary btn-sm"
+                      disabled={!nickname.trim() || loading}
+                      onClick={() => handleJoinSpectator(room.code)}
+                    >
+                      观战加入
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

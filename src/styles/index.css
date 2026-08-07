@@ -628,3 +628,140 @@ input:focus {
   font-size: 0.75rem;
   color: var(--muted);
 }
+
+.lobby-item-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* 观战席横幅 */
+.spectator-banner {
+  background: rgba(79, 195, 247, 0.12);
+  border: 1px solid rgba(79, 195, 247, 0.4);
+  border-radius: var(--radius);
+  color: var(--blue);
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1rem;
+}
+
+/* 角色标签（房主/挑战者/观战） */
+.role-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  margin-left: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.player-badge.spectator {
+  border-color: rgba(79, 195, 247, 0.5);
+  color: var(--blue);
+}
+
+/* 换位申请模态：醒目大 UI */
+.swap-modal {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 20;
+  margin-bottom: 1rem;
+}
+
+.swap-modal-card {
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+.swap-modal-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  color: var(--accent);
+}
+
+.swap-modal-desc {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.swap-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.swap-modal-actions button {
+  flex: 1;
+}
+
+/* 成员 / 换位面板 */
+.member-panel {
+  padding: 1rem 1.25rem;
+}
+
+.member-panel-title {
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.6rem;
+}
+
+.member-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+}
+
+.member-name {
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-width: 0;
+}
+
+.member-hint {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+@media (max-width: 600px) {
+  .lobby-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lobby-item-actions {
+    justify-content: stretch;
+  }
+  .lobby-item-actions button {
+    flex: 1;
+  }
+}

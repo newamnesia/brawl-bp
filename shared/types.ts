@@ -132,8 +132,15 @@ export const HEROES: Hero[] = [
 export const HERO_MAP = Object.fromEntries(HEROES.map((h) => [h.id, h]));
 
 export type Phase = "lobby" | "ban" | "ban_reveal" | "pick" | "complete";
-export type PlayerRole = "host" | "guest";
+export type PlayerRole = "host" | "guest" | "spectator";
 export type TeamSide = "first" | "second";
+
+/** 换位申请（被申请人收到的视角） */
+export interface SwapRequest {
+  requestId: string;
+  fromId: string;
+  fromNickname: string;
+}
 
 /** 选秀顺序：先手1 → 后手2,3 → 先手4,5 → 后手6 */
 export const PICK_TURNS: TeamSide[] = [
@@ -163,6 +170,7 @@ export interface RoomState {
   roomName: string;
   phase: Phase;
   players: PlayerView[];
+  spectators: PlayerView[];
   hostId: string;
   firstPicker: PlayerRole | null;
   pickStep: number;
@@ -176,7 +184,12 @@ export interface RoomState {
   activeTeam: TeamSide | null;
   myTeam: TeamSide | null;
   isMyTurn: boolean;
+  isSpectator: boolean;
   timedOutBy: PlayerRole | null;
+  /** 收到的换位申请（被申请人视角） */
+  pendingSwapToMe: SwapRequest | null;
+  /** 我发出的换位申请的目标 id（申请人视角），无则 null */
+  mySwapRequestTo: string | null;
 }
 
 /** 大厅列表项 */
@@ -185,6 +198,8 @@ export interface LobbyRoom {
   roomName: string;
   hostNickname: string;
   playerCount: number;
+  spectatorCount: number;
+  phase: Phase;
 }
 
 /** 中文名（英文名）格式 */

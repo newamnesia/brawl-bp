@@ -43,8 +43,11 @@ export default function Room() {
     }
   };
 
-  const myPlayer = state?.players.find((p) => p.id === socket.id);
+  const myPlayer =
+    state?.players.find((p) => p.id === socket.id) ??
+    state?.spectators.find((p) => p.id === socket.id);
   const isHost = myPlayer?.role === "host";
+  const isSpectator = state?.isSpectator ?? myPlayer?.role === "spectator";
 
   useEffect(() => {
     const onState = (s: RoomState) => setState(s);
@@ -130,8 +133,58 @@ export default function Room() {
   const guestPlayer = state.players.find((p) => p.role === "guest");
   const bothJoined = state.players.length === 2;
 
+  const allMembers = [...state.players, ...state.spectators];
+  const myIsPlayer = myPlayer ? state.players.some((p) => p.id === myPlayer.id) : false;
+
+  // 向某成员发起换位申请
+  const requestSwapTo = (targetId: string) => {
+    socket.emit("request_swap", targetId);
+  };
+
   return (
     <div className="app-shell">
+      {isSpectator && (
+        <div className="spectator-banner">观战席 · 仅可观看，无法操作（除退出房间与换位）</div>
+      )}
+
+      {/* 收到的换位申请：醒目大 UI */}
+      {state.pendingSwapToMe && (
+        <div className="swap-modal">
+          <div className="swap-modal-card">
+            <p className="swap-modal-title">
+              {state.pendingSwapToMe.fromNickname} 向你申请换位
+            </p>
+            <p className="swap-modal-desc">
+              同意后将与对方交换位置（选手 ↔ 观战席），你将接替对方的位置与禁选进度。
+            </p>
+            <div className="swap-modal-actions">
+              <button
+                className="btn-primary"
+                onClick={() =>
+                  socket.emit("respond_swap", {
+                    requestId: state.pendingSwapToMe!.requestId,
+                    accept: true,
+                  })
+                }
+              >
+                接受换位
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() =>
+                  socket.emit("respond_swap", {
+                    requestId: state.pendingSwapToMe!.requestId,
+                    accept: false,
+                  })
+                }
+              >
+                拒绝
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h1 className="page-title">{state.roomName}</h1>
       <div className="room-code">{state.code}</div>
 
@@ -144,9 +197,75 @@ export default function Room() {
             <span className={`status-dot ${p.ready ? "ready" : ""}`} />
             {p.nickname}
             {p.id === socket.id && " (你)"}
+            <span className="role-tag">{p.role === "host" ? "房主" : "挑战者"}</span>
+          </span>
+        ))}
+        {state.spectators.map((s) => (
+          <span key={s.id} className="player-badge spectator">
+            <span className="status-dot" />
+            {s.nickname}
+            {s.id === socket.id && " (你)"}
+            <span className="role-tag">观战</span>
           </span>
         ))}
       </div>
+
+      {/* 成员 / 换位面板：任意成员可向其他成员发起换位（仅选手 ↔ 观战席） */}
+      {allMembers.length > 1 && (
+        <div className="card member-panel">
+          <p className="member-panel-title">成员（{allMembers.length}）</p>
+          <ul className="member-list">
+            {allMembers.map((m) => {
+              const isMe = m.id === socket.id;
+              const mIsPlayer = state.players.some((p) => p.id === m.id);
+              const canSwap = !isMe && mIsPlayer !== myIsPlayer;
+              const isMyTarget = state.mySwapRequestTo === m.id;
+              const roleText = isMe
+                ? myIsPlayer
+                  ? `选手（${m.role === "host" ? "房主" : "挑战者"}）`
+                  : "观战席"
+                : mIsPlayer
+                  ? `选手（${m.role === "host" ? "房主" : "挑战者"}）`
+                  : "观战席";
+              return (
+                <li key={m.id} className="member-item">
+                  <span className="member-name">
+                    {m.nickname}
+                    {isMe && " (你)"}
+                    <span className="role-tag">{roleText}</span>
+                  </span>
+                  {isMe ? (
+                    state.mySwapRequestTo && (
+                      <span className="member-hint">已发出换位申请，等待对方回应…</span>
+                    )
+                  ) : canSwap ? (
+                    <button
+                      className="btn-secondary btn-sm"
+                      disabled={!!state.mySwapRequestTo || !!state.pendingSwapToMe}
+                      onClick={() => requestSwapTo(m.id)}
+                    >
+                      换位
+                    </button>
+                  ) : isMyTarget ? (
+                    <span className="member-hint">已申请</span>
+                  ) : (
+                    <span className="member-hint">同侧不可换</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {state.mySwapRequestTo && (
+            <button
+              className="btn-secondary btn-sm"
+              style={{ marginTop: "0.5rem", width: "100%" }}
+              onClick={() => socket.emit("cancel_swap")}
+            >
+              取消换位申请
+            </button>
+          )}
+        </div>
+      )}
 
       {state.phase === "lobby" && (
         <div className="card">
@@ -206,13 +325,22 @@ export default function Room() {
             </p>
           )}
 
-          {!bothJoined && (
+          {!isSpectator && !bothJoined && (
             <div className="invite-box">
               <input readOnly value={inviteUrl} aria-label="邀请链接" />
               <button type="button" className="btn-secondary" onClick={copyInvite}>
                 {copied ? "已复制" : "复制链接"}
               </button>
             </div>
+          )}
+
+          {isSpectator && (
+            <p className="waiting-text">
+              你在观战席 · 等待选手开始对局<br />
+              <small style={{ color: "var(--muted)" }}>
+                可在上方成员列表向选手申请换位
+              </small>
+            </p>
           )}
 
           {isHost && bothJoined && (
@@ -235,7 +363,7 @@ export default function Room() {
             </>
           )}
 
-          {!isHost && bothJoined && state.firstPicker && (
+          {!isHost && !isSpectator && bothJoined && state.firstPicker && (
             <p style={{ textAlign: "center", color: "var(--muted)", marginBottom: "1rem" }}>
               {state.firstPicker === "guest"
                 ? "你将先手选角"
@@ -243,7 +371,13 @@ export default function Room() {
             </p>
           )}
 
-          {bothJoined && (
+          {isSpectator && bothJoined && state.firstPicker && (
+            <p style={{ textAlign: "center", color: "var(--muted)", marginBottom: "1rem" }}>
+              {state.firstPicker === "host" ? "房主先手选角" : "挑战者先手选角"}
+            </p>
+          )}
+
+          {!isSpectator && bothJoined && (
             <button
               className="btn-primary"
               disabled={!state.firstPicker}
@@ -267,14 +401,20 @@ export default function Room() {
         <>
           <div className="phase-banner ban">禁用阶段 · 选择 3 个角色</div>
           <Timer endsAt={state.phaseEndsAt} label="剩余时间" />
-          <p style={{ textAlign: "center", color: "var(--muted)", margin: "0.75rem 0" }}>
-            已禁用 {localBans.length}/{BANS_PER_PLAYER} · 对手已选 {state.opponentBanCount} 个（隐藏）
-          </p>
-          <HeroGrid
-            mode="ban"
-            selectedIds={localBans}
-            onToggle={handleToggleBan}
-          />
+          {isSpectator ? (
+            <p className="waiting-text">观战中 · 双方禁选进行中…</p>
+          ) : (
+            <>
+              <p style={{ textAlign: "center", color: "var(--muted)", margin: "0.75rem 0" }}>
+                已禁用 {localBans.length}/{BANS_PER_PLAYER} · 对手已选 {state.opponentBanCount} 个（隐藏）
+              </p>
+              <HeroGrid
+                mode="ban"
+                selectedIds={localBans}
+                onToggle={handleToggleBan}
+              />
+            </>
+          )}
         </>
       )}
 
@@ -308,11 +448,13 @@ export default function Room() {
           <div className={`phase-banner ${state.phase === "complete" ? "complete" : "pick"}`}>
             {state.phase === "complete"
               ? state.timedOutBy
-                ? `${state.timedOutBy === myPlayer?.role ? "你" : "对手"}超时，BP终止`
+                ? `${state.timedOutBy === myPlayer?.role ? "你" : "选手"}超时，BP终止`
                 : "BP 完成！"
-              : state.isMyTurn
-                ? "轮到你了 · 选择角色"
-                : "等待对手选择…"}
+              : isSpectator
+                ? "观战中 · 等待选手选角"
+                : state.isMyTurn
+                  ? "轮到你了 · 选择角色"
+                  : "等待对手选择…"}
           </div>
 
           {state.phase === "pick" && (
@@ -378,13 +520,17 @@ export default function Room() {
             </div>
           </div>
 
-          {state.phase === "pick" && (
+          {state.phase === "pick" && !isSpectator && (
             <HeroGrid
               mode="pick"
               disabledIds={pickDisabledIds}
               onPick={(id) => state.isMyTurn && socket.emit("pick_hero", id)}
               highlight={state.isMyTurn}
             />
+          )}
+
+          {state.phase === "pick" && isSpectator && (
+            <p className="waiting-text">观战席无法操作，等待选手选角…</p>
           )}
 
           {state.phase === "complete" && (
@@ -404,6 +550,17 @@ export default function Room() {
           )}
         </>
       )}
+
+      {isSpectator &&
+        (state.phase === "ban" || state.phase === "ban_reveal" || state.phase === "pick") && (
+          <button
+            className="btn-secondary"
+            style={{ marginTop: "1rem", width: "100%" }}
+            onClick={leave}
+          >
+            退出观战
+          </button>
+        )}
     </div>
   );
 }

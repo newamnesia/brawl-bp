@@ -11,6 +11,7 @@ import {
   type Phase,
   type PlayerRole,
   type RoomState,
+  type SwapRequest,
   type TeamSide,
 } from "../shared/types.js";
 
@@ -21,11 +22,18 @@ interface Player {
   ready: boolean;
 }
 
+interface PendingSwap {
+  requestId: string;
+  fromId: string;
+  toId: string;
+}
+
 interface Room {
   code: string;
   roomName: string;
   hostId: string;
-  players: Map<string, Player>;
+  players: Map<string, Player>; // host & guest（选手）
+  spectators: Map<string, Player>; // 观战席
   phase: Phase;
   firstPicker: PlayerRole | null;
   hostBans: string[];
@@ -38,6 +46,7 @@ interface Room {
   revealTimer: ReturnType<typeof setTimeout> | null;
   pickTimer: ReturnType<typeof setTimeout> | null;
   timedOutBy: PlayerRole | null;
+  pendingSwaps: Map<string, PendingSwap>; // requestId -> 换位申请
 }
 
 const rooms = new Map<string, Room>();
@@ -75,27 +84,37 @@ function getAvailableForRole(room: Room, role: PlayerRole): string[] {
 }
 
 function broadcastRoom(io: Server, room: Room) {
-  for (const [socketId, player] of room.players.entries()) {
-    const socket = io.sockets.sockets.get(socketId);
+  const viewers = [...room.players.values(), ...room.spectators.values()];
+  for (const viewer of viewers) {
+    const socket = io.sockets.sockets.get(viewer.id);
     if (socket) {
-      socket.emit("room_state", buildRoomState(room, player));
+      socket.emit("room_state", buildRoomState(room, viewer));
     }
   }
 }
 
 function buildRoomState(room: Room, viewer: Player): RoomState {
-  const opponent = [...room.players.values()].find((p) => p.id !== viewer.id);
+  const isSpectator = viewer.role === "spectator";
+  const opponent = isSpectator
+    ? null
+    : [...room.players.values()].find((p) => p.id !== viewer.id);
   const opponentRole = opponent?.role;
-  const myBans = viewer.role === "host" ? room.hostBans : room.guestBans;
+  const myBans = isSpectator
+    ? []
+    : viewer.role === "host"
+      ? room.hostBans
+      : room.guestBans;
   const opponentBans =
-    opponentRole === "host" ? room.hostBans : room.guestBans;
+    opponentRole === "host" ? room.hostBans : opponentRole === "guest" ? room.guestBans : [];
 
   let activeTeam: TeamSide | null = null;
   let isMyTurn = false;
   if (room.phase === "pick" && room.firstPicker) {
     activeTeam = PICK_TURNS[room.pickStep] ?? null;
-    const myTeam = roleToTeam(viewer.role, room.firstPicker);
-    isMyTurn = activeTeam === myTeam;
+    if (!isSpectator) {
+      const myTeam = roleToTeam(viewer.role, room.firstPicker);
+      isMyTurn = activeTeam === myTeam;
+    }
   }
 
   const showBans =
@@ -103,11 +122,25 @@ function buildRoomState(room: Room, viewer: Player): RoomState {
     room.phase === "pick" ||
     room.phase === "complete";
 
+  const incoming = [...room.pendingSwaps.values()].find((s) => s.toId === viewer.id);
+  const outgoing = [...room.pendingSwaps.values()].find((s) => s.fromId === viewer.id);
+
+  const pendingSwapToMe: SwapRequest | null = incoming
+    ? {
+        requestId: incoming.requestId,
+        fromId: incoming.fromId,
+        fromNickname: room.players.get(incoming.fromId)?.nickname ??
+          room.spectators.get(incoming.fromId)?.nickname ??
+          "玩家",
+      }
+    : null;
+
   return {
     code: room.code,
     roomName: room.roomName,
     phase: room.phase,
     players: [...room.players.values()],
+    spectators: [...room.spectators.values()],
     hostId: room.hostId,
     firstPicker: room.firstPicker,
     pickStep: room.pickStep,
@@ -119,9 +152,12 @@ function buildRoomState(room: Room, viewer: Player): RoomState {
     firstPicks: [...room.firstPicks],
     secondPicks: [...room.secondPicks],
     activeTeam,
-    myTeam: room.firstPicker ? roleToTeam(viewer.role, room.firstPicker) : null,
+    myTeam: !isSpectator && room.firstPicker ? roleToTeam(viewer.role, room.firstPicker) : null,
     isMyTurn,
+    isSpectator,
     timedOutBy: room.timedOutBy,
+    pendingSwapToMe,
+    mySwapRequestTo: outgoing ? outgoing.toId : null,
   };
 }
 
@@ -219,16 +255,52 @@ function destroyRoom(code: string) {
   rooms.delete(code);
 }
 
+// 换位：选手 <-> 观战席。选手让出位置后由观战席接替该角色（host/guest），
+// 角色的 ban/pick 数据随角色保留，因此接替者继承当前禁选进度。
+function performSwap(room: Room, fromId: string, toId: string) {
+  const fromIsPlayer = room.players.has(fromId);
+  const toIsPlayer = room.players.has(toId);
+  if (fromIsPlayer === toIsPlayer) return; // 同侧不可换
+  const from = fromIsPlayer ? room.players.get(fromId) : room.spectators.get(fromId);
+  const to = toIsPlayer ? room.players.get(toId) : room.spectators.get(toId);
+  if (!from || !to) return;
+  if (fromIsPlayer) {
+    const role = from.role; // host | guest
+    from.role = "spectator";
+    to.role = role;
+    room.players.delete(fromId);
+    room.spectators.delete(toId);
+    room.players.set(toId, to);
+    room.spectators.set(fromId, from);
+  } else {
+    const role = to.role; // host | guest
+    to.role = "spectator";
+    from.role = role;
+    room.spectators.delete(fromId);
+    room.players.delete(toId);
+    room.players.set(fromId, from);
+    room.spectators.set(toId, to);
+  }
+  // 大厅阶段重置准备态，避免换位后误启动
+  if (room.phase === "lobby") {
+    from.ready = false;
+    to.ready = false;
+  }
+}
+
 function getLobbyRooms(): LobbyRoom[] {
   const list: LobbyRoom[] = [];
   for (const room of rooms.values()) {
-    if (room.phase !== "lobby" || room.players.size >= 2) continue;
+    // 展示未结束的房间：选手可加入(lobby 且未满)或观战可加入(任意阶段)
+    if (room.phase === "complete") continue;
     const host = [...room.players.values()].find((p) => p.role === "host");
     list.push({
       code: room.code,
       roomName: room.roomName,
       hostNickname: host?.nickname ?? "房主",
       playerCount: room.players.size,
+      spectatorCount: room.spectators.size,
+      phase: room.phase,
     });
   }
   return list;
@@ -253,6 +325,7 @@ export function registerRoomHandlers(io: Server) {
           roomName: `${nickname.trim()}的房间`,
           hostId: socket.id,
           players: new Map(),
+          spectators: new Map(),
           phase: "lobby",
           firstPicker: null,
           hostBans: [],
@@ -265,6 +338,7 @@ export function registerRoomHandlers(io: Server) {
           revealTimer: null,
           pickTimer: null,
           timedOutBy: null,
+          pendingSwaps: new Map(),
         };
         const player: Player = {
           id: socket.id,
@@ -326,7 +400,9 @@ export function registerRoomHandlers(io: Server) {
       const code = socketToRoom.get(socket.id);
       if (!code) return;
       const room = rooms.get(code);
-      if (!room || room.hostId !== socket.id || room.phase !== "lobby") return;
+      if (!room || room.phase !== "lobby") return;
+      const player = room.players.get(socket.id);
+      if (!player || player.role !== "host") return;
       room.firstPicker = role;
       broadcastRoom(io, room);
     });
@@ -335,9 +411,106 @@ export function registerRoomHandlers(io: Server) {
       const code = socketToRoom.get(socket.id);
       if (!code) return;
       const room = rooms.get(code);
-      if (!room || room.hostId !== socket.id || room.phase !== "lobby") return;
+      if (!room || room.phase !== "lobby") return;
+      const player = room.players.get(socket.id);
+      if (!player || player.role !== "host") return;
       const trimmed = name?.trim().slice(0, 20);
       room.roomName = trimmed || room.roomName;
+      broadcastRoom(io, room);
+      broadcastLobbyList(io);
+    });
+
+    // 观战席加入：随时可加入，不限人数，BP 开始后也可加入
+    socket.on(
+      "join_room_spectator",
+      (
+        payload: { code: string; nickname: string },
+        cb: (res: { ok: boolean; error?: string }) => void,
+      ) => {
+        const code = payload.code?.toUpperCase().trim();
+        const nickname = payload.nickname?.trim();
+        if (!code || !nickname) {
+          cb({ ok: false, error: "房间号或昵称无效" });
+          return;
+        }
+        const room = rooms.get(code);
+        if (!room) {
+          cb({ ok: false, error: "房间不存在" });
+          return;
+        }
+        if (room.phase === "complete") {
+          cb({ ok: false, error: "对局已结束" });
+          return;
+        }
+        if (room.players.has(socket.id) || room.spectators.has(socket.id)) {
+          cb({ ok: false, error: "你已在该房间" });
+          return;
+        }
+        const spectator: Player = {
+          id: socket.id,
+          nickname,
+          role: "spectator",
+          ready: false,
+        };
+        room.spectators.set(socket.id, spectator);
+        socketToRoom.set(socket.id, code);
+        socket.join(code);
+        cb({ ok: true });
+        broadcastRoom(io, room);
+        broadcastLobbyList(io);
+      },
+    );
+
+    // 发起换位申请：仅选手 <-> 观战席
+    socket.on("request_swap", (targetId: string) => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room) return;
+      const from = room.players.get(socket.id) ?? room.spectators.get(socket.id);
+      if (!from) return;
+      const to = room.players.get(targetId) ?? room.spectators.get(targetId);
+      if (!to) return;
+      // 必须分属选手与观战席
+      const fromIsPlayer = room.players.has(socket.id);
+      const toIsPlayer = room.players.has(targetId);
+      if (fromIsPlayer === toIsPlayer) return;
+      // 已有涉及任一方的待处理申请则忽略
+      const exists = [...room.pendingSwaps.values()].some(
+        (s) => s.fromId === socket.id || s.toId === socket.id || s.toId === targetId,
+      );
+      if (exists) return;
+      const requestId = randomBytes(4).toString("hex");
+      room.pendingSwaps.set(requestId, { requestId, fromId: socket.id, toId: targetId });
+      broadcastRoom(io, room);
+    });
+
+    // 取消换位申请（申请人主动取消自己发出的申请）
+    socket.on("cancel_swap", () => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room) return;
+      for (const [rid, s] of room.pendingSwaps) {
+        if (s.fromId === socket.id) {
+          room.pendingSwaps.delete(rid);
+        }
+      }
+      broadcastRoom(io, room);
+    });
+
+    // 响应换位申请
+    socket.on("respond_swap", (payload: { requestId: string; accept: boolean }) => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room) return;
+      const sw = room.pendingSwaps.get(payload.requestId);
+      if (!sw || sw.toId !== socket.id) return;
+      room.pendingSwaps.delete(payload.requestId);
+      if (payload.accept) {
+        performSwap(room, sw.fromId, sw.toId);
+      }
       broadcastRoom(io, room);
       broadcastLobbyList(io);
     });
@@ -411,12 +584,30 @@ export function registerRoomHandlers(io: Server) {
     const room = rooms.get(code);
     if (!room) return;
 
+    // 清理涉及该 socket 的待处理换位申请
+    for (const [rid, s] of room.pendingSwaps) {
+      if (s.fromId === socket.id || s.toId === socket.id) {
+        room.pendingSwaps.delete(rid);
+      }
+    }
+
+    const wasPlayer = room.players.has(socket.id);
     room.players.delete(socket.id);
+    room.spectators.delete(socket.id);
     socketToRoom.delete(socket.id);
     socket.leave(code);
 
+    // 观战席离开：不影响对局
+    if (!wasPlayer) {
+      broadcastRoom(io, room);
+      broadcastLobbyList(io);
+      return;
+    }
+
+    // 选手离开
     if (room.players.size === 0) {
       destroyRoom(code);
+      broadcastLobbyList(io);
       return;
     }
 
@@ -426,7 +617,8 @@ export function registerRoomHandlers(io: Server) {
       return;
     }
 
-    io.to(code).emit("room_closed", "对手已离开房间");
+    // 对局中选手离开 → 终止
+    io.to(code).emit("room_closed", "选手已离开房间，对局结束");
     destroyRoom(code);
     broadcastLobbyList(io);
   }
