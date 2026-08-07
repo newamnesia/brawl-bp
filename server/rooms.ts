@@ -5,6 +5,7 @@ import {
   BAN_REVEAL_MS,
   BANS_PER_PLAYER,
   HEROES,
+  type LobbyRoom,
   PICK_DURATION_MS,
   PICK_TURNS,
   type Phase,
@@ -22,6 +23,7 @@ interface Player {
 
 interface Room {
   code: string;
+  roomName: string;
   hostId: string;
   players: Map<string, Player>;
   phase: Phase;
@@ -103,6 +105,7 @@ function buildRoomState(room: Room, viewer: Player): RoomState {
 
   return {
     code: room.code,
+    roomName: room.roomName,
     phase: room.phase,
     players: [...room.players.values()],
     hostId: room.hostId,
@@ -207,12 +210,32 @@ function tryStartGame(io: Server, room: Room) {
   if (!room.firstPicker) return;
   if (!players.every((p) => p.ready)) return;
   startBanPhase(io, room);
+  broadcastLobbyList(io);
 }
 
 function destroyRoom(code: string) {
   const room = rooms.get(code);
   if (room) clearTimers(room);
   rooms.delete(code);
+}
+
+function getLobbyRooms(): LobbyRoom[] {
+  const list: LobbyRoom[] = [];
+  for (const room of rooms.values()) {
+    if (room.phase !== "lobby" || room.players.size >= 2) continue;
+    const host = [...room.players.values()].find((p) => p.role === "host");
+    list.push({
+      code: room.code,
+      roomName: room.roomName,
+      hostNickname: host?.nickname ?? "房主",
+      playerCount: room.players.size,
+    });
+  }
+  return list;
+}
+
+function broadcastLobbyList(io: Server) {
+  io.emit("lobby_list", getLobbyRooms());
 }
 
 export function registerRoomHandlers(io: Server) {
@@ -227,6 +250,7 @@ export function registerRoomHandlers(io: Server) {
         const code = generateCode();
         const room: Room = {
           code,
+          roomName: `${nickname.trim()}的房间`,
           hostId: socket.id,
           players: new Map(),
           phase: "lobby",
@@ -254,6 +278,7 @@ export function registerRoomHandlers(io: Server) {
         socket.join(code);
         cb({ ok: true, code });
         broadcastRoom(io, room);
+        broadcastLobbyList(io);
       },
     );
 
@@ -293,6 +318,7 @@ export function registerRoomHandlers(io: Server) {
         socket.join(code);
         cb({ ok: true });
         broadcastRoom(io, room);
+        broadcastLobbyList(io);
       },
     );
 
@@ -303,6 +329,21 @@ export function registerRoomHandlers(io: Server) {
       if (!room || room.hostId !== socket.id || room.phase !== "lobby") return;
       room.firstPicker = role;
       broadcastRoom(io, room);
+    });
+
+    socket.on("set_room_name", (name: string) => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room || room.hostId !== socket.id || room.phase !== "lobby") return;
+      const trimmed = name?.trim().slice(0, 20);
+      room.roomName = trimmed || room.roomName;
+      broadcastRoom(io, room);
+      broadcastLobbyList(io);
+    });
+
+    socket.on("list_rooms", (cb: (list: LobbyRoom[]) => void) => {
+      cb(getLobbyRooms());
     });
 
     socket.on("set_ready", (ready: boolean) => {
@@ -381,10 +422,12 @@ export function registerRoomHandlers(io: Server) {
 
     if (room.phase === "lobby") {
       broadcastRoom(io, room);
+      broadcastLobbyList(io);
       return;
     }
 
     io.to(code).emit("room_closed", "对手已离开房间");
     destroyRoom(code);
+    broadcastLobbyList(io);
   }
 }

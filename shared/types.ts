@@ -160,6 +160,7 @@ export interface PlayerView {
 
 export interface RoomState {
   code: string;
+  roomName: string;
   phase: Phase;
   players: PlayerView[];
   hostId: string;
@@ -176,6 +177,14 @@ export interface RoomState {
   myTeam: TeamSide | null;
   isMyTurn: boolean;
   timedOutBy: PlayerRole | null;
+}
+
+/** 大厅列表项 */
+export interface LobbyRoom {
+  code: string;
+  roomName: string;
+  hostNickname: string;
+  playerCount: number;
 }
 
 /** 中文名（英文名）格式 */

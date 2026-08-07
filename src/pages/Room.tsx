@@ -24,6 +24,8 @@ export default function Room() {
   const [closedMsg, setClosedMsg] = useState("");
   const [copied, setCopied] = useState(false);
   const [localBans, setLocalBans] = useState<string[]>([]);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
   const socket = getSocket();
 
   const inviteUrl = useMemo(
@@ -130,7 +132,7 @@ export default function Room() {
 
   return (
     <div className="app-shell">
-      <h1 className="page-title">房间 {code}</h1>
+      <h1 className="page-title">{state.roomName}</h1>
       <div className="room-code">{state.code}</div>
 
       <div className="player-list">
@@ -148,6 +150,53 @@ export default function Room() {
 
       {state.phase === "lobby" && (
         <div className="card">
+          {isHost && !editingName && (
+            <div className="room-name-row">
+              <span className="room-name-label">房间名称：{state.roomName}</span>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={() => {
+                  setNameInput(state.roomName);
+                  setEditingName(true);
+                }}
+              >
+                修改
+              </button>
+            </div>
+          )}
+
+          {isHost && editingName && (
+            <div className="form-group">
+              <label>房间名称</label>
+              <div className="invite-box">
+                <input
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  placeholder="输入房间名称"
+                  maxLength={20}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    socket.emit("set_room_name", nameInput);
+                    setEditingName(false);
+                  }}
+                >
+                  保存
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setEditingName(false)}
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
+
           {!bothJoined && (
             <p className="waiting-text">
               等待对手加入…<br />
