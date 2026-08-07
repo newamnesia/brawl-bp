@@ -141,6 +141,7 @@ function startBanPhase(io: Server, room: Room) {
 }
 
 function endBanPhase(io: Server, room: Room) {
+  if (room.banTimer) clearTimeout(room.banTimer);
   room.banTimer = null;
   room.phase = "ban_reveal";
   room.phaseEndsAt = Date.now() + BAN_REVEAL_MS;
@@ -327,6 +328,14 @@ export function registerRoomHandlers(io: Server) {
         bans.splice(idx, 1);
       } else if (bans.length < BANS_PER_PLAYER) {
         bans.push(heroId);
+      }
+      // 双方都禁满 3 个时提前进入公布阶段
+      if (
+        room.hostBans.length >= BANS_PER_PLAYER &&
+        room.guestBans.length >= BANS_PER_PLAYER
+      ) {
+        endBanPhase(io, room);
+        return;
       }
       broadcastRoom(io, room);
     });
