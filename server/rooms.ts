@@ -59,10 +59,15 @@ function teamToRole(team: TeamSide, firstPicker: PlayerRole): PlayerRole {
 }
 
 function getAvailableForRole(room: Room, role: PlayerRole): string[] {
-  const bans = role === "host" ? room.hostBans : room.guestBans;
   const team = roleToTeam(role, room.firstPicker!);
   const picks = team === "first" ? room.firstPicks : room.secondPicks;
-  const blocked = new Set([...bans, ...picks]);
+  const opponentPicks = team === "first" ? room.secondPicks : room.firstPicks;
+  const blocked = new Set([
+    ...room.hostBans,
+    ...room.guestBans,
+    ...picks,
+    ...opponentPicks,
+  ]);
   return HEROES.map((h) => h.id).filter((id) => !blocked.has(id));
 }
 

@@ -91,13 +91,14 @@ export default function Room() {
 
   const pickDisabledIds = useMemo(() => {
     if (!state || !myPlayer) return HEROES.map((h) => h.id);
-    const myBans = state.myBans;
-    const blocked = new Set([...myBans, ...allPickedIds]);
-    if (state.myTeam === "first") {
-      state.firstPicks.forEach((id) => blocked.add(id));
-    } else if (state.myTeam === "second") {
-      state.secondPicks.forEach((id) => blocked.add(id));
-    }
+    const allBans = new Set<string>();
+    if (state.hostBans) state.hostBans.forEach((id) => allBans.add(id));
+    if (state.guestBans) state.guestBans.forEach((id) => allBans.add(id));
+    const myTeamPicks =
+      state.myTeam === "first" ? state.firstPicks
+      : state.myTeam === "second" ? state.secondPicks
+      : [];
+    const blocked = new Set([...allBans, ...allPickedIds, ...myTeamPicks]);
     return HEROES.map((h) => h.id).filter((id) => blocked.has(id));
   }, [state, myPlayer, allPickedIds]);
 
