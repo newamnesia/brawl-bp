@@ -785,6 +785,38 @@ input:focus {
   }
 }
 
+/* 创作声明 */
+.credits-box {
+  margin-top: 2rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.credits-title {
+  font-weight: 800;
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.credits-text {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 0.4rem;
+}
+
+.credits-contact {
+  font-size: 0.8rem;
+  color: var(--text);
+  font-weight: 700;
+}
+
 /* 全局点击特效：金色波纹扩散 */
 .click-ripple {
   position: fixed;

@@ -184,6 +184,16 @@ export default function Home() {
       >
         查看所有可选角色（单人预览）
       </button>
+
+      <div className="credits-box">
+        <p className="credits-title">创作声明</p>
+        <p className="credits-text">
+          作者 ID 辗转。本项目使用 Cursor 与 Trae 协助完成，角色头像取自 GitHub 的 Brawlify CDN 项目。
+        </p>
+        <p className="credits-contact">
+          联系方式 · QQ：3450265471 · 微信：newamnesia-1201
+        </p>
+      </div>
     </div>
   );
 }
