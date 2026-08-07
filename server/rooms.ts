@@ -35,7 +35,7 @@ interface Room {
   banTimer: ReturnType<typeof setTimeout> | null;
   revealTimer: ReturnType<typeof setTimeout> | null;
   pickTimer: ReturnType<typeof setTimeout> | null;
-  surrenderedBy: PlayerRole | null;
+  timedOutBy: PlayerRole | null;
 }
 
 const rooms = new Map<string, Room>();
@@ -118,7 +118,7 @@ function buildRoomState(room: Room, viewer: Player): RoomState {
     activeTeam,
     myTeam: room.firstPicker ? roleToTeam(viewer.role, room.firstPicker) : null,
     isMyTurn,
-    surrenderedBy: room.surrenderedBy,
+    timedOutBy: room.timedOutBy,
   };
 }
 
@@ -162,21 +162,20 @@ function startPickPhase(io: Server, room: Room) {
 function schedulePickTimer(io: Server, room: Room) {
   if (room.pickTimer) clearTimeout(room.pickTimer);
   room.phaseEndsAt = Date.now() + PICK_DURATION_MS;
-  room.pickTimer = setTimeout(() => autoPick(io, room), PICK_DURATION_MS);
+  room.pickTimer = setTimeout(() => handlePickTimeout(io, room), PICK_DURATION_MS);
 }
 
-function autoPick(io: Server, room: Room) {
+// 选角时间结束仍未选定 → 判定当前方超时，直接终止 BP
+function handlePickTimeout(io: Server, room: Room) {
   if (room.phase !== "pick" || !room.firstPicker) return;
   const team = PICK_TURNS[room.pickStep];
   if (!team) return;
   const role = teamToRole(team, room.firstPicker);
-  const available = getAvailableForRole(room, role);
-  if (available.length === 0) {
-    advancePick(io, room);
-    return;
-  }
-  const pick = available[Math.floor(Math.random() * available.length)]!;
-  applyPick(io, room, role, pick);
+  room.timedOutBy = role;
+  clearTimers(room);
+  room.phase = "complete";
+  room.phaseEndsAt = null;
+  broadcastRoom(io, room);
 }
 
 function applyPick(io: Server, room: Room, role: PlayerRole, heroId: string) {
@@ -241,7 +240,7 @@ export function registerRoomHandlers(io: Server) {
           banTimer: null,
           revealTimer: null,
           pickTimer: null,
-          surrenderedBy: null,
+          timedOutBy: null,
         };
         const player: Player = {
           id: socket.id,
@@ -354,20 +353,6 @@ export function registerRoomHandlers(io: Server) {
       if (!team) return;
       if (roleToTeam(player.role, room.firstPicker) !== team) return;
       applyPick(io, room, player.role, heroId);
-    });
-
-    socket.on("surrender", () => {
-      const code = socketToRoom.get(socket.id);
-      if (!code) return;
-      const room = rooms.get(code);
-      if (!room || room.phase !== "pick") return;
-      const player = room.players.get(socket.id);
-      if (!player) return;
-      room.surrenderedBy = player.role;
-      clearTimers(room);
-      room.phase = "complete";
-      room.phaseEndsAt = null;
-      broadcastRoom(io, room);
     });
 
     socket.on("leave_room", () => {

@@ -258,8 +258,8 @@ export default function Room() {
         <>
           <div className={`phase-banner ${state.phase === "complete" ? "complete" : "pick"}`}>
             {state.phase === "complete"
-              ? state.surrenderedBy
-                ? `${state.surrenderedBy === myPlayer?.role ? "你" : "对手"}投降，BP终止`
+              ? state.timedOutBy
+                ? `${state.timedOutBy === myPlayer?.role ? "你" : "对手"}超时，BP终止`
                 : "BP 完成！"
               : state.isMyTurn
                 ? "轮到你了 · 选择角色"
@@ -330,32 +330,19 @@ export default function Room() {
           </div>
 
           {state.phase === "pick" && (
-            <>
-              <HeroGrid
-                mode="pick"
-                disabledIds={pickDisabledIds}
-                onPick={(id) => state.isMyTurn && socket.emit("pick_hero", id)}
-                highlight={state.isMyTurn}
-              />
-              <button
-                className="btn-secondary"
-                style={{ marginTop: "0.75rem", width: "100%", color: "var(--red)" }}
-                onClick={() => {
-                  if (confirm("确定要投降并终止BP吗？已选角色将保留，未选位置留空。")) {
-                    socket.emit("surrender");
-                  }
-                }}
-              >
-                投降终止BP
-              </button>
-            </>
+            <HeroGrid
+              mode="pick"
+              disabledIds={pickDisabledIds}
+              onPick={(id) => state.isMyTurn && socket.emit("pick_hero", id)}
+              highlight={state.isMyTurn}
+            />
           )}
 
           {state.phase === "complete" && (
             <div className="card" style={{ textAlign: "center" }}>
               <p style={{ marginBottom: "1rem", color: "var(--green)", fontWeight: 800 }}>
-                {state.surrenderedBy
-                  ? `${state.surrenderedBy === myPlayer?.role ? "你" : "对手"}投降，BP已终止`
+                {state.timedOutBy
+                  ? `${state.timedOutBy === myPlayer?.role ? "你" : "对手"}超时，BP已终止`
                   : "选秀结束，双方阵容已确定"}
               </p>
               <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "1rem" }}>
