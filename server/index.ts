@@ -24,11 +24,6 @@ app.get('/health', (_req, res) => {
   res.status(200).send('OK');
 });
 
-// 临时：让根路径直接返回 OK，确保健康检查通过
-app.get('/', (_req, res) => {
-  res.status(200).send('OK');
-});
-
 if (isProd) {
   app.set("trust proxy", 1);
   app.use(express.static(distPath));
