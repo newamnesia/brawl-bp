@@ -82,8 +82,8 @@ export default function Home() {
       <div className="tutorial-box">
         <p className="tutorial-intro">使用教程</p>
         <ul className="tutorial-list">
-          <li>本工具用于两人代为进行 BP：一个房间内只有房主与挑战者两人，分别代表双方阵营进行禁选。</li>
-          <li><strong>创建房间：</strong>房主只需输入昵称，点击「创建房间」即可生成 6 位房间号，并可通过链接分享给对手。</li>
+          <li>本工具用于两人代为进行 BP：一个房间内只有两名选手，分别代表双方阵营进行禁选。</li>
+          <li><strong>创建房间：</strong>只需输入昵称，点击「创建房间」即可生成 6 位房间号，并可通过链接分享给对手。</li>
           <li><strong>加入房间：</strong>其他成员需同时填入昵称和 6 位房间号才能加入，也可从下方「大厅列表」一键加入。</li>
           <li><strong>慎刷新：</strong>请慎重刷新网页，刷新会重置所有操作与状态。若遇到卡顿或掉线，可多次尝试刷新后重新加入房间。</li>
           <li><strong>角色预览：</strong>页面底部「查看所有可选角色」可进入单人预览模式，浏览全部 104 个角色及其头像。</li>
@@ -106,7 +106,7 @@ export default function Home() {
           disabled={!nickname.trim() || loading}
           onClick={handleCreate}
         >
-          创建房间（房主）
+          创建房间
         </button>
       </div>
 
@@ -155,7 +155,7 @@ export default function Home() {
                   <div className="lobby-item-info">
                     <span className="lobby-item-name">{room.roomName}</span>
                     <span className="lobby-item-meta">
-                      房主：{room.hostNickname} · 选手 {room.playerCount}/2 · 观战 {room.spectatorCount} · {phaseLabel}
+                      选手1：{room.hostNickname} · 选手 {room.playerCount}/2 · 观战 {room.spectatorCount} · {phaseLabel}
                     </span>
                   </div>
                   <div className="lobby-item-actions">

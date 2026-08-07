@@ -12,9 +12,19 @@ import {
 } from "../../shared/types";
 
 function roleLabel(role: PlayerRole, firstPicker: PlayerRole | null): string {
-  if (!firstPicker) return role === "host" ? "房主" : "玩家";
+  if (!firstPicker) return role === "host" ? "选手1" : "选手2";
   const isFirst = role === firstPicker;
-  return `${role === "host" ? "房主" : "玩家"}（${isFirst ? "先手" : "后手"}）`;
+  return `${role === "host" ? "选手1" : "选手2"}（${isFirst ? "先手" : "后手"}）`;
+}
+
+/** 选手席位标签：按 players 数组顺序 选手1/选手2 */
+function playerSeatLabel(index: number): string {
+  return `选手${index + 1}`;
+}
+
+/** 观战席标签：按 spectators 数组顺序 观战席1/2/3... */
+function spectatorSeatLabel(index: number): string {
+  return `观战席${index + 1}`;
 }
 
 export default function Room() {
@@ -26,6 +36,7 @@ export default function Room() {
   const [localBans, setLocalBans] = useState<string[]>([]);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [connectTimedOut, setConnectTimedOut] = useState(false);
   const socket = getSocket();
 
   const inviteUrl = useMemo(
@@ -59,11 +70,23 @@ export default function Room() {
     socket.on("room_state", onState);
     socket.on("room_closed", onClosed);
 
+    // 挂载后主动拉取当前房间状态，避免初始 room_state 在监听器注册前到达而丢失
+    socket.emit("request_state");
+
+    // 兜底：8 秒仍未收到状态，显示终止退出按钮
+    const t = setTimeout(() => setConnectTimedOut(true), 8000);
+
     return () => {
       socket.off("room_state", onState);
       socket.off("room_closed", onClosed);
+      clearTimeout(t);
     };
   }, [socket]);
+
+  // 收到状态后清除超时
+  useEffect(() => {
+    if (state) setConnectTimedOut(false);
+  }, [state]);
 
   // 服务器状态变更时同步本地 ban 列表
   useEffect(() => {
@@ -125,6 +148,23 @@ export default function Room() {
     return (
       <div className="app-shell">
         <p className="waiting-text">连接房间中…</p>
+        {connectTimedOut && (
+          <div className="card" style={{ textAlign: "center", marginTop: "1rem" }}>
+            <p style={{ marginBottom: "1rem", color: "var(--red)" }}>
+              连接超时，可能是网络问题或房间已不存在
+            </p>
+            <button
+              className="btn-primary"
+              onClick={() => {
+                socket.emit("leave_room");
+                disconnectSocket();
+                navigate("/");
+              }}
+            >
+              终止并返回首页
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -189,7 +229,7 @@ export default function Room() {
       <div className="room-code">{state.code}</div>
 
       <div className="player-list">
-        {state.players.map((p) => (
+        {state.players.map((p, i) => (
           <span
             key={p.id}
             className={`player-badge ${p.ready ? "ready" : ""} ${p.role === "host" ? "host" : ""}`}
@@ -197,15 +237,15 @@ export default function Room() {
             <span className={`status-dot ${p.ready ? "ready" : ""}`} />
             {p.nickname}
             {p.id === socket.id && " (你)"}
-            <span className="role-tag">{p.role === "host" ? "房主" : "挑战者"}</span>
+            <span className="role-tag">{playerSeatLabel(i)}</span>
           </span>
         ))}
-        {state.spectators.map((s) => (
+        {state.spectators.map((s, i) => (
           <span key={s.id} className="player-badge spectator">
             <span className="status-dot" />
             {s.nickname}
             {s.id === socket.id && " (你)"}
-            <span className="role-tag">观战</span>
+            <span className="role-tag">{spectatorSeatLabel(i)}</span>
           </span>
         ))}
       </div>
@@ -220,19 +260,15 @@ export default function Room() {
               const mIsPlayer = state.players.some((p) => p.id === m.id);
               const canSwap = !isMe && mIsPlayer !== myIsPlayer;
               const isMyTarget = state.mySwapRequestTo === m.id;
-              const roleText = isMe
-                ? myIsPlayer
-                  ? `选手（${m.role === "host" ? "房主" : "挑战者"}）`
-                  : "观战席"
-                : mIsPlayer
-                  ? `选手（${m.role === "host" ? "房主" : "挑战者"}）`
-                  : "观战席";
+              const seatText = mIsPlayer
+                ? playerSeatLabel(state.players.findIndex((p) => p.id === m.id))
+                : spectatorSeatLabel(state.spectators.findIndex((s) => s.id === m.id));
               return (
                 <li key={m.id} className="member-item">
                   <span className="member-name">
                     {m.nickname}
                     {isMe && " (你)"}
-                    <span className="role-tag">{roleText}</span>
+                    <span className="role-tag">{seatText}</span>
                   </span>
                   {isMe ? (
                     state.mySwapRequestTo && (
@@ -373,7 +409,7 @@ export default function Room() {
 
           {isSpectator && bothJoined && state.firstPicker && (
             <p style={{ textAlign: "center", color: "var(--muted)", marginBottom: "1rem" }}>
-              {state.firstPicker === "host" ? "房主先手选角" : "挑战者先手选角"}
+              {state.firstPicker === "host" ? "选手1先手选角" : "选手2先手选角"}
             </p>
           )}
 
@@ -424,7 +460,7 @@ export default function Room() {
           <Timer endsAt={state.phaseEndsAt} />
           <div className="team-panel">
             <div className="team-box first">
-              <h3>{hostPlayer ? roleLabel("host", state.firstPicker) : "房主"} 禁用</h3>
+              <h3>{hostPlayer ? roleLabel("host", state.firstPicker) : "选手1"} 禁用</h3>
               <div className="picked-row">
                 {(state.hostBans ?? []).map((id) => (
                   <HeroChip key={id} heroId={id} variant="ban" />
@@ -432,7 +468,7 @@ export default function Room() {
               </div>
             </div>
             <div className="team-box second">
-              <h3>{guestPlayer ? roleLabel("guest", state.firstPicker) : "玩家"} 禁用</h3>
+              <h3>{guestPlayer ? roleLabel("guest", state.firstPicker) : "选手2"} 禁用</h3>
               <div className="picked-row">
                 {(state.guestBans ?? []).map((id) => (
                   <HeroChip key={id} heroId={id} variant="ban" />

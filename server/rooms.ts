@@ -297,7 +297,7 @@ function getLobbyRooms(): LobbyRoom[] {
     list.push({
       code: room.code,
       roomName: room.roomName,
-      hostNickname: host?.nickname ?? "房主",
+      hostNickname: host?.nickname ?? "选手1",
       playerCount: room.players.size,
       spectatorCount: room.spectators.size,
       phase: room.phase,
@@ -318,6 +318,10 @@ export function registerRoomHandlers(io: Server) {
         if (!nickname?.trim()) {
           cb({ ok: false, error: "请输入昵称" });
           return;
+        }
+        // 若已在其他房间，先彻底离开，避免遗留幽灵房间
+        if (socketToRoom.has(socket.id)) {
+          handleDisconnect(io, socket);
         }
         const code = generateCode();
         const room: Room = {
@@ -367,6 +371,10 @@ export function registerRoomHandlers(io: Server) {
         if (!code || !nickname) {
           cb({ ok: false, error: "房间号或昵称无效" });
           return;
+        }
+        // 若已在其他房间，先彻底离开，避免遗留幽灵房间
+        if (socketToRoom.has(socket.id)) {
+          handleDisconnect(io, socket);
         }
         const room = rooms.get(code);
         if (!room) {
@@ -432,6 +440,10 @@ export function registerRoomHandlers(io: Server) {
         if (!code || !nickname) {
           cb({ ok: false, error: "房间号或昵称无效" });
           return;
+        }
+        // 若已在其他房间，先彻底离开，避免遗留幽灵房间
+        if (socketToRoom.has(socket.id)) {
+          handleDisconnect(io, socket);
         }
         const room = rooms.get(code);
         if (!room) {
@@ -517,6 +529,18 @@ export function registerRoomHandlers(io: Server) {
 
     socket.on("list_rooms", (cb: (list: LobbyRoom[]) => void) => {
       cb(getLobbyRooms());
+    });
+
+    // 客户端挂载后主动拉取当前房间状态，避免初始 room_state 在监听器注册前到达而丢失
+    socket.on("request_state", () => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room) return;
+      const viewer =
+        room.players.get(socket.id) ?? room.spectators.get(socket.id);
+      if (!viewer) return;
+      socket.emit("room_state", buildRoomState(room, viewer));
     });
 
     socket.on("set_ready", (ready: boolean) => {
