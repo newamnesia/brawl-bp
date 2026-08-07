@@ -119,6 +119,26 @@ input:focus {
   color: var(--text);
 }
 
+/* 突出强调的教程块 */
+.tutorial-box.tutorial-highlight {
+  border: 2px solid var(--accent);
+  border-left: 6px solid var(--accent);
+  background: linear-gradient(135deg, rgba(255, 201, 51, 0.12), rgba(255, 152, 0, 0.06));
+  box-shadow: 0 4px 20px rgba(255, 201, 51, 0.15);
+}
+
+.tutorial-box.tutorial-highlight .tutorial-intro {
+  color: var(--accent);
+  font-size: 1.05rem;
+  margin-bottom: 0.4rem;
+}
+
+.tutorial-emphasis {
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -332,7 +352,6 @@ input:focus {
 }
 
 .hero-card.my-turn-highlight:not(.disabled) {
-  border-color: var(--accent);
   box-shadow: 0 0 12px rgba(255, 201, 51, 0.3);
 }
 
@@ -763,5 +782,33 @@ input:focus {
   }
   .lobby-item-actions button {
     flex: 1;
+  }
+}
+
+/* 全局点击特效：金色波纹扩散 */
+.click-ripple {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  margin-top: -6px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: rgba(255, 201, 51, 0.15);
+  pointer-events: none;
+  z-index: 9999;
+  animation: click-ripple-expand 0.6s ease-out forwards;
+}
+
+@keyframes click-ripple-expand {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(3.5);
+    opacity: 0;
   }
 }
