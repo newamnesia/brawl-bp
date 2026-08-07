@@ -185,6 +185,14 @@ export default function Home() {
         查看所有可选角色（单人预览）
       </button>
 
+      <button
+        className="btn-secondary"
+        style={{ marginTop: "0.75rem", width: "100%" }}
+        onClick={() => navigate("/map-preview")}
+      >
+        查看所有可选地图（单人预览）
+      </button>
+
       <div className="credits-box">
         <p className="credits-title">创作声明</p>
         <p className="credits-text">
