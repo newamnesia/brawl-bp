@@ -89,6 +89,36 @@ input:focus {
   font-size: 0.95rem;
 }
 
+.tutorial-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.tutorial-intro {
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+.tutorial-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.tutorial-list strong {
+  color: var(--text);
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
