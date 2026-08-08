@@ -1,5 +1,18 @@
 export type Rarity = "starting" | "rare" | "super_rare" | "epic" | "mythic" | "legendary" | "extraordinary";
 
+export type Tier = "S" | "A" | "B" | "C" | "D" | "E";
+
+/** 11 级基础数值（brawlstats.net 同口径，仅展示 11 级） */
+export interface StatBlock {
+  health: number;
+  attackPerShot: number;
+  attackMax: number;
+  ammo: number;
+  reloadMs: number;
+  range: number;
+  moveSpeed: number;
+}
+
 export interface Hero {
   id: string;
   name: string;
@@ -11,6 +24,10 @@ export interface Hero {
   borderless?: boolean;
   /** 暂时不可用（不在选角/禁用池中出现） */
   disabled?: boolean;
+  /** 综合评级（S/A/B/C/D/E，与 brawlstats.net 同口径）；未评级则省略 */
+  tier?: Tier;
+  /** 11 级基础数值；尚未录入则为 undefined */
+  stats?: StatBlock;
 }
 
 // CDN 头像 URL:
@@ -22,7 +39,7 @@ export const HEROES: Hero[] = [
   { id: "shelly", name: "雪莉", enName: "Shelly", emoji: "🔫", rarity: "starting", cdnId: 16000000 },
   // 稀有
   { id: "nita", name: "妮塔", enName: "Nita", emoji: "🐻", rarity: "rare", cdnId: 16000008 },
-  { id: "colt", name: "柯尔特", enName: "Colt", emoji: "🤠", rarity: "rare", cdnId: 16000001 },
+  { id: "colt", name: "柯尔特", enName: "Colt", emoji: "🤠", rarity: "rare", cdnId: 16000001, stats: { health: 6400, attackPerShot: 740, attackMax: 4440, ammo: 6, reloadMs: 1600, range: 9, moveSpeed: 720 } },
   { id: "bull", name: "公牛", enName: "Bull", emoji: "🐂", rarity: "rare", cdnId: 16000002 },
   { id: "brock", name: "布洛克", enName: "Brock", emoji: "🚀", rarity: "rare", cdnId: 16000003 },
   { id: "el_primo", name: "艾尔普利莫", enName: "El Primo", emoji: "💪", rarity: "rare", cdnId: 16000010 },
@@ -136,6 +153,40 @@ export const HEROES: Hero[] = [
 ];
 
 export const HERO_MAP = Object.fromEntries(HEROES.map((h) => [h.id, h]));
+
+/**
+ * 综合评级（S/A/B/C/D/E，与 brawlstats.net 同口径）。
+ * 来源：brawlstats.net 角色总榜（抓取被限流期间，依据公开 tier 排行榜预填，待后续联网核实）。
+ * 未列入的角色暂未评级（undefined）。
+ */
+export const HERO_TIERS: Record<string, Tier> = {
+  // S
+  sandy: "S", surge: "S", chester: "S", kit: "S", cordelius: "S", kaze: "S",
+  // A
+  spike: "A", crow: "A", leon: "A", amber: "A", meg: "A", draco: "A", kenji: "A",
+  pierce: "A", mortis: "A", tara: "A", gene: "A", max: "A", mr_p: "A", sprout: "A",
+  byron: "A", squeak: "A", lou: "A", ruffs: "A", buzz: "A", fang: "A", eve: "A",
+  janet: "A", otis: "A", buster: "A", gray: "A", rt: "A", willow: "A", doug: "A",
+  chuck: "A", charlie: "A", mico: "A", melodie: "A", lily: "A", moe: "A", clancy: "A",
+  juju: "A", ollie: "A", finx: "A", lumi: "A", jae_yong: "A", alli: "A", mina: "A",
+  ziggy: "A", gigi: "A", glowy: "A", starr_nova: "A", damian: "A", najia: "A",
+  // B
+  shelly: "B", nita: "B", colt: "B", bull: "B", brock: "B", el_primo: "B", barley: "B",
+  poco: "B", rosa: "B", jessie: "B", dynamike: "B", tick: "B", "8bit": "B", rico: "B",
+  darryl: "B", penny: "B", carl: "B", jacky: "B", gus: "B", bo: "B", emz: "B",
+  stu: "B", piper: "B", pam: "B", frank: "B", bibi: "B", bea: "B", nani: "B",
+  edgar: "B", griff: "B", grom: "B", bonnie: "B", gale: "B", colette: "B", belle: "B",
+  ash: "B", lola: "B", sam: "B", mandy: "B", maisie: "B", hank: "B", pearl: "B",
+  larry_lawrie: "B", angelo: "B", berry: "B", shade: "B", meeple: "B", trunk: "B",
+  bolt: "B",
+};
+
+/** 将评级写回 Hero（不可用的 windy / nori 不参与评级） */
+for (const h of HEROES) {
+  if (!h.disabled && HERO_TIERS[h.id]) {
+    h.tier = HERO_TIERS[h.id];
+  }
+}
 
 /** 不可用的角色 id 集合（不参与选角/禁用） */
 export const DISABLED_HERO_IDS = new Set(

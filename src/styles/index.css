@@ -1200,3 +1200,188 @@ input:focus {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+/* ========== 角色评级角标 ========== */
+.hero-tier-badge {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #1a1200;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  line-height: 1.2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* ========== 角色详情便利贴（非新网页，半覆盖图层） ========== */
+.note-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 18, 0.55);
+  z-index: 40;
+  animation: note-fade 0.18s ease-out;
+}
+
+@keyframes note-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 像在书上贴便利贴：右下角翘起，不完全覆盖 */
+.hero-note {
+  position: fixed;
+  z-index: 50;
+  right: clamp(0.75rem, 4vw, 2.5rem);
+  bottom: clamp(0.75rem, 4vw, 2.5rem);
+  width: min(360px, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: linear-gradient(160deg, #fff7d6 0%, #ffe9a8 100%);
+  color: #2b2410;
+  border-radius: 14px 14px 14px 28px;
+  padding: 1rem 1.1rem 1.2rem;
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.5),
+    -2px 2px 6px rgba(0, 0, 0, 0.25);
+  border: 1px solid #f1d98a;
+  transform: rotate(-1.1deg);
+  animation: note-pop 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+/* 便利贴左上角的"胶带" */
+.hero-note::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 22px;
+  width: 70px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  transform: rotate(-4deg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+@keyframes note-pop {
+  from { opacity: 0; transform: rotate(-1.1deg) translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: rotate(-1.1deg) translateY(0) scale(1); }
+}
+
+.hero-note-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.hero-note-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.hero-note-name {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #2b2410;
+}
+
+.hero-note-en {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #8a7a3a;
+}
+
+.hero-note-tier {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #1a1200;
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+}
+
+.hero-note-close {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(43, 36, 16, 0.1);
+  color: #2b2410;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.hero-note-close:hover {
+  background: rgba(43, 36, 16, 0.2);
+}
+
+.hero-note-tabs {
+  display: flex;
+  gap: 0.4rem;
+  border-bottom: 2px dashed rgba(43, 36, 16, 0.2);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.hero-note-tab {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #6b5c25;
+  background: rgba(43, 36, 16, 0.06);
+  border-radius: 8px;
+  padding: 0.3rem 0.7rem;
+}
+
+.hero-note-tab.active {
+  color: #2b2410;
+  background: rgba(43, 36, 16, 0.13);
+}
+
+.hero-note-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #4a3f1c;
+}
+
+.stat-value {
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: #2b2410;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-note-note {
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #8a7a3a;
+}
+
+.hero-note-empty {
+  font-size: 0.9rem;
+  color: #6b5c25;
+  text-align: center;
+  padding: 1.5rem 0;
+}
+

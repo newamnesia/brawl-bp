@@ -4,7 +4,9 @@ import {
   HEROES,
   heroDisplayName,
   heroImageUrl,
+  type Hero,
   type Rarity,
+  type Tier,
 } from "../../shared/types";
 
 const RARITY_LABELS: Record<Rarity, string> = {
@@ -27,11 +29,31 @@ const RARITY_ORDER: Rarity[] = [
   "extraordinary",
 ];
 
+/** 评级配色（便利贴 / 角标通用） */
+const TIER_COLORS: Record<Tier, string> = {
+  S: "#ff5252",
+  A: "#ffc933",
+  B: "#69f0ae",
+  C: "#4fc3f7",
+  D: "#b46cff",
+  E: "#8899aa",
+};
+
+const TIER_LABELS: Record<Tier, string> = {
+  S: "S 级",
+  A: "A 级",
+  B: "B 级",
+  C: "C 级",
+  D: "D 级",
+  E: "E 级",
+};
+
 export default function Preview() {
   const navigate = useNavigate();
   const [loadedCount, setLoadedCount] = useState(0);
   const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Rarity | "all">("all");
+  const [activeHero, setActiveHero] = useState<Hero | null>(null);
 
   const visible = filter === "all" ? HEROES : HEROES.filter((h) => h.rarity === filter);
 
@@ -69,6 +91,7 @@ export default function Preview() {
             key={hero.id}
             className={`hero-card rarity-${hero.rarity}`}
             title={heroDisplayName(hero)}
+            onClick={() => setActiveHero(hero)}
           >
             <img
               className="hero-avatar"
@@ -89,6 +112,14 @@ export default function Preview() {
             />
             <span className="hero-name">{hero.name}</span>
             <span className="hero-en-name">{hero.enName}</span>
+            {hero.tier && (
+              <span
+                className="hero-tier-badge"
+                style={{ background: TIER_COLORS[hero.tier] }}
+              >
+                {hero.tier}
+              </span>
+            )}
             {hero.disabled && <span className="hero-disabled-badge">不可用</span>}
             {errorIds.has(hero.id) && (
               <span style={{ fontSize: "0.5rem", color: "var(--red)" }}>加载失败</span>
@@ -104,6 +135,81 @@ export default function Preview() {
       >
         返回首页
       </button>
+
+      {activeHero && (
+        <HeroNote hero={activeHero} onClose={() => setActiveHero(null)} />
+      )}
     </div>
+  );
+}
+
+function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
+  const s = hero.stats;
+  return (
+    <>
+      <div className="note-backdrop" onClick={onClose} />
+      <div className="hero-note">
+        <div className="hero-note-header">
+          <div className="hero-note-title">
+            <span className="hero-note-name">{hero.name}</span>
+            <span className="hero-note-en">{hero.enName}</span>
+            {hero.tier && (
+              <span
+                className="hero-note-tier"
+                style={{ background: TIER_COLORS[hero.tier] }}
+              >
+                {TIER_LABELS[hero.tier]}
+              </span>
+            )}
+            {hero.disabled && <span className="hero-disabled-badge">不可用</span>}
+          </div>
+          <button className="hero-note-close" onClick={onClose} aria-label="关闭">
+            ✕
+          </button>
+        </div>
+
+        <div className="hero-note-tabs">
+          <span className="hero-note-tab active">基础数值（11 级）</span>
+        </div>
+
+        {s ? (
+          <div className="hero-note-body">
+            <div className="stat-row">
+              <span className="stat-label">生命值</span>
+              <span className="stat-value">{s.health}</span>
+            </div>
+            <div className="stat-row">
+              <span className="stat-label">单发普攻伤害</span>
+              <span className="stat-value">{s.attackPerShot}</span>
+            </div>
+            <div className="stat-row">
+              <span className="stat-label">普攻满伤</span>
+              <span className="stat-value">
+                {s.attackMax}（{s.attackPerShot} × {s.ammo}）
+              </span>
+            </div>
+            <div className="stat-row">
+              <span className="stat-label">回弹速度</span>
+              <span className="stat-value">{(s.reloadMs / 1000).toFixed(1)} 秒</span>
+            </div>
+            <div className="stat-row">
+              <span className="stat-label">攻击距离</span>
+              <span className="stat-value">{s.range} 格</span>
+            </div>
+            <div className="stat-row">
+              <span className="stat-label">移速</span>
+              <span className="stat-value">{s.moveSpeed}</span>
+            </div>
+            {hero.id === "colt" && (
+              <p className="hero-note-note">
+                数值来源：brawlstats.net 抓取受限，依据公开数据预填，待联网核实。
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="hero-note-empty">该角色数据尚未录入。</div>
+        )}
+      </div>
+    </>
   );
 }
