@@ -9,6 +9,8 @@ export interface Hero {
   cdnId: number;
   /** 该角色在 borders 文件夹无图，需用 borderless 文件夹 */
   borderless?: boolean;
+  /** 暂时不可用（不在选角/禁用池中出现） */
+  disabled?: boolean;
 }
 
 // CDN 头像 URL:
@@ -124,12 +126,21 @@ export const HEROES: Hero[] = [
   { id: "draco", name: "德拉科", enName: "Draco", emoji: "🐲", rarity: "legendary", cdnId: 16000080 },
   { id: "kenji", name: "健次", enName: "Kenji", emoji: "🍣", rarity: "legendary", cdnId: 16000085 },
   { id: "pierce", name: "皮尔斯", enName: "Pierce", emoji: "🏹", rarity: "legendary", cdnId: 16000099 },
+  // 新角色（暂不可用）
+  { id: "nori", name: "阿宪", enName: "Nori", emoji: "🍡", rarity: "legendary", cdnId: 16000107, borderless: true, disabled: true },
   // 超凡
   { id: "kaze", name: "风姬", enName: "Kaze", emoji: "🌬️", rarity: "extraordinary", cdnId: 16000094 },
   { id: "sirius", name: "西里乌斯", enName: "Sirius", emoji: "🌟", rarity: "extraordinary", cdnId: 16000102 },
+  // 新角色（暂不可用）
+  { id: "windy", name: "温蒂", enName: "Windy", emoji: "🌪️", rarity: "mythic", cdnId: 16000108, borderless: true, disabled: true },
 ];
 
 export const HERO_MAP = Object.fromEntries(HEROES.map((h) => [h.id, h]));
+
+/** 不可用的角色 id 集合（不参与选角/禁用） */
+export const DISABLED_HERO_IDS = new Set(
+  HEROES.filter((h) => h.disabled).map((h) => h.id),
+);
 
 export type Phase = "lobby" | "ban" | "ban_reveal" | "pick" | "complete";
 export type PlayerRole = "host" | "guest" | "spectator";

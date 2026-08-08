@@ -6,6 +6,7 @@ import Timer from "../components/Timer";
 import { disconnectSocket, getSocket, type RoomState } from "../lib/socket";
 import {
   BANS_PER_PLAYER,
+  DISABLED_HERO_IDS,
   HEROES,
   PICKS_PER_TEAM,
   PICK_TURNS,
@@ -121,7 +122,7 @@ export default function Room() {
       state.myTeam === "first" ? state.firstPicks
       : state.myTeam === "second" ? state.secondPicks
       : [];
-    const blocked = new Set([...allBans, ...allPickedIds, ...myTeamPicks]);
+    const blocked = new Set([...DISABLED_HERO_IDS, ...allBans, ...allPickedIds, ...myTeamPicks]);
     return HEROES.map((h) => h.id).filter((id) => blocked.has(id));
   }, [state, myPlayer, allPickedIds]);
 
@@ -462,6 +463,7 @@ export default function Room() {
                 mode="ban"
                 selectedIds={localBans}
                 onToggle={handleToggleBan}
+                disabledIds={[...DISABLED_HERO_IDS]}
               />
             </>
           )}

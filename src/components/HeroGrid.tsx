@@ -136,6 +136,7 @@ export default function HeroGrid({
               />
               <span className="hero-name">{hero.name}</span>
               <span className="hero-en-name">{hero.enName}</span>
+              {hero.disabled && <span className="hero-disabled-badge">不可用</span>}
             </div>
           );
         })}

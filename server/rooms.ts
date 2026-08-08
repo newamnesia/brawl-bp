@@ -4,6 +4,7 @@ import {
   BAN_DURATION_MS,
   BAN_REVEAL_MS,
   BANS_PER_PLAYER,
+  DISABLED_HERO_IDS,
   HEROES,
   type GameMode,
   type LobbyRoom,
@@ -85,6 +86,7 @@ function getAvailableForRole(room: Room, role: PlayerRole): string[] {
     ...room.guestBans,
     ...picks,
     ...opponentPicks,
+    ...DISABLED_HERO_IDS,
   ]);
   return HEROES.map((h) => h.id).filter((id) => !blocked.has(id));
 }
@@ -618,6 +620,8 @@ export function registerRoomHandlers(io: Server) {
       if (!room || room.phase !== "ban") return;
       const player = room.players.get(socket.id);
       if (!player) return;
+      // 不可用角色不允许被禁用
+      if (DISABLED_HERO_IDS.has(heroId)) return;
       const bans = player.role === "host" ? room.hostBans : room.guestBans;
       const idx = bans.indexOf(heroId);
       if (idx >= 0) {

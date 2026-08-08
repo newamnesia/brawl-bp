@@ -89,6 +89,7 @@ export default function Preview() {
             />
             <span className="hero-name">{hero.name}</span>
             <span className="hero-en-name">{hero.enName}</span>
+            {hero.disabled && <span className="hero-disabled-badge">不可用</span>}
             {errorIds.has(hero.id) && (
               <span style={{ fontSize: "0.5rem", color: "var(--red)" }}>加载失败</span>
             )}
