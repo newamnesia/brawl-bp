@@ -190,21 +190,23 @@ function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
             </div>
             <div className="stat-row">
               <span className="stat-label">回弹速度</span>
-              <span className="stat-value">{(s.reloadMs / 1000).toFixed(1)} 秒</span>
+              <span className="stat-value">
+                {s.reloadMs != null ? `${(s.reloadMs / 1000).toFixed(1)} 秒` : "数据待补"}
+              </span>
             </div>
             <div className="stat-row">
               <span className="stat-label">攻击距离</span>
-              <span className="stat-value">{s.range} 格</span>
+              <span className="stat-value">
+                {s.range != null ? `${s.range} 格` : "数据待补"}
+              </span>
             </div>
             <div className="stat-row">
               <span className="stat-label">移速</span>
               <span className="stat-value">{s.moveSpeed}</span>
             </div>
-            {hero.id === "colt" && (
-              <p className="hero-note-note">
-                数值来源：你提供的可靠真实数据（已核对 11 级）。生命值 6200、普攻 720/发 × 6 发 = 满伤 4320，回弹 1.3 秒、攻击距离 9、移速 720。注：brawlstars.fandom.com 等公开社区仅给出 1 级基础值（生命 3100 / 单发 360），不能按统一系数推算 11 级。其余角色数据待你提供真实 11 级数值后补全。
-              </p>
-            )}
+            <p className="hero-note-note">
+              数值来源：brawlstars.fandom.com 公开粉丝 Wiki 的基础值，按「生命/伤害 ×2」换算为 11 级（移速、距离、回弹不随等级变化）。柯尔特已按你提供的可靠数据核对一致（6200 / 720×6）。若与游戏内实际不符，请以你提供的真实数据为准修正。
+            </p>
           </div>
         ) : (
           <div className="hero-note-empty">该角色数据尚未录入。</div>
