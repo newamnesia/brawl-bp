@@ -185,7 +185,7 @@ function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
             <div className="stat-row">
               <span className="stat-label">普攻满伤</span>
               <span className="stat-value">
-                {s.attackMax}（{s.attackPerShot} × {s.ammo}）
+                {s.attack}
               </span>
             </div>
             <div className="stat-row">
@@ -205,7 +205,7 @@ function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
               <span className="stat-value">{s.moveSpeed}</span>
             </div>
             <p className="hero-note-note">
-              数值来源：brawlstars.fandom.com 公开粉丝 Wiki 的基础值，按「生命/伤害 ×2」换算为 11 级（移速、距离、回弹不随等级变化）。柯尔特已按你提供的可靠数据核对一致（6200 / 720×6）。若与游戏内实际不符，请以你提供的真实数据为准修正。
+              数值来源：brawlstars.fandom.com 公开粉丝 Wiki 的基础值，按「生命/伤害 ×2」换算为 11 级（移速、距离、回弹不随等级变化）。柯尔特已按你提供的可靠数据核对一致（6200 / 720×6）。「普攻满伤」为一发普攻的总伤害（含多段、区间、多档、反弹/溅射等构成），写法见数值口径说明；数据源无法确定的项标注「数据待补」。若与游戏内实际不符，请以你提供的真实数据为准修正。
             </p>
           </div>
         ) : (
