@@ -112,6 +112,8 @@ export const HEROES: Hero[] = [
   { id: "starr_nova", name: "丝塔诺娃", enName: "Starr Nova", emoji: "⭐", rarity: "mythic", cdnId: 16000105 },
   { id: "damian", name: "达米安", enName: "Damian", emoji: "🦹", rarity: "mythic", cdnId: 16000104 },
   { id: "najia", name: "娜吉亚", enName: "Najia", emoji: "🧵", rarity: "mythic", cdnId: 16000103 },
+  // 新角色（暂不可用）
+  { id: "windy", name: "温蒂", enName: "Windy", emoji: "🌪️", rarity: "mythic", cdnId: 16000108, borderless: true, disabled: true },
   // 传奇
   { id: "spike", name: "斯派克", enName: "Spike", emoji: "🌵", rarity: "legendary", cdnId: 16000005 },
   { id: "crow", name: "黑鸦", enName: "Crow", emoji: "🦅", rarity: "legendary", cdnId: 16000012 },
@@ -131,8 +133,6 @@ export const HEROES: Hero[] = [
   // 超凡
   { id: "kaze", name: "风姬", enName: "Kaze", emoji: "🌬️", rarity: "extraordinary", cdnId: 16000094 },
   { id: "sirius", name: "西里乌斯", enName: "Sirius", emoji: "🌟", rarity: "extraordinary", cdnId: 16000102 },
-  // 新角色（暂不可用）
-  { id: "windy", name: "温蒂", enName: "Windy", emoji: "🌪️", rarity: "mythic", cdnId: 16000108, borderless: true, disabled: true },
 ];
 
 export const HERO_MAP = Object.fromEntries(HEROES.map((h) => [h.id, h]));
