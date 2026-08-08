@@ -44,7 +44,7 @@ export const HEROES: Hero[] = [
   { id: "shelly", name: "雪莉", enName: "Shelly", emoji: "🔫", rarity: "starting", cdnId: 16000000 },
   // 稀有
   { id: "nita", name: "妮塔", enName: "Nita", emoji: "🐻", rarity: "rare", cdnId: 16000008 },
-  { id: "colt", name: "柯尔特", enName: "Colt", emoji: "🤠", rarity: "rare", cdnId: 16000001, stats: { health: 6400, attackPerShot: 740, attackMax: 4440, ammo: 6, reloadMs: 1600, range: 9, moveSpeed: 720 } },
+  { id: "colt", name: "柯尔特", enName: "Colt", emoji: "🤠", rarity: "rare", cdnId: 16000001, stats: { health: 6200, attackPerShot: 720, attackMax: 4320, ammo: 6, reloadMs: 1300, range: 9, moveSpeed: 720 } },
   { id: "bull", name: "公牛", enName: "Bull", emoji: "🐂", rarity: "rare", cdnId: 16000002 },
   { id: "brock", name: "布洛克", enName: "Brock", emoji: "🚀", rarity: "rare", cdnId: 16000003 },
   { id: "el_primo", name: "艾尔普利莫", enName: "El Primo", emoji: "💪", rarity: "rare", cdnId: 16000010 },

@@ -183,10 +183,6 @@ function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
               <span className="stat-value">{s.health}</span>
             </div>
             <div className="stat-row">
-              <span className="stat-label">单发普攻伤害</span>
-              <span className="stat-value">{s.attackPerShot}</span>
-            </div>
-            <div className="stat-row">
               <span className="stat-label">普攻满伤</span>
               <span className="stat-value">
                 {s.attackMax}（{s.attackPerShot} × {s.ammo}）
@@ -206,7 +202,7 @@ function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
             </div>
             {hero.id === "colt" && (
               <p className="hero-note-note">
-                数值来源：荒野乱斗爱好者社区公开数据（Wiki/Fandom 等），11 级数值以官方成长系数换算，待与你提供的真实数据核对校准。
+                数值来源：已按你提供的可靠数据校准（生命值 6200、普攻 720/发 × 6 发 = 满伤 4320，回弹 1.3 秒、攻击距离 9、移速 720）。Fandom 等公开社区仅给出 1 级基础值，11 级数值另按成长系数换算，其余角色待你提供真实数据后补全。
               </p>
             )}
           </div>
