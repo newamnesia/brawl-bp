@@ -4,9 +4,17 @@ export type Tier = "S" | "A" | "B" | "C" | "D" | "E";
 
 /**
  * 11 级基础数值（仅展示 11 级）。
- * 数据来源：荒野乱斗官方粉丝 Wiki（brawlstars.fandom.com，MediaWiki API，署名使用）。
- * 注意：Wiki infobox 给出的是基础值（多为 1 级），11 级数值按成长系数换算或逐等级表核对；
- * 数值以用户后续提供的真实数据为准校准。
+ *
+ * ⚠️ 数据口径重要说明：
+ * brawlstars.fandom.com（MediaWiki API）的 infobox 只给出「1 级基础值」
+ * （例如柯尔特 生命 3100 / 单发 360），不能直接当作 11 级展示；
+ * 且不同角色 1 级→11 级的成长系数并不统一，不能用单一系数推算（曾因此算错柯尔特）。
+ *
+ * 因此 11 级数值必须以「用户提供的可靠真实数据」（已在游戏内/权威渠道核对）为准，
+ * 写入本文件的 stats 字段即视为已核对；未核对的角色 stats 为 undefined，
+ * 便利贴显示「数据尚未录入」。
+ *
+ * 已核对：colt（用户提供 11 级真实数据：生命 6200、单发 720×6=满伤 4320、回弹 1.3s、距离 9、移速 720）。
  */
 export interface StatBlock {
   health: number;
@@ -44,7 +52,7 @@ export const HEROES: Hero[] = [
   { id: "shelly", name: "雪莉", enName: "Shelly", emoji: "🔫", rarity: "starting", cdnId: 16000000 },
   // 稀有
   { id: "nita", name: "妮塔", enName: "Nita", emoji: "🐻", rarity: "rare", cdnId: 16000008 },
-  { id: "colt", name: "柯尔特", enName: "Colt", emoji: "🤠", rarity: "rare", cdnId: 16000001, stats: { health: 6200, attackPerShot: 720, attackMax: 4320, ammo: 6, reloadMs: 1300, range: 9, moveSpeed: 720 } },
+  { id: "colt", name: "柯尔特", enName: "Colt", emoji: "🤠", rarity: "rare", cdnId: 16000001, stats: { health: 6200, attackPerShot: 720, attackMax: 4320, ammo: 6, reloadMs: 1300, range: 9, moveSpeed: 720 } }, // 11 级数值：用户提供的可靠真实数据（已核对）
   { id: "bull", name: "公牛", enName: "Bull", emoji: "🐂", rarity: "rare", cdnId: 16000002 },
   { id: "brock", name: "布洛克", enName: "Brock", emoji: "🚀", rarity: "rare", cdnId: 16000003 },
   { id: "el_primo", name: "艾尔普利莫", enName: "El Primo", emoji: "💪", rarity: "rare", cdnId: 16000010 },

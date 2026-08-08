@@ -1,0 +1,528 @@
+﻿{{Protection}}{{MagicWords}}
+{{Brawler Infobox|Title = The Pretty|PrestigeTitle = PEW PEW PEW|Rarity = Rare|Class = Damage Dealer|MovementSpeed = 720 (Normal)<br/>814 (with Slick Boots)<br/>864 (with Hypercharge)<br/>958 (with Slick Boots and Hypercharge)|VoiceActor = Billy Kametz †|HealthLabel = Health|Health = 3100|AttackRange = 9 (Long)<br/>10 (with Magnum Special)|Reload = 1.3 seconds (Very Fast)<br>1.4 seconds (while Hyper Buffie is active)|AttackBullets = 6<br>1 (with Silver Bullet)|AttackSuperCharge = 8.35%<br>15% (with Silver Bullet)<br>25% (with Silver Bullet and Buffie)|AttackLabel = Damage per bullet|Attack = 360|SuperRange = 11 (Very Long)|SuperBullets = 12|SuperSuperCharge = 6.95%|SuperLabel = Damage per bullet|Super = 320|AttackSpread=|AttackWidth=0.67<br>0.8 (with Silver Bullet and Buffie)|SuperSpeed=4891|SuperWidth=1.01<br>1.41 (With Hypercharge)|AttackSpeed=4000<br>4440 (with Magnum Special)<br>4891 (with Speedloader)<br>3804 (with Silver Bullet)|Gadget1Name = Speedloader|Gadget1Cooldown = 15 seconds|Gadget1= 512|Gadget1Label = Damage|Gadget2Name = Silver Bullet|Gadget2Cooldown = 17 seconds|Gadget2 = 960|Gadget2Label = Damage|HyperchargeMultiplier=35%|Previous=Nita|Next=Bull|AttackHyperchargeCharge=2.9%<br>5.25% (with Silver Bullet)<br>8.75% (with Silver Bullet and Buffie)|SuperHyperchargeCharge=2.425%|Gadget1Range=11|Gadget2Range=11|Gadget2Label2=Damage with Buffie|Gadget22=1600}}
+{{Quote|Colt is the star attraction at Starr Park! His good looks, charisma and gun twirling tricks win over any audience, except maybe [[Shelly]].}}
+{{Portrait}}
+Colt is a {{Rarity|Rare}} [[Brawler]] who has moderately low health, a long range, a very fast reload speed, and an inconsistently high burst damage. He  was one of the 15 Brawlers who released at the first Beta launch. His attack is a long-ranged volley of six bullets. His Super is a longer-ranged volley of twelve piercing bullets that can destroy obstacles. His first Gadget, Speedloader, causes him to fire two rapid shots that slow down enemies. His second Gadget, Silver Bullet, makes his next attack a single piercing bullet that destroys obstacles and deals the damage of two of his main attack's bullets. His first Star Power, Slick Boots, passively increases his movement speed. His second Star Power, Magnum Special, increases his main attack's range and bullet speed. His Hypercharge, Dual Wielding, increases the width of his Super.
+
+==Attack: Six-Shooters==
+{{Quote|Colt shoots six straight long-range shots out of his revolvers.}}Colt shoots a straight, long-ranged volley of six bullets. Each bullet by itself deals little damage, but if all of the bullets hit an enemy, they can deal a high amount of damage. The bullets are 0.33 tiles in width and come out in two streams 0.33 tiles apart. The bullets travel fast and the attack reloads quickly, allowing Colt to maintain constant pressure on enemies, but the attack has a slow cooldown, taking 0.8 seconds to complete.
+
+==Super: Bullet Storm==
+{{Quote|Colt rattles off a massive burst of bullets that shoot extra far and destroy cover.}}
+Colt shoots a straight, longer-ranged volley of twelve piercing bullets. The bullets are 0.67 tiles in width and come out in two streams 0.33 tiles apart. These bullets appear larger in size than his main attack, travel faster than his main attack, and can destroy obstacles. Note that the bullets destroy walls, but don't pierce through them, so bullets disappear upon destroying a wall tile. The Super takes 1.4 seconds to complete. However, he can't attack or reload while using his Super, and it is cancelled if Colt is knocked back, pulled, or stunned.
+
+==Gadgets==
+===Speedloader===
+{{Quote|Colt fires two quick shots that slow targets. Deals 640 damage. Cooldown: 15 seconds.}}
+{{Gadget|1}}
+When this Gadget is used, Colt instantly fires two long-range bullets that slow enemies upon impact. Each bullet deals the damage of a Super bullet, totaling 1280 damage at max Power Level. This Gadget does not consume ammo. Using auto-aim will cause Colt to fire at the nearest enemy. This Gadget's cooldown starts immediately after it's activation.
+
+{{Quote|Each hit steals 0.5 ammo.}}{{Buffie|Gadget}}
+With the Buffie, each bullet from this Gadget steals half an ammo each, allowing Colt to potentially gain one ammo and the enemy to lose one ammo.
+
+===Silver Bullet===
+{{Quote|Colt fires a bullet that destroys the environment and pierces Brawlers. Deals 1200 damage. Consumes ammo. Cooldown: 17 seconds.}}
+{{Gadget|2}}
+Colt fires a piercing bullet in the direction the Gadget is aimed, which deals 167% the damage as one main attack bullet and pierces all enemies and the environment. It also generates Super charge equal to one regular attack bullet. Unlike the bullets from his Super, this projectile pierces through walls without disappearing. This Gadget's cooldown starts after this attack is shot.
+
+{{Quote|Shoot a larger bullet that deals more damage.}}{{Buffie|Gadget}}
+With the Buffie, the Silver Bullet is larger and deals 67% more damage.
+
+==Star Powers==
+===Slick Boots===
+{{Quote|Colt's movement speed is increased by 13%.}}
+{{StarPower|1}}
+Colt's movement speed is passively increased by 13%, allowing him to move faster than most other Brawlers and roughly the same as assassins such as [[Crow]], [[Mortis]], [[Edgar]], [[Mico]], [[Cordelius]], [[Kenji]], and [[Leon]].
+
+{{Quote|Gain movement speed when dealing damage.}}{{Buffie|Star}}
+With the Buffie, Colt gains a burst of movement speed whenever any of his attacks hit an enemy. Every attack that lands will give a 20% speed boost for 0.5 seconds, and the duration refreshes with multiple hits.
+
+===Magnum Special===
+{{Quote|Colt's attack range and bullet speed are increased by 11%.}}
+{{StarPower|2}}
+Colt's main attack range is increased by 1 tile, making his range almost equivalent to [[Piper]], [[Bea]], [[8-Bit]], [[Belle]], [[Angelo]], [[Byron]], and [[R-T]]. The bullet speed is also increased to reach the target in the same amount of time at maximum range as normal.
+
+{{Quote|Deal increased damage to distant targets.}}{{Buffie|Star}}
+With the Buffie, Colt deals slightly more damage the further he is from the enemy he shot at, up to 5% at max range.
+
+==Hypercharge: Dual Wielding==
+{{Quote|Bullet Storm is 120% wider.}}{{Hypercharge}}
+When activated, the separation between the two streams of bullets of Colt's Super is increased from 0.33 tiles to 0.73 tiles, increasing his overall Super width from 1.01 tiles to 1.41 tiles. He also gains a 20% speed boost, as well as a 5% damage and shield boost.
+
+{{Quote|Fire bullets quicker during Hypercharge.}}{{Buffie|Hyper}}
+With the Buffie, the time interval between bullets is decreased by 50% for his main attack, increasing his overall unload speed during his Hypercharge. However, his reload speed is slightly slower while this effect is active. Increased Hypercharge Duration by 2 seconds.
+
+==Mutation==
+{{RemovedContent|section}}
+{{Quote|Colt's Six-Shooters can destroy terrain and has more range.}}<div style="float:right">[[File:Mutation.png|64px]]</div>Colt's range was increased, and his attacks broke walls, but the bullets disappeared once they destroy a wall, just like his Super.
+
+==Wasabi Power==
+{{RemovedContent|section}}
+{{Quote|Main attack shoots further and destroys cover!}}<div style="float:right">[[File:Hot Wasabi.png|64px|link=]]</div>Colt's attack range increased from 9 to 11.67 tiles, and his attacks could break walls but didn't continue after breaking a wall. In addition, he had a faster reload speed.
+
+==Tips==
+===Game Modes and Maps===
+*Colt's low health makes him particularly vulnerable, so it's best to avoid using him in survival-based game modes like [[Showdown]], [[Hot Zone]], and [[Bounty]], where he often struggles in 1v1 lane encounters. However, he shines as a supportive teammate in [[Duo Showdown]], [[Brawl Ball]], and [[Heist]], functioning as a pseudo-sniper with high damage potential and the ability to break walls.
+*Colt does best on open maps, where he can easily control the map, out-ranging close-ranged Brawlers with his attacks and Super. In addition to Colt's effectiveness on open maps, his Magnum Special Star Power increases his effectiveness on these maps as it grants him additional range and therefore increases his area of control. In Team Events, it's best to pair Colt up with Brawlers with stunning, pulling, and slowing abilities to make it easier to hit all of his bullets.
+
+===Recommended Build===
+*The Speedloader Gadget is useful for defending Colt from attacks by close-range Brawlers like [[Edgar]], [[Mico]], and [[El Primo]], and can also be used to confirm eliminations due to the slow effect, ensuring Colt lands the majority of his shots. The slow effect also leaves the enemy vulnerable to attacks from other Brawlers, allowing your team to eliminate it.
+*Colt's Silver Bullet Gadget can be used to clear obstacles, which is useful in a lot of situations. For example, in [[Showdown]], he can use Silver Bullet to destroy certain obstacles that enemies are hiding behind and finish them off. It can be used very effectively when breaking the barrier in front of an enemy goal in Brawl Ball or [[Basket Brawl]].
+*Colt's Slick Boots allows him to move faster, making chasing or escaping to cover easier. Slick Boots is also excellent for dodging projectiles from other long-ranged Brawlers.
+
+===Strategies===
+*Try to follow the enemy's movement. The full potential of your attack requires all of the bullets to hit the enemy. To do this, it is necessary to use a technique called "strafing," which consists of anticipating the enemies' movements by shooting right in front of them, where do you think the enemy brawler will be when the bullets hit. Predicting the enemy's movement allows all of the bullets to hit and deals massive damage. If they dodge a lot, shoot behind them so that they walk into your bullets. The inverse also works; If they keep walking into your attack when you use prediction to shoot, keep shooting that way.
+*Mirroring the movement of an enemy you are attack will increase your chances of hitting all of his bullets with his main attack or Super. Always stay far away while being parallel to them.
+*In [[Brawl Ball]], if the goal still has 2 blocks on the ends or if any goal walls are still present, you can kick the ball into a wall, then immediately use your Super or Silver Bullet to break the walls, enabling the ball to go through the goal with the new open space. However, don't destroy the walls on your own goal because it inadvertently allows the enemies to kick the ball through to your goal.
+*If Colt attacks and presses the super button right after, his attack will be immediately interrupted by the super. This is useful both for deceiving enemies, shooting in one direction and then quickly using the super in the opposite direction to trick them and make them walk towards the bullets, and to recharge your super faster, shooting and then using your super. In case it hits the enemy, the bullets fired previously will charge some of your next super.
+
+===Other===
+*Try to keep your distance from other enemies. Colt specializes in long-ranged combat and can out-range close-ranged Brawlers very easily. Avoid getting close as much as possible, since Colt tends to be defeated in close-quarters combat. 
+*Colt's Super can be used to devastate enemies directly or can be used to destroy enemy cover so that Colt or his teammates can rush in and finish the enemies off. In addition, his Super can also restrict enemies from passing through an area for its duration. Try using your super against lined-up enemies to get more value and recharge it faster. 
+* When being attacked by [[Mortis]], try to keep moving to one direction and shooting to the exact opposite way Colt is facing. Because Mortis lands slightly behind or in Colt with his attack, he has to follow him with subsequent attacks if Colt keeps moving the same way, making Mortis run into all of the bullets. Colt's Speedloader Gadget is a great counter-attack against him with Buffies equiped, since Mortis reloads slowly and Colt can steal at least one of his ammo, leaving him incapacitated to attack and vulnerable in case he has already used an attack. However, be careful with his Combo Spinner Gadget, as it doesn't consume ammo.
+* Taking advantage of his high burst damage will help you deal with any Brawlers. When you're up against enemies with low health or squishy Brawlers, a quick burst of shots can take them out before they can even get close. Colt's basic attack reloads fairly quickly, so with precise aiming and positioning, you can deal significant damage in short bursts.
+
+==Voice Lines==
+{| class="article-table"
+!Spawning
+! In The Lead
+!Receiving Damage
+!Defeating An Enemy
+!Defeated
+!Attacking
+!Activating A Super
+|-
+| '''Normal:'''
+{{Ogg|Filename = Hotshot start 01.ogg|Filedescription = "Brawn and beauty."}}'''Mecha:'''
+{{Ogg|Filename = Mech colt start vo 01.ogg|Filedescription = "Brawn and beauty."}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor start 01.ogg|Filedescription = "Brawn and beauty."}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot lead 01.ogg|Filedescription = "Selfie time."}}'''Mecha:'''
+{{Ogg|Filename = Mech colt lead vo 01.ogg|Filedescription = "Selfie time."}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor lead 01.ogg|Filedescription = "Selfie time."}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot hurt 01.ogg|Filedescription = "Ow!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor hurt 01.ogg|Filedescription = "Ow!"}}
+| '''Normal:'''
+{{Ogg|Filename = Hotshot kill 01.ogg|Filedescription = "Check out my head shot."}}'''Mecha:'''
+{{Ogg|Filename = Mech colt kill vo 01.ogg|Filedescription = "Check out my head shot."}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor kill 01.ogg|Filedescription = "Check out my head shot."}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot die 01.ogg|Filedescription = "I want my mommy!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt die vo 01.ogg|Filedescription = "I want my mommy!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor die 01.ogg|Filedescription = "I want my mommy!"}}
+|
+|'''Normal:'''
+{{Ogg|Filename = Hotshot ulti 01.ogg|Filedescription = "Pew pew pew!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt ulti vo 01.ogg|Filedescription = "Pew pew pew!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor ulti 01.ogg|Filedescription = "Pew pew pew!"}}
+|-
+| '''Normal:'''
+{{Ogg|Filename = Hotshot start 02.ogg|Filedescription = "Time for trouble."}}'''Mecha:'''
+{{Ogg|Filename = Mech colt start vo 02.ogg|Filedescription = "Time for trouble."}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor start 02.ogg|Filedescription = "Time for trouble."}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot lead 02.ogg|Filedescription = "Primetime baby!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt lead vo 02.ogg|Filedescription = "Primetime baby!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor lead 02.ogg|Filedescription = "Primetime baby!"}}
+| '''Normal:'''
+{{Ogg|Filename = Hotshot hurt 02.ogg|Filedescription = "Not the face!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt hurt vo 01.ogg|Filedescription = "Not the face!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor hurt 02.ogg|Filedescription = "Not the face!"}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot kill 02.ogg|Filedescription = "Oh, that's gotta hurt."}}'''Mecha:'''
+{{Ogg|Filename = Mech colt kill vo 02.ogg|Filedescription = "Oh, that's gotta hurt."}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor kill 02.ogg|Filedescription = "Oh, that's gotta hurt."}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot die 02.ogg|Filedescription = "I'm too pretty!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt die vo 02.ogg|Filedescription = "I'm too pretty!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor die 02.ogg|Filedescription = "I'm too pretty!"}}
+|
+| '''Normal:'''
+{{Ogg|Filename = Hotshot ulti 02.ogg|Filedescription = "Bullet storm!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt ulti vo 02.ogg|Filedescription = "Bullet storm!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor ulti 02.ogg|Filedescription = "Bullet storm!"}}
+|-
+|'''Normal:'''
+{{Ogg|Filename = Hotshot start 03.ogg|Filedescription = "Too pretty for pain."}}'''Mecha:'''
+{{Ogg|Filename = Mech colt start vo 03.ogg|Filedescription = "Too pretty for pain."}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor start 03.ogg|Filedescription = "Too pretty for pain."}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot lead 03.ogg|Filedescription = "Heh, watch and learn."}}'''Mecha:'''
+{{Ogg|Filename = Mech colt lead vo 03.ogg|Filedescription = "Heh, watch and learn."}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot hurt 03.ogg|Filedescription = "Hey! Watch it!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt hurt vo 02.ogg|Filedescription = "Hey! Watch it!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor hurt 03.ogg|Filedescription = "Hey! Watch it!"}}
+| '''Normal:'''
+{{Ogg|Filename = Hotshot kill 03.ogg|Filedescription = "That's gotta hurt."}}'''Mecha:'''
+{{Ogg|Filename = Mech colt kill vo 03.ogg|Filedescription = "That's gotta hurt."}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor kill 03.ogg|Filedescription = "That's gotta hurt."}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot die 03.ogg|Filedescription = "Have mercy!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt die vo 03.ogg|Filedescription = "Have mercy!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor die 03.ogg|Filedescription = "Have mercy!"}}
+|
+|'''Normal:'''
+{{Ogg|Filename = Hotshot ulti 03.ogg|Filedescription = "This is too easy!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt ulti vo 03.ogg|Filedescription = "This is too easy!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor ulti 03.ogg|Filedescription = "This is too easy!"}}
+|-
+|'''Normal:'''
+{{Ogg|Filename = Hotshot start 04.ogg|Filedescription = "Watch out, here I come!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt start vo 04.ogg|Filedescription = "Watch out, here I come!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor start 04.ogg|Filedescription = "Watch out, here I come!"}}
+| '''Normal:'''
+{{Ogg|Filename = Hotshot lead 04.ogg|Filedescription = "I'm too good!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt lead vo 04.ogg|Filedescription = "I'm too good!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor lead 03.ogg|Filedescription = "I'm too good!"}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot hurt 04.ogg|Filedescription = "That hurts!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt hurt vo 03.ogg|Filedescription = "That hurts!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor hurt 04.ogg|Filedescription = "That hurts!"}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot kill 04.ogg|Filedescription = "Sorry noob."}}'''Mecha:'''
+{{Ogg|Filename = Mech colt kill vo 04.ogg|Filedescription = "Sorry noob."}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor kill 04.ogg|Filedescription = "Sorry noob."}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot die 04.ogg|Filedescription = Colt whimpers}}'''Mecha:'''
+{{Ogg|Filename = Mech colt die vo 04.ogg|Filedescription = Colt whimpers}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor die 04.ogg|Filedescription = Colt whimpers}}
+|
+|'''Normal:'''
+{{Ogg|Filename = Hotshot ulti 04.ogg|Filedescription = "Check out my guns, ha ha ha!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt ulti vo 04.ogg|Filedescription = "Check out my guns, ha ha ha!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor ulti 04.ogg|Filedescription = "Check out my guns, ha ha ha!"}}
+|-
+|
+|'''Normal:'''
+{{Ogg|Filename = Hotshot lead 05.ogg|Filedescription = "Number one!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt lead vo 05.ogg|Filedescription = "Number one!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor lead 04.ogg|Filedescription = "Number one!"}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot hurt 05.ogg|Filedescription = Colt whimpers}}'''Mecha:'''
+{{Ogg|Filename = Mech colt hurt vo 04.ogg|Filedescription = Colt whimpers}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot kill 05.ogg|Filedescription = Colt laughs}}'''Mecha:'''
+{{Ogg|Filename = Mech colt kill vo 05.ogg|Filedescription = Colt laughs}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor kill 05.ogg|Filedescription = Colt laughs}}
+|
+|
+|
+|-
+|
+|
+| '''Normal:'''
+{{Ogg|Filename = Hotshot hurt 06.ogg|Filedescription = "Cheater!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt hurt vo 05.ogg|Filedescription = "Cheater!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor hurt 05.ogg|Filedescription = "Cheater!"}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot kill 06.ogg|Filedescription = "Nice head shot."}}'''Mecha:'''
+{{Ogg|Filename = Mech colt kill vo 06.ogg|Filedescription = "Nice head shot."}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor kill 06.ogg|Filedescription = "Nice head shot."}}
+|
+|
+|
+|-
+|
+|
+|'''Normal:'''
+{{Ogg|Filename = Hotshot hurt 07.ogg|Filedescription = "No way!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt hurt vo 06.ogg|Filedescription = "No way!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor hurt 06.ogg|Filedescription = "No way!"}}
+|'''Normal:'''
+{{Ogg|Filename = Hotshot kill 07.ogg|Filedescription = "Yes!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt kill vo 07.ogg|Filedescription = "Yes!"}}'''Ultra Astral:'''
+{{Ogg|Filename = Hc colt visor kill 07.ogg|Filedescription = "Yes!"}}
+|
+|
+|
+|-
+|
+|
+|'''Normal:'''
+{{Ogg|Filename = Hotshot hurt 08.ogg|Filedescription = "Gah!"}}'''Mecha:'''
+{{Ogg|Filename = Mech colt hurt vo 07.ogg|Filedescription = "Gah!"}}
+|
+|
+|
+|
+|}
+
+==History==
+*16/08/17:
+**{{Balance|Content=Colt's main attack range was increased to 10.66 tiles (from 10).|Change=Buff}}
+**{{Balance|Content=His main attack projectile speed was increased by 9%.|Change=Buff}}
+*04/09/17:
+**{{Balance|Content=Colt and Rockstar Colt were remodeled.|Change=Neutral}}
+*12/09/17:
+**{{Balance|Content=Colt's health was increased to 700 (from 600).|Change=Buff}}
+**{{Balance|Content=His reload time was decreased to 1.25 seconds (from 1.5).|Change=Buff}}
+*07/12/17:
+**{{Balance|Content=Colt's Super recharge rate was decreased by 17%.|Change=Nerf}}
+**{{Balance|Content=Colt's Slick Boots Star Power was added.|Change=Neutral}}
+**{{Balance|Content=The health and damage statistics of all Brawlers were multiplied by 4.|Change=Neutral}}
+*18/12/17:
+**{{Balance|Content=Colt's reload time was increased to 1.5 seconds (from 1.25).|Change=Nerf}}
+*22/12/17:
+**{{Balance|Content=Colt's main attack range was decreased to 10 tiles (from 10.66).|Change=Nerf}}
+*16/01/18:
+**{{Balance|Content=Colt's main attack range was decreased to 9 tiles (from 10).|Change=Nerf}}
+**{{Balance|Content=His Slick Boots Star Power speed boost was decreased to 50 points (from 100).|Change=Nerf}}
+*21/03/18:
+**{{Balance|Content=Colt's Slick Boots Star Power speed boost was increased to 60 points (from 50).|Change=Buff}} 
+**{{Balance|Content=His projectile size was increased.|Change=Buff}} 
+**{{Balance|Content=Every Brawler's movement speed was increased by 70 points, increasing Colt's base movement speed to 720 (from 650).|Change=Neutral}}
+**{{Balance|Content=All Brawlers' projectile speeds are increased by 9%.|Change=Neutral}}
+*23/03/18:
+**{{Balance|Content=Colt's main attack size was decreased by 50%.|Change=Nerf}}
+*09/04/18:
+**{{Balance|Content=Colt's main attack and Super damage were decreased to 300 (from 320) per bullet.|Change=Nerf}}
+*21/05/18:
+**{{Balance|Content=Colt's reload time was increased to 1.6 seconds (from 1.5).|Change=Nerf}}
+*29/05/18:
+**{{Balance|Content=Colt's main attack damage was decreased to 280 (from 300) per bullet.|Change=Nerf}}
+*18/06/18:
+**{{Balance|Content=Colt's Super range was decreased to 11 tiles (from 13.33).|Change=Nerf}}
+*05/12/18:
+**{{Balance|Content=Colt's main attack damage was increased to 300 (from 280) per bullet.|Change=Buff}}
+*29/01/19:
+**{{Balance|Content=Colt and Rockstar Colt were remodeled and their animations were reworked.|Change=Neutral}}
+**{{Balance|Content=The Royal Agent Colt skin was added to the game. It was featured as a Lunar Brawl 2019 skin.|Change=Neutral}}
+*26/06/19:
+**{{Balance|Content=The Outlaw Colt skin was added.|Change=Neutral}}
+*03/07/19:
+**{{Balance|Content=Colt's Magnum Special Star Power was added.|Change=Neutral}}
+*29/08/19:
+**{{Balance|Content=Colt's Slick Boots Star Power speed boost was increased to 10% (from 8%).|Change=Buff}}
+**{{Balance|Content=Fixed an issue that caused Colt's Magnum Special Star Power to increase the visual range of the Brawl Ball targeting line as well.|Change=Neutral}}
+*21/12/19:
+**{{Balance|Content=The Corsair Colt skin was added. It was featured as a Pirate Brawlidays skin.|Change=Neutral}}
+*19/02/20:
+**{{Balance|Content=Colt's main attack and Super damage were increased to 320 (from 300) per bullet.|Change=Buff}}
+*17/03/20: 
+**{{Balance|Content=Colt's Speedloader Gadget was added.|Change=Neutral}}
+*02/07/20:
+**{{Balance|Content=Colt, Rockstar Colt, Royal Agent Colt, and Outlaw Colt received facial animations.|Change=Neutral}}
+*10/09/20:
+**{{Balance|Content=Colt's Super recharge rate was increased slightly.|Change=Buff}}
+**{{Balance|Content=His Super charge rate was decreased slightly.|Change=Nerf}}
+*05/11/20:
+**{{Balance|Content=The Challenger Colt skin was added to the game. It was featured as a World Championship Finals 2020 skin.|Change=Neutral}}
+*27/11/20: 
+**{{Balance|Content=Colt's Silver Bullet Gadget was added.|Change=Neutral}}
+*15/12/20:
+**{{Balance|Content=Colt's main attack damage was increased to 360 (from 320) per bullet.|Change=Buff}} 
+**{{Balance|Content=Colt's Slick Boots speed boost was increased to 13% (from 10%).|Change=Buff}}
+**{{Balance|Content=Fixed an issue that caused Silver Bullet to deal extra damage and not show the Gadget symbol when activated.|Change=Neutral}} 
+*14/01/21:
+**{{Balance|Content=Colt's Silver Bullet Gadget damage was decreased to be equivalent to 2 of his regular bullets (from 6).|Change=Nerf}}
+*27/01/21:
+**{{Balance|Content=Colt's reload time was increased to 1.7 seconds (from 1.6).|Change=Nerf}} 
+**{{Balance|Content=Corsair Colt received facial animations.|Change=Neutral}}
+*12/04/21:
+**{{Balance|Content=The Gunslinger Colt skin was added. It was featured as a Brawl Pass Season 6 exclusive skin.|Change=Neutral}}
+*16/06/21: 
+**{{Balance|Content=Colt's True Silver and True Gold skins were added.|Change=Neutral}}
+*09/07/21:
+**{{Balance|Content=Colt's Latin America Master League skins were added.|Change=Neutral}}
+*27/08/21:
+**{{Balance|Content=The Handsome Colt skin was added.|Change=Neutral}}
+*27/10/21:
+**{{Balance|Content=Colt's class was changed to Damage Dealer (from Sharpshooter).|Change=Neutral}} 
+*29/06/22:
+**{{Balance|Content=Colt's flavor text was changed from “Colt fires an accurate burst of bullets from his dual revolvers. His Super shreds cover and extends the bullet barrage!” to “An unlikely hero that often finds himself in the wrong place at the right time. He's not one to shy away from a mirror and is simply brimming with confidence!”|Change=Neutral}}
+*04/07/22:
+**{{Balance|Content=The Sharktooth Colt skin was added. It was featured as a Brawl Pass Season 13 exclusive skin.|Change=Neutral}}
+*12/12/22:
+**{{Balance|Content=Colt's main attack projectile speed was increased to 4000 (from 3804). This does not affect his Silver Bullet Gadget.|Change=Buff}}
+**{{Balance|Content=Colt's rarity was changed to Rare (from Common).|Change=Neutral}}
+*28/02/23:
+**{{Balance|Content=Gunslinger Colt's main attack and Super visual effects were reworked.|Change=Neutral}}
+*25/04/23: 
+**{{Balance|Content=Handsome Colt now costs 79 [[Gems]] (from 49).|Change=Neutral}}
+**{{Balance|Content=Outlaw Colt now costs 29 Gems (from 500 [[Star Points]]).|Change=Neutral}}
+*05/05/23:
+**{{Balance|Content=The Bananas Colt skin was added. It was featured as a Rumble Jungle Heroes skin.|Change=Neutral}}
+*05/09/23:
+**{{Balance|Content=All Brawlers' health and damage were increased from 5% to 10% with each Power Level.|Change=Neutral}}
+**{{Balance|Content=Colt's Dual Wielding Hypercharge was added.|Change=Neutral}}
+*24/10/23: 
+**{{Balance|Content=Colt was slightly remodeled.|Change=Neutral}}
+**{{Balance|Content=Colt's flavor text was changed from "An unlikely hero that often finds himself in the wrong place at the right time. He's not one to shy away from a mirror and is simply brimming with confidence!" to "Colt is the star attraction at Starr Park! His good looks, charisma and gun twirling tricks win over any audience, except maybe Shelly."|Change=Neutral}}
+*12/12/23:
+**{{Balance|Content=Colt's reload time was decreased to 1.4 seconds (from 1.7).|Change=Buff}}
+*24/12/23:
+**{{Balance|Content=The Dark Angel Colt skin was added and was available for every user to claim for free until 31/12. It was featured as a Supercell Make skin.|Change=Neutral}}
+*27/02/24:
+**{{Balance|Content=Colt's Dual Wielding Hypercharge multiplier was decreased to 35% (from 40%).|Change=Nerf}}
+**{{Balance|Content=Colt's Dual Wielding Hypercharge speed boost was decreased to 26% (from 30%).|Change=Nerf}}
+**{{Balance|Content=Colt's Dual Wielding Hypercharge damage boost was decreased to 25% (from 30%).|Change=Nerf}}
+**{{Balance|Content=Colt's Dual Wielding Hypercharge shield boost was decreased to 5% (from 15%).|Change=Nerf}}
+**{{Balance|Content=All Brawlers' Hypercharges duration can no longer be extended.|Change=Neutral}}
+*18/04/24:
+**{{Balance|Content=The Mecha, Paragon Mecha, and Renegade Mecha Colt skins were added. They were featured as Mecha Squad skins.|Change=Neutral}} 
+*23/04/24: 
+**{{Balance|Content=Rockstar Colt was slightly remodeled.|Change=Neutral}}
+*29/04/24:
+**{{Balance|Content=Colt's Mutation was added for a limited time.|Change=Neutral}}
+*20/05/24:
+**{{Balance|Content=Colt's Mutation was removed from the game.|Change=Neutral}}
+*12/09/24:
+**{{Balance|Content=Fixed a bug where defeating a Colt could crash the game.|Change=Neutral}}
+*07/11/24:
+**{{Balance|Content=The Light Angel Colt skin was added. It was featured as an Angels vs. Demons skin.|Change=Neutral}}
+*14/11/24:
+**{{Balance|Content=Fixed unusual behavior with Colt having the Smite Ability equipped.|Change=Neutral}}
+*21/12/24:
+**{{Balance|Content=The Woody Colt skin was added. It was featured as a Toy Story skin.|Change=Neutral}}
+*24/01/25:
+**{{Balance|Content=The Jade Agent Colt skin was added. It was featured as a Lunar Brawl skin.|Change=Neutral}}
+*25/02/25:
+**{{Balance|Content=All Gadgets no longer have 3 charges and now have cooldowns.|Change=Neutral}}
+**{{Balance|Content=All True Gold skins were slightly remodeled.|Change=Neutral}}
+**{{Balance|Content=The Astral, Ultra Astral, Guardian, and Hyperion Colt skins were added. They were featured as Pro Pass skins.|Change=Neutral}}
+*01/05/25:
+**{{Balance|Content=Colt's Wasabi Power was added for a limited time.|Change=Neutral}}
+*20/05/25:
+**{{Balance|Content=Colt's Wasabi Power now gives him a slight reload speed buff.|Change=Buff}}
+*30/05/25:
+**{{Balance|Content=Colt's Wasabi Power was removed from the game.|Change=Neutral}}
+*23/07/25:
+**{{Balance|Content=Colt's Silver Bullet Gadget cooldown was decreased to 14 seconds (from 16).|Change=Buff}}
+*28/10/25:
+**{{Balance|Content=Colt's Slick Boots Star Power speed boost was changed to 13% (from 100 points).|Change=Nerf}}
+**{{Balance|Content=All Hypercharges now give a 20% speed boost, decreasing Colt's Dual Wielding Hypercharge speed boost from 26%.|Change=Nerf}}
+**{{Balance|Content=All Hypercharges now give a 5% damage boost, decreasing Colt's Dual Wielding Hypercharge damage boost from 25%.|Change=Nerf}}
+**{{Balance|Content=Fixed an issue with Colt's Slick Boots Star Power not increasing movement speed.|Change=Neutral}}
+*12/11/25:
+**{{Balance|Content=Fixed Colt's legendary Projectile Range Power Card from +1 to +2.|Change=Neutral}}
+*25/11/25:
+**{{Balance|Content=Colt's legendary Projectile Range Power Card was replaced with Damage +35% Power Card.|Change=Neutral}}
+*16/12/25:
+**{{Balance|Buff|Colt's health was increased to 3100 (from 2800).}}
+**{{Balance|Buff|Colt's reload time was decreased to 1.3 seconds (from 1.4). This does not affect his reload while the Hyper Buffie is active.}}
+**{{Balance|Nerf|Colt's Speedloader Gadget cooldown was increased to 15 seconds (from 11).}}
+**{{Balance|Nerf|Colt's Silver Bullet Gadget cooldown was increased to 17 seconds (from 14).}}
+**{{Balance|Nerf|Colt's Silver Bullet Gadget damage was decreased to 167% of his main attack damage (from 200% main attack damage).}}
+**{{Balance|Nerf|Colt's Silver Bullet Gadget is no longer affected by his Magnum Special Star Power.}}
+**{{Balance|Neutral|Colt's Speedloader Gadget was reworked from instantly recharging 2 ammo to fire 2 shots that deal 640 damage each and slow enemies.}}
+**{{Balance|Neutral|Colt's Epic Gear was removed, with his base reload speed increasing by 8% (from 15% from the Epic Gear).}}
+**{{Balance|Neutral|Colt's Buffies were added.}}
+*23/01/26:
+**{{Balance|Nerf|Colt's Speedloader Gadget Buffie now steals half an ammo (from one) on each bullet.}}
+*25/02/26:
+**{{Balance|Content=Colt's Speedloader Gadget Buffie no longer charges his Super and Hypercharge.|Change=Nerf}}
+*22/04/26:
+**{{Balance|Nerf|Colt's level up damage was decreased to 3% (from 6%) in [[Brawl Arena]]}}
+*30/06/26:
+**{{Balance|Content=Outlaw Colt, Corsair Colt, Handsome Colt, and Bananas Colt were slightly remodeled.|Change=Neutral}}
+
+==Cosmetics==
+===Skins (27)===
+{{Skin Gallery
+|Name1 = Rockstar|Cost1 = Free from Classic Brawl Mega Boxes or 29 Gems • '''S'''|Campaign1=Vibing|Rarity1 = Rare
+|Name2 = Outlaw|Cost2 = Free after reaching 750 Trophies or 29 Gems|Campaign2=Outlaws|Rarity2 = Rare
+|Name3 = River Plate|Cost3=49 Gems • '''E'''|Campaign3=Latin America Master League|Rarity3 = Rare
+|Name4 = Cerro Porteño|Cost4=49 Gems • '''E'''|Campaign4=Latin America Master League|Rarity4 = Rare
+|Name5 = Atl. Nacional|Cost5=49 Gems • '''E'''|Campaign5=Latin America Master League|Rarity5 = Rare
+|Name6 = Club America|Cost6=49 Gems • '''E'''|Campaign6=Latin America Master League|Rarity6 = Rare
+|Name7 = Paragon Mecha|Cost7=49 Gems, available after purchasing Mecha Colt, or free from Mecha Boxes|Campaign7=Mecha Squad|Rarity7 = Legendary
+|Name8 = Renegade Mecha|Cost8=49 Gems, available after purchasing Mecha Colt, or free from Mecha Boxes|Campaign8=Mecha Squad|Rarity8 = Legendary
+|Name9 = Handsome|Cost9=Free from Boom Boxes or 79 Gems|Campaign9=City Troubles|Rarity9 = Super Rare
+|Name10 = Royal Agent|Cost10 = 149 Gems • '''E'''|Campaign10 = Lunar Brawl|Rarity10 = Epic
+|Name11 = Corsair|Cost11 = 149 Gems • '''S'''|Campaign11 = Tales of the Sea|Rarity11 = Epic
+|Name12 = Bananas|Cost12 = 149 Gems|Campaign12 = Rumble Jungle Heroes|Rarity12 = Epic
+|Name13 = Dark Angel|Cost13 = Free from Brawlidays 2023 gift or 149 Gems|Campaign13 = Supercell Make|Campaign13_2=Angels vs. Demons|Rarity13 = Epic
+|Name14 = Light Angel|Cost14 = Free from Angelic Drops or 149 Gems|Campaign14 = Angels vs. Demons|Rarity14 = Epic
+|Name15 = Jade Agent|Cost15 = 149 Gems • '''S'''|Campaign15 = Lunar Brawl|Rarity15 = Epic
+|Name16 = Woody|Cost16 = 199 Gems or $9.99 • '''E'''|Campaign16 = Toy Story|Rarity16 = Mythic
+|Name17 = Mecha|Cost17 = 299 Gems or free from Mecha Boxes|Campaign17 = Mecha Squad|Rarity17 = Legendary
+|TrueSkins = yes
+|NameP1 = Challenger|CostP1 = $4.99 USD • '''E'''|CampaignP1 = BSC 2020|RarityP1 = Epic
+|NameP2 = Gunslinger|CostP2 = Brawl Pass Exclusive • '''E'''|CampaignP2 = Brawl Pass|CampaignP2_2 = Outlaws|RarityP2 = Super Rare
+|NameP3 = Sharktooth|CostP3 = Brawl Pass or 79 Gems|CampaignP3 = Brawl Pass|CampaignP3_2 = Deep Sea League|RarityP3= Super Rare
+|NamePP1 = Astral|CostPP1 = Free from the Pro Pass, or free from Ranked Starr Drops|CampaignPP1 = Pro Pass
+|NamePP2 = Astral IV|CostPP2 = Free from the Pro Pass, or free from Ranked Starr Drops|CampaignPP2 = Pro Pass
+|NamePP3 = Ultra Astral|CostPP3 = Pro Pass Exclusive, or free from Ranked Starr Drops|CampaignPP3 = Pro Pass
+|NamePP4 = Guardian|CostPP4 = Pro Pass Exclusive, or free from Ranked Starr Drops|CampaignPP4 = Pro Pass
+|NamePP5 = Hyperion|CostPP5 = Pro Pass Exclusive, or free from Ranked Starr Drops|CampaignPP5 = Pro Pass}}
+
+===Buffie Skins===
+<gallery>
+Colt Buffie Skin-Gadget.png|Gadget
+Colt Buffie Skin-Star.png|Star
+Colt Buffie Skin-Hyper.png|Hyper
+Colt Buffie Skin-Bling.png|Bling
+</gallery>
+
+===Portraits===
+<gallery widths="200">
+File:Colt Portrait.png|Default
+File:Astral Colt Portrait.png|Astral
+</gallery>
+
+===Pins===
+{| class="article-table" style="width: 100%;"
+! colspan="12" |Colt
+|-
+!Skin
+! colspan="11" |Pins
+{{Pin Table}}
+{{Pin Table|Sharktooth}}
+{{Pin Table|Handsome}}
+{{Pin Table|Bananas}}
+{{Pin Table|Dark Angel|Special}}
+{{Pin Table|Mecha}}
+{{Pin Table|Paragon Mecha|Special}}
+{{Pin Table|Renegade Mecha|Special}}
+{{Pin Table|Challenger|Neutral}}
+{{Pin Table|Light Angel|Special}}
+{{Pin Table|Woody|Special}}
+{{Pin Table|Astral}}
+{{Pin Table|Guardian|Special}}
+{{Pin Table|Hyperion|Special}}
+{{Pin Table|Royal Agent|Thanks}}
+{{Pin Table|Corsair}}
+{{Pin Table|Jade Agent|Thanks}}
+{{Pin Table|Gunslinger|Special}}
+|}
+
+===Sprays===
+{| class="article-table" style="width: 100%; text-align: center;" colspan="5"
+|-
+|{{Spray|Type = Colt|Rarity = Common}} 
+|{{Spray|Type = Colt Hypercharge|Rarity = Exclusive}}
+|{{Spray|Type = Bananas Colt|Rarity = Common}}
+|{{Spray|Type = Mecha Colt|Rarity = Common}}
+|{{Spray|Type = Woody Colt|Rarity = Common}}
+|-
+|{{Spray|Type = Astral Colt|Rarity = Common}}
+|}
+
+===Profile Icons===
+{| class="article-table" style="width: 100%; text-align: center;" colspan="5"
+|-
+|{{Pfp|Colt1}}
+|{{Pfp|Colt2}}
+|{{Pfp|Colt3}}
+|{{Pfp|Colt4}}
+|{{Pfp|Bananas Colt}}
+|-
+|{{Pfp|Dark Angel Colt}}
+|{{Pfp|Mecha Colt}}
+|{{Pfp|Light Angel Colt}}
+|{{Pfp|Corsair Colt}}
+|{{Pfp|Challenger Colt}}
+|-
+|{{Pfp|Woody Colt}}
+|{{Pfp|Royal Agent Colt}}
+|{{Pfp|Jade Agent Colt}}
+|{{Pfp|Astral Colt}}
+|}
+
+{{Navigation}}
+[[ru:Кольт]]
+[[pl:Colt]]
+[[es:Colt]]
+[[vi:Colt]]
