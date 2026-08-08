@@ -1201,6 +1201,25 @@ input:focus {
   letter-spacing: 0.04em;
 }
 
+/* ========== 免责声明 ========== */
+.disclaimer-note {
+  margin-top: 1rem;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+}
+
+.credits-disclaimer {
+  margin-top: 0.6rem;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+
 /* ========== 角色评级角标 ========== */
 .hero-tier-badge {
   position: absolute;

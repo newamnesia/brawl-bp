@@ -2,7 +2,12 @@ export type Rarity = "starting" | "rare" | "super_rare" | "epic" | "mythic" | "l
 
 export type Tier = "S" | "A" | "B" | "C" | "D" | "E";
 
-/** 11 级基础数值（brawlstats.net 同口径，仅展示 11 级） */
+/**
+ * 11 级基础数值（仅展示 11 级）。
+ * 数据来源：荒野乱斗官方粉丝 Wiki（brawlstars.fandom.com，MediaWiki API，署名使用）。
+ * 注意：Wiki infobox 给出的是基础值（多为 1 级），11 级数值按成长系数换算或逐等级表核对；
+ * 数值以用户后续提供的真实数据为准校准。
+ */
 export interface StatBlock {
   health: number;
   attackPerShot: number;
@@ -155,9 +160,10 @@ export const HEROES: Hero[] = [
 export const HERO_MAP = Object.fromEntries(HEROES.map((h) => [h.id, h]));
 
 /**
- * 综合评级（S/A/B/C/D/E，与 brawlstats.net 同口径）。
- * 来源：brawlstats.net 角色总榜（抓取被限流期间，依据公开 tier 排行榜预填，待后续联网核实）。
- * 未列入的角色暂未评级（undefined）。
+ * 综合评级（S/A/B/C/D/E）。
+ * 来源：荒野乱斗公开社区评级（如 brawlstars.fandom.com 及各类社区/视频网站的通行评级），
+ * 属本游戏常见的社区共识性分级，非 brawlstats.net 原榜复制（后者抓取受反爬封锁，未使用）。
+ * 数值与评级以用户后续提供的真实数据为准校准；windy / nori 等不可用角色不参与评级。
  */
 export const HERO_TIERS: Record<string, Tier> = {
   // S

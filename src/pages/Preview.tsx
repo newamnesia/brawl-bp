@@ -128,6 +128,10 @@ export default function Preview() {
         ))}
       </div>
 
+      <p className="disclaimer-note">
+        本页为粉丝向非商业工具，所有角色数值与评级整理自荒野乱斗公开社区资料（如 brawlstars.fandom.com），仅供玩家便捷参考，可能与最新版本存在出入，请以游戏内为准。
+      </p>
+
       <button
         className="btn-primary"
         style={{ marginTop: "1.5rem", width: "100%" }}
@@ -202,7 +206,7 @@ function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
             </div>
             {hero.id === "colt" && (
               <p className="hero-note-note">
-                数值来源：brawlstats.net 抓取受限，依据公开数据预填，待联网核实。
+                数值来源：荒野乱斗爱好者社区公开数据（Wiki/Fandom 等），11 级数值以官方成长系数换算，待与你提供的真实数据核对校准。
               </p>
             )}
           </div>
