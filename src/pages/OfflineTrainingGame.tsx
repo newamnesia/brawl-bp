@@ -500,6 +500,22 @@ function signedAngleDelta(from: number, to: number): number {
   return Math.atan2(Math.sin(to - from), Math.cos(to - from));
 }
 
+// 可复现的伪随机数：同一发子弹始终得到相同采样，不受渲染帧率影响。
+function seededUnit(seed: number): number {
+  const x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// 截断双峰分布：峰位于 ±60% 合理偏转上限，中心和两端都不是高权重区。
+function sampleBimodalLead(maxAngle: number, seed: number, positiveProbability: number): number {
+  if (maxAngle <= 0) return 0;
+  const side = seededUnit(seed) < clamp01(positiveProbability) ? 1 : -1;
+  // 三个均匀变量之和近似钟形噪声，标准差约为 0.17；无需引入不可复现的 Math.random。
+  const bell = (seededUnit(seed + 11) + seededUnit(seed + 23) + seededUnit(seed + 37) - 1.5) / 1.5;
+  const magnitude = Math.max(0.18, Math.min(0.9, 0.6 + bell * 0.18));
+  return side * magnitude * maxAngle;
+}
+
 // 基础拦截角 + 玩家画像修正。函数保持确定性，避免随机抖动让训练结果不可复现。
 function predictAimAngle(args: {
   playerX: number;
@@ -510,11 +526,12 @@ function predictAimAngle(args: {
   enemyX: number;
   enemyY: number;
   bulletSpeed: number;
+  shotId: number;
   now: number;
   p: Prof;
   metrics: ProfileMetrics;
 }): AimPrediction {
-  const { playerX, playerY, velX, velY, speed, enemyX, enemyY, bulletSpeed, now, p, metrics } = args;
+  const { playerX, playerY, velX, velY, speed, enemyX, enemyY, bulletSpeed, shotId, now, p, metrics } = args;
   const maxFlightS = BULLET_MAX_DIST / bulletSpeed;
   const directAngle = Math.atan2(playerY - enemyY, playerX - enemyX);
   let t = Math.min(maxFlightS, Math.hypot(playerX - enemyX, playerY - enemyY) / bulletSpeed);
@@ -567,13 +584,25 @@ function predictAimAngle(args: {
   }
 
   const rawLeadAngle = Math.atan2(predY - enemyY, predX - enemyX);
-  // 样本越可信，允许的最大预判偏角越大；高骗招/高变向玩家会自然收敛到直瞄。
+  // 玩家速度 / 子弹速度决定运动学上的合理偏转上限。
+  // 对匀速拦截，最大提前角为 asin(vPlayer / vBullet)；保留少量上限余量但不采样端点。
+  const kinematicMaxLead = Math.asin(Math.min(0.98, MOVE_SPEED / bulletSpeed));
   const profileLeadTrust = clamp01(precisionTrust * directionPersistence * fakeoutTrust * highFrequencyTrust);
   const leadTrust = profileLeadTrust + (1 - profileLeadTrust) * straightLineFit;
-  const maxLeadDeg = 6 + 39 * leadTrust;
-  const leadDelta = signedAngleDelta(directAngle, rawLeadAngle);
-  const maxLeadRad = (maxLeadDeg * Math.PI) / 180;
-  const aimAngle = directAngle + Math.max(-maxLeadRad, Math.min(maxLeadRad, leadDelta));
+  const maxLeadRad = kinematicMaxLead * (0.45 + 0.55 * leadTrust);
+  const observedLead = Math.max(
+    -maxLeadRad,
+    Math.min(maxLeadRad, signedAngleDelta(directAngle, rawLeadAngle)),
+  );
+
+  // 双峰左右权重由当前可观测移动方向决定，但任何一侧都保留至少 20% 概率。
+  const observedSign = observedLead === 0 ? 0 : Math.sign(observedLead);
+  const positiveLobeProbability = 0.5 + observedSign * 0.3 * leadTrust;
+  const bimodalLead = sampleBimodalLead(maxLeadRad, shotId, positiveLobeProbability);
+  // 稳定直行时优先精确拦截；方向越不稳定，双峰走位先验参与越多。
+  const bimodalWeight = 0.65 * (1 - straightLineFit) * (1 - 0.45 * leadTrust);
+  const leadDelta = observedLead * (1 - bimodalWeight) + bimodalLead * bimodalWeight;
+  const aimAngle = directAngle + leadDelta;
   const aimDist = Math.min(BULLET_MAX_DIST, Math.hypot(predX - enemyX, predY - enemyY));
   return {
     aimX: enemyX + Math.cos(aimAngle) * aimDist,
@@ -806,6 +835,7 @@ export default function OfflineTrainingGame() {
           const dy = player.y - ENEMY_Y;
           // 射程判定：用玩家当前位置
           if (dx * dx + dy * dy <= ENEMY_RANGE * ENEMY_RANGE) {
+            const shotId = bulletIdRef.current++;
             const metrics = getMetrics(prof);
             const pred = predictAimAngle({
               playerX: player.x,
@@ -816,6 +846,7 @@ export default function OfflineTrainingGame() {
               enemyX: ENEMY_X,
               enemyY: ENEMY_Y,
               bulletSpeed,
+              shotId,
               now,
               p: prof,
               metrics,
@@ -829,7 +860,7 @@ export default function OfflineTrainingGame() {
               vx: (ax / da) * bulletSpeed,
               vy: (ay / da) * bulletSpeed,
               traveled: 0,
-              id: bulletIdRef.current++,
+              id: shotId,
             });
           }
         }
