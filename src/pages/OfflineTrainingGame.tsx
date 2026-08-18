@@ -11,6 +11,8 @@ const CAMERA_GROUND_ANGLE_DEG = 67;
 const GROUND_DEPTH_PROJECTION = Math.sin((CAMERA_GROUND_ANGLE_DEG * Math.PI) / 180);
 const PLAYER_RADIUS = 0.5; // 玩家半径 0.5 单位
 const MOVE_SPEED = 3;  // 移动速度 3 单位/秒
+const MOVE_ACCELERATION_TIME = 0.2;
+const MOVE_ACCELERATION = MOVE_SPEED / MOVE_ACCELERATION_TIME; // 15 单位/秒²
 
 // 敌人 + 子弹常量
 // 第10行（1-indexed）正中间方格：行9（0-indexed）中心 y=9.5；列10（0-indexed，21列正中）中心 x=10.5
@@ -20,8 +22,11 @@ const ENEMY_RADIUS = 0.5;
 const ENEMY_RANGE = 10;       // 射程半径
 const FIRE_INTERVAL = 1;      // 发射间隔 1s
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
-const BULLET_RADIUS = 0.25;   // 子弹半径 0.25 单位（圆）
-const BULLET_SPEED_BY_TIER: Record<string, number> = { low: 10.5, mid: 14, high: 17.5 };
+const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
+const BULLET_TEXTURES = {
+  mid: "/assets/projectiles/bullet-14.png",
+  high: "/assets/projectiles/bullet-17-5.png",
+} as const;
 
 type Bullet = {
   x: number;          // 子弹中心 x
@@ -30,6 +35,8 @@ type Bullet = {
   vy: number;         // 单位向量 y * speed
   traveled: number;   // 已行进距离
   id: number;         // 唯一 ID，用于视野首次进入检测
+  radius: number;
+  texture: keyof typeof BULLET_TEXTURES;
 };
 
 // ============== Profiler 常量 ==============
@@ -639,6 +646,7 @@ export default function OfflineTrainingGame() {
     x: MAP_WIDTH / 2,
     y: MAP_HEIGHT / 2,
   });
+  const playerVelocityRef = useRef({ x: 0, y: 0 });
 
   // 输入状态
   const inputRef = useRef({
@@ -798,6 +806,14 @@ export default function OfflineTrainingGame() {
 
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
+    playerVelocityRef.current = { x: 0, y: 0 };
+
+    const projectileImages: Record<keyof typeof BULLET_TEXTURES, HTMLImageElement> = {
+      mid: new Image(),
+      high: new Image(),
+    };
+    projectileImages.mid.src = BULLET_TEXTURES.mid;
+    projectileImages.high.src = BULLET_TEXTURES.high;
 
     // 缩放因子
     let scale = 1;
@@ -843,16 +859,34 @@ export default function OfflineTrainingGame() {
         const player = playerRef.current;
         const prof = profilerRef.current!;
 
-        const velX = input.x * MOVE_SPEED;
-        const velY = input.y * MOVE_SPEED;
-        const curSpeed = Math.hypot(input.x, input.y) * MOVE_SPEED;
+        const velocity = playerVelocityRef.current;
+        const targetVelX = input.x * MOVE_SPEED;
+        const targetVelY = input.y * MOVE_SPEED;
+        const deltaVelX = targetVelX - velocity.x;
+        const deltaVelY = targetVelY - velocity.y;
+        const deltaVel = Math.hypot(deltaVelX, deltaVelY);
+        const maxVelocityChange = MOVE_ACCELERATION * dt;
+        if (deltaVel <= maxVelocityChange || deltaVel === 0) {
+          velocity.x = targetVelX;
+          velocity.y = targetVelY;
+        } else {
+          velocity.x += (deltaVelX / deltaVel) * maxVelocityChange;
+          velocity.y += (deltaVelY / deltaVel) * maxVelocityChange;
+        }
+        const velX = velocity.x;
+        const velY = velocity.y;
+        const curSpeed = Math.hypot(velX, velY);
 
         player.x += velX * dt;
         player.y += velY * dt;
 
         // 边界限制（圆心需保证半径在内）
-        player.x = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS, player.x));
-        player.y = Math.max(PLAYER_RADIUS, Math.min(MAP_HEIGHT - PLAYER_RADIUS, player.y));
+        const clampedX = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS, player.x));
+        const clampedY = Math.max(PLAYER_RADIUS, Math.min(MAP_HEIGHT - PLAYER_RADIUS, player.y));
+        if (clampedX !== player.x) velocity.x = 0;
+        if (clampedY !== player.y) velocity.y = 0;
+        player.x = clampedX;
+        player.y = clampedY;
 
         // === Profiler 采样：rawMag & engaged 按模式区分 ===
         let rawMag = -1;
@@ -896,6 +930,7 @@ export default function OfflineTrainingGame() {
             const ax = pred.aimX - ENEMY_X;
             const ay = pred.aimY - ENEMY_Y;
             const da = Math.hypot(ax, ay) || 1;
+            const projectileTier: keyof typeof BULLET_TEXTURES = Math.abs(bulletSpeed - 14) < 0.01 ? "mid" : "high";
             bulletsRef.current.push({
               x: ENEMY_X,
               y: ENEMY_Y,
@@ -903,14 +938,14 @@ export default function OfflineTrainingGame() {
               vy: (ay / da) * bulletSpeed,
               traveled: 0,
               id: shotId,
+              radius: projectileTier === "mid" ? 0.375 : 0.25,
+              texture: projectileTier,
             });
           }
         }
 
         // ======== 更新子弹 + 碰撞检测 + 生命周期 + 视野事件 ========
         const bullets = bulletsRef.current;
-        const rSum = PLAYER_RADIUS + BULLET_RADIUS;
-        const rSum2 = rSum * rSum;
 
         // 相机与视野范围（用于"子弹进入视野"判定）
         const cssW = container.clientWidth;
@@ -962,6 +997,8 @@ export default function OfflineTrainingGame() {
           // 子弹圆 vs 玩家圆 相交检测
           const ddx = player.x - b.x;
           const ddy = player.y - b.y;
+          const rSum = PLAYER_RADIUS + b.radius;
+          const rSum2 = rSum * rSum;
           if (ddx * ddx + ddy * ddy <= rSum2) {
             bullets.splice(i, 1);
             profileBulletRemoved(prof, b.id);
@@ -1080,31 +1117,30 @@ export default function OfflineTrainingGame() {
       ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 绘制子弹（半径 0.25 的圆，红色）
-      const bulletRadiusPx = BULLET_RADIUS * scale;
-      const bulletRadiusPy = BULLET_RADIUS * scaleY;
-      ctx.shadowColor = "#ff5252";
-      ctx.shadowBlur = bulletRadiusPx * 1.2;
-      ctx.fillStyle = "#ff7070";
-      ctx.beginPath();
+      // 绘制子弹贴图；贴图跟随弹道方向旋转，碰撞仍使用实例自身的物理半径。
       for (const b of bulletsRef.current) {
         const bx = offsetX + b.x * scale;
         const by = offsetY + b.y * scaleY;
-        ctx.moveTo(bx + bulletRadiusPx, by);
-        ctx.ellipse(bx, by, bulletRadiusPx, bulletRadiusPy, 0, 0, Math.PI * 2);
+        const radiusX = b.radius * scale;
+        const radiusY = b.radius * scaleY;
+        const image = projectileImages[b.texture];
+        if (image.complete && image.naturalWidth > 0) {
+          const angle = Math.atan2(b.vy * scaleY, b.vx * scale);
+          // 素材包含透明发光留白，绘制范围放大到碰撞直径的 3 倍。
+          const drawWidth = radiusX * 6;
+          const drawHeight = radiusY * 6;
+          ctx.save();
+          ctx.translate(bx, by);
+          ctx.rotate(angle + Math.PI / 2);
+          ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = b.texture === "mid" ? "#ff8a40" : "#70d7ff";
+          ctx.beginPath();
+          ctx.ellipse(bx, by, radiusX, radiusY, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = "#ff8a80";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      for (const b of bulletsRef.current) {
-        const bx = offsetX + b.x * scale;
-        const by = offsetY + b.y * scaleY;
-        ctx.moveTo(bx + bulletRadiusPx, by);
-        ctx.ellipse(bx, by, bulletRadiusPx, bulletRadiusPy, 0, 0, Math.PI * 2);
-      }
-      ctx.stroke();
 
       // 坐标信息
       ctx.fillStyle = "#8899aa";
@@ -1125,6 +1161,7 @@ export default function OfflineTrainingGame() {
       window.removeEventListener("resize", resize);
       bulletEnteredVision.clear();
       bulletsRef.current = [];
+      playerVelocityRef.current = { x: 0, y: 0 };
       bulletIdRef.current = 1;
       fireTimerRef.current = FIRE_INTERVAL;
     };
@@ -1198,7 +1235,7 @@ export default function OfflineTrainingGame() {
   const js = joystickRef.current;
 
   const speedTierLabel =
-    speedTier === "low" ? "低" : speedTier === "mid" ? "中" : speedTier === "high" ? "高" : "中";
+    speedTier === "high" ? "高" : "中";
 
   return (
     <div

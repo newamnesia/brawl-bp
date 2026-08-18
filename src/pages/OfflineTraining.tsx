@@ -2,10 +2,9 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 type ControlMode = "joystick" | "keyboard";
-type SpeedTier = "low" | "mid" | "high";
+type SpeedTier = "mid" | "high";
 
 const SPEED_TIERS: Record<SpeedTier, { label: string; value: number; hint: string }> = {
-  low: { label: "低", value: 10.5, hint: "轻松练习用" },
   mid: { label: "中", value: 14, hint: "标准挑战" },
   high: { label: "高", value: 17.5, hint: "极限反应训练" },
 };
@@ -125,7 +124,7 @@ export default function OfflineTraining() {
         <ul className="tutorial-list">
           <li>地图尺寸：<strong>21 × 33</strong> 单位（竖版，21列×33行）</li>
           <li>玩家体积：半径 <strong>0.5</strong> 单位圆形</li>
-          <li>移动速度：<strong>3 单位/秒</strong>（按角度三角函数分解分量）</li>
+          <li>移动速度：最高 <strong>3 单位/秒</strong>，从静止匀加速 <strong>0.2 秒</strong>到最大速度</li>
           <li>视野：横向固定 <strong>31.2</strong> 格，地图居中，以约 <strong>67°</strong> 地面夹角投影</li>
         </ul>
       </div>
