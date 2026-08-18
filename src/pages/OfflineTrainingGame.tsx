@@ -109,6 +109,10 @@ type Prof = {
   effectiveTurns: EffectiveTurn[]; // 环形缓冲（最多存 20 个）
   fakeoutsPerSec: number;        // 指标 6：每秒次数 EMA
   lastFakeoutAt: number;         // ms
+  // 当前行为状态：用于区分“持续单向直行”和真正的主动走位。
+  lastInputAngle: number | null;
+  stableDirectionSince: number;  // 当前方向连续保持在容错范围内的起点
+  deadzoneSince: number;         // 连续静止的起点
   // —— 暂停面板分布曲线原始样本 ——
   samplesStickMag: number[];     // 数据1：摇杆归一化距离（0~1），排除松杆&死区
   samplesReactionMs: number[];   // 数据2：反应时间（ms），人类合理区间
@@ -144,6 +148,9 @@ function createProfiler(now: number): Prof {
     effectiveTurns: [],
     fakeoutsPerSec: 0,
     lastFakeoutAt: 0,
+    lastInputAngle: null,
+    stableDirectionSince: now,
+    deadzoneSince: now,
     samplesStickMag: [],
     samplesReactionMs: [],
     samplesTurnIntervalMs: [],
@@ -169,6 +176,19 @@ function profileStep(
   const mag = Math.hypot(inputX, inputY);
   const inDead = mag < INPUT_DEADZONE_MAG;
   const angle = inDead ? 0 : Math.atan2(inputY, inputX);
+
+  // 记录最近的连续行为，而不只依赖整局平均值。
+  // 方向变化未超过容错量时，视为同一个“单向直行”区间。
+  if (inDead) {
+    if (p.lastInputAngle !== null) p.deadzoneSince = now;
+    p.lastInputAngle = null;
+  } else if (p.lastInputAngle === null) {
+    p.lastInputAngle = angle;
+    p.stableDirectionSince = now;
+  } else if (angleDeltaDeg(p.lastInputAngle, angle) > TURN_TOLERANCE_DEG) {
+    p.lastInputAngle = angle;
+    p.stableDirectionSince = now;
+  }
 
   p.totalFrames++;
   if (inDead) p.deadFrames++;
@@ -387,6 +407,11 @@ function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
 
+function smooth01(v: number): number {
+  const x = clamp01(v);
+  return x * x * (3 - 2 * x);
+}
+
 // 返回从 from 转到 to 的最短有符号角（弧度，范围 [-PI, PI]）。
 function signedAngleDelta(from: number, to: number): number {
   return Math.atan2(Math.sin(to - from), Math.cos(to - from));
@@ -411,11 +436,17 @@ function predictAimAngle(args: {
   const directAngle = Math.atan2(playerY - enemyY, playerX - enemyX);
   let t = Math.min(maxFlightS, Math.hypot(playerX - enemyX, playerY - enemyY) / bulletSpeed);
 
+  // 最近持续行为优先于整局均值：超过稳定窗口后逐渐拟合为标准匀速直线运动。
+  // 约 1.5 秒无有效转向时达到完全拟合，避免刚按下方向键就产生过大的瞬时提前量。
+  const stableTravelS = speed < INPUT_DEADZONE_MAG ? 0 : Math.max(0, now - p.stableDirectionSince) / 1000;
+  const straightLineFit = smooth01((stableTravelS - TURN_STABLE_MS / 1000) / 1.2);
+
   // 1) 细腻度越高，当前方向越值得信任；180° 转向越慢，也越不容易在弹道时间内摆脱。
   const precisionTrust = 0.25 + 0.75 * clamp01(metrics.finesse);
   const turnLock = clamp01(metrics.avg180TurnTimeMs / Math.max(250, t * 1000));
   // 2) 变向越频繁，当前方向随时间失效越快。
-  const directionPersistence = Math.exp(-Math.max(0, metrics.directionChangeFreq) * t * 0.8);
+  const historicalPersistence = Math.exp(-Math.max(0, metrics.directionChangeFreq) * t * 0.8);
+  const directionPersistence = historicalPersistence + (1 - historicalPersistence) * straightLineFit;
   // 3) 站桩倾向直接降低有效位移，但不能把正在移动的玩家瞬间视作静止。
   const activityTrust = 0.25 + 0.75 * (1 - clamp01(metrics.stillnessRatio));
   // 4) 子弹出现后、玩家作出有效转向前，当前运动方向仍然有效。
@@ -432,7 +463,9 @@ function predictAimAngle(args: {
   const fakeoutTrust = 1 - 0.7 * clamp01(metrics.fakeoutsPerSec / 2);
 
   const postReactionTrust = precisionTrust * turnLock * directionPersistence * activityTrust * fakeoutTrust;
-  const motionGain = clamp01((preReactionShare + (1 - preReactionShare) * postReactionTrust) * fatigueScale);
+  const profileMotionGain = clamp01((preReactionShare + (1 - preReactionShare) * postReactionTrust) * fatigueScale);
+  // 持续单向移动是强于历史画像的实时证据；最终收敛到完整的匀速拦截。
+  const motionGain = profileMotionGain + (1 - profileMotionGain) * straightLineFit;
 
   // 迭代求解玩家预计位置与子弹飞行时间。
   let predX = playerX;
@@ -448,7 +481,9 @@ function predictAimAngle(args: {
 
   const rawLeadAngle = Math.atan2(predY - enemyY, predX - enemyX);
   // 样本越可信，允许的最大预判偏角越大；高骗招/高变向玩家会自然收敛到直瞄。
-  const maxLeadDeg = 6 + 39 * clamp01(precisionTrust * directionPersistence * fakeoutTrust);
+  const profileLeadTrust = clamp01(precisionTrust * directionPersistence * fakeoutTrust);
+  const leadTrust = profileLeadTrust + (1 - profileLeadTrust) * straightLineFit;
+  const maxLeadDeg = 6 + 39 * leadTrust;
   const leadDelta = signedAngleDelta(directAngle, rawLeadAngle);
   const maxLeadRad = (maxLeadDeg * Math.PI) / 180;
   const aimAngle = directAngle + Math.max(-maxLeadRad, Math.min(maxLeadRad, leadDelta));
