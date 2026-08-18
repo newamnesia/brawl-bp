@@ -85,6 +85,7 @@ type PendingBulletReaction = {
   bulletId: number;
   enterVisionAt: number; // ms
   expiresAt: number;     // 子弹实际生命周期结束时刻，过后不能再产生反应样本
+  baselineAngle: number | null; // 进入视野时的操作方向；null 表示当时静止
 };
 
 type Prof = {
@@ -336,6 +337,10 @@ function profileStep(
   }
 
   // ===== 虚脱期：大转向 → 观测停滞期 =====
+  if (turnEventAngle !== undefined) {
+    profileEffectiveTurnForReaction(p, now, turnEventAngle);
+  }
+
   if (turnEventAngle !== undefined && p.effectiveTurns.length >= 2) {
     const prevAng = p.effectiveTurns[p.effectiveTurns.length - 2].angle;
     const deltaBig = angleDeltaDeg(prevAng, turnEventAngle);
@@ -379,12 +384,19 @@ function profileStep(
 }
 
 // 通知 Profiler：某颗子弹刚进入玩家视野（用于反应速度统计）
-function profileBulletEnterVision(p: Prof, now: number, bulletId: number, remainingLifeMs: number) {
+function profileBulletEnterVision(
+  p: Prof,
+  now: number,
+  bulletId: number,
+  remainingLifeMs: number,
+  baselineAngle: number | null,
+) {
   if (p.reactionFirstTurnSeen.has(bulletId)) return;
   p.pendingReactions.push({
     bulletId,
     enterVisionAt: now,
     expiresAt: now + Math.min(REACTION_MAX_MS, Math.max(0, remainingLifeMs)),
+    baselineAngle,
   });
 }
 
@@ -395,20 +407,28 @@ function profileBulletRemoved(p: Prof, bulletId: number) {
   p.reactionFirstTurnSeen.add(bulletId);
 }
 
-// 通知 Profiler：发生了一次转向（反应速度触发用）
-function profileTurnHappened(p: Prof, now: number, turnAngleDeg: number) {
-  if (turnAngleDeg < REACTION_TURN_DEG) return;
-  // 对所有还在等待的 pending bullet，如果在时间窗口内，就取反应时间样本
+// 只有“新方向已在容错范围内稳定 TURN_STABLE_MS”的事件才能触发反应样本。
+// 相邻帧角度变化不再参与反应速度判定。
+function profileEffectiveTurnForReaction(p: Prof, now: number, stableAngle: number) {
+  // 先清理已经失效的子弹记录。
   for (let i = p.pendingReactions.length - 1; i >= 0; i--) {
     const pr = p.pendingReactions[i];
-    const rt = now - pr.enterVisionAt;
-    if (now > pr.expiresAt || rt > REACTION_MAX_MS) {
-      // 超时：丢弃
+    if (now > pr.expiresAt || now - pr.enterVisionAt > REACTION_MAX_MS) {
       p.reactionFirstTurnSeen.add(pr.bulletId);
       p.pendingReactions.splice(i, 1);
-      continue;
     }
-    if (rt < 40) continue; // 异常快，噪声
+  }
+
+  // 使用最早进入视野、且确实相对其基准方向发生有效变化的子弹。
+  const index = p.pendingReactions.findIndex((pr) =>
+    pr.baselineAngle === null || angleDeltaDeg(pr.baselineAngle, stableAngle) >= REACTION_TURN_DEG,
+  );
+  if (index < 0) return;
+
+  const pr = p.pendingReactions[index];
+  const rt = now - pr.enterVisionAt;
+  // 稳定窗口本身已排除瞬间噪声；保留最小人类反应阈值作为数据清洗。
+  if (rt >= 120) {
     // 记录样本
     p.reactionSampleCount++;
     if (p.reactionSampleCount === 1) p.avgReactionTimeMs = rt;
@@ -418,11 +438,9 @@ function profileTurnHappened(p: Prof, now: number, turnAngleDeg: number) {
     if (rt >= 120 && rt <= REACTION_MAX_MS && p.samplesReactionMs.length < 5000) {
       p.samplesReactionMs.push(rt);
     }
-    p.reactionFirstTurnSeen.add(pr.bulletId);
-    p.pendingReactions.splice(i, 1);
-    // 一次转向只计最先进入视野的那一颗
-    break;
   }
+  p.reactionFirstTurnSeen.add(pr.bulletId);
+  p.pendingReactions.splice(index, 1);
 }
 
 // 画像输出：6 个归一化/绝对值指标（用于 HUD 与预测）
@@ -650,7 +668,6 @@ export default function OfflineTrainingGame() {
   // Profiler（每局新建）
   const profilerRef = useRef<Prof | null>(null);
   // 上一帧玩家方向（度），用于每帧方向变化阈值 → 反应速度触发
-  const lastPlayerAngleDegRef = useRef<number | null>(null);
 
   // 键盘监听
   useEffect(() => {
@@ -713,7 +730,6 @@ export default function OfflineTrainingGame() {
 
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
-    lastPlayerAngleDegRef.current = null;
 
     // 缩放因子
     let scale = 1;
@@ -781,21 +797,6 @@ export default function OfflineTrainingGame() {
           rawMag = -1;
         }
         profileStep(prof, now, input.x, input.y, dtMs, rawMag, engaged);
-
-        // 每帧方向变化 → 触发反应速度事件
-        const curMag = Math.hypot(input.x, input.y);
-        if (curMag >= INPUT_DEADZONE_MAG) {
-          const angDeg = (Math.atan2(input.y, input.x) * 180) / Math.PI;
-          const last = lastPlayerAngleDegRef.current;
-          if (last !== null) {
-            let dd = angDeg - last;
-            dd = ((dd + 180) % 360 + 360) % 360 - 180;
-            profileTurnHappened(prof, now, Math.abs(dd));
-          }
-          lastPlayerAngleDegRef.current = angDeg;
-        } else {
-          lastPlayerAngleDegRef.current = null;
-        }
 
         // ======== 开火计时器（每秒一发 + 预判瞄准） ========
         fireTimerRef.current -= dt;
@@ -873,7 +874,8 @@ export default function OfflineTrainingGame() {
             ) {
               bulletEnteredVision.add(b.id);
               const remainingLifeMs = ((BULLET_MAX_DIST - b.traveled) / bulletSpeed) * 1000;
-              profileBulletEnterVision(prof, now, b.id, remainingLifeMs);
+              const baselineAngle = curSpeed >= INPUT_DEADZONE_MAG ? Math.atan2(input.y, input.x) : null;
+              profileBulletEnterVision(prof, now, b.id, remainingLifeMs, baselineAngle);
             }
           }
 
