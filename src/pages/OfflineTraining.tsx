@@ -125,7 +125,7 @@ export default function OfflineTraining() {
           <li>地图尺寸：<strong>21 × 33</strong> 单位（竖版，21列×33行）</li>
           <li>玩家体积：半径 <strong>0.5</strong> 单位圆形</li>
           <li>移动速度：最高 <strong>3 单位/秒</strong>，从静止匀加速 <strong>0.1 秒</strong>到最大速度</li>
-          <li>视野：固定透视镜头，高度 <strong>15</strong>、约 <strong>55°</strong> 俯视、垂直 <strong>50° FOV</strong>，横向范围随屏幕宽高比变化</li>
+          <li>视野：横向固定 <strong>31.2</strong> 格，地图居中，以约 <strong>67°</strong> 地面夹角投影</li>
         </ul>
       </div>
     </div>
