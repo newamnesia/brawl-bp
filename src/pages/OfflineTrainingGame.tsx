@@ -39,6 +39,16 @@ type Bullet = {
   texture: keyof typeof BULLET_TEXTURES;
 };
 
+type HitParticle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+};
+
 // ============== Profiler 常量 ==============
 // 输入死区：向量模长小于此值视为无操作（用于统计静止倾向和变向循环）
 const INPUT_DEADZONE_MAG = 0.05;
@@ -814,6 +824,25 @@ export default function OfflineTrainingGame() {
     };
     projectileImages.mid.src = BULLET_TEXTURES.mid;
     projectileImages.high.src = BULLET_TEXTURES.high;
+    const hitParticles: HitParticle[] = [];
+
+    const spawnHitParticles = (x: number, y: number) => {
+      const count = 7 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.45;
+        const speed = 2.2 + Math.random() * 2.4;
+        const maxLife = 0.28 + Math.random() * 0.22;
+        hitParticles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: maxLife,
+          maxLife,
+          size: 0.055 + Math.random() * 0.07,
+        });
+      }
+    };
 
     // 缩放因子
     let scale = 1;
@@ -1002,9 +1031,24 @@ export default function OfflineTrainingGame() {
           if (ddx * ddx + ddy * ddy <= rSum2) {
             bullets.splice(i, 1);
             profileBulletRemoved(prof, b.id);
+            spawnHitParticles(player.x, player.y);
             hitCountRef.current += 1;
             setHitCount(hitCountRef.current);
           }
+        }
+
+        for (let i = hitParticles.length - 1; i >= 0; i--) {
+          const particle = hitParticles[i];
+          particle.life -= dt;
+          if (particle.life <= 0) {
+            hitParticles.splice(i, 1);
+            continue;
+          }
+          particle.x += particle.vx * dt;
+          particle.y += particle.vy * dt;
+          const drag = Math.exp(-5 * dt);
+          particle.vx *= drag;
+          particle.vy *= drag;
         }
       }
 
@@ -1141,6 +1185,24 @@ export default function OfflineTrainingGame() {
           ctx.fill();
         }
       }
+
+      // 受击粒子绘制在角色与子弹上层，短促向外迸射后渐隐。
+      ctx.save();
+      for (const particle of hitParticles) {
+        const alpha = Math.max(0, particle.life / particle.maxLife);
+        const px = offsetX + particle.x * scale;
+        const py = offsetY + particle.y * scaleY;
+        const radiusX = particle.size * scale * (0.65 + alpha * 0.35);
+        const radiusY = particle.size * scaleY * (0.65 + alpha * 0.35);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = alpha > 0.55 ? "#ff5252" : "#d32f2f";
+        ctx.shadowColor = "#ff1744";
+        ctx.shadowBlur = radiusX * 1.5;
+        ctx.beginPath();
+        ctx.ellipse(px, py, radiusX, radiusY, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
 
       // 坐标信息
       ctx.fillStyle = "#8899aa";
