@@ -1377,7 +1377,7 @@ export default function OfflineTrainingGame() {
   );
 }
 
-// ======= 自绘分布图（Canvas 柱状图 + KDE 拟合曲线） =======
+// ======= 自绘分布图（Canvas KDE 分布密度曲线） =======
 type DistChartCardProps = {
   title: string;
   subtitle?: string;
@@ -1517,66 +1517,42 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
   const eff: number[] = [];
   for (const v of samples) if (Number.isFinite(v) && v >= xMin && v <= xMax) eff.push(v);
   const n = eff.length;
-  const binW = (xMax - xMin) / bins; // 每个 bin 的 X 轴宽度
 
-  // ===== 2) 构造柱状图：密度百分比（所有 bin 之和 ≈ 100%） =====
-  const counts = new Array(bins).fill(0);
-  const pct = new Array<number>(bins).fill(0); // 每个 bin 占样本总数的百分比（0~100）
+  // ===== 2) 原始样本 KDE =====
+  // 在左右边界镜像样本，避免有限区间（尤其摇杆 0~1）两端的密度被低估。
+  const curvePoints = Math.max(120, bins * 6);
+  const density = new Array<number>(curvePoints).fill(0);
+  const bandwidth = Math.max(1e-6, kdeBandwidth);
+  const twoBandwidthSq = 2 * bandwidth * bandwidth;
   if (n > 0) {
-    for (const v of eff) {
-      let idx = Math.floor((v - xMin) / binW);
-      if (idx >= bins) idx = bins - 1;
-      if (idx < 0) idx = 0;
-      counts[idx] += 1;
-    }
-    for (let i = 0; i < bins; i++) pct[i] = (counts[i] / n) * 100;
-  }
-
-  // ===== 3) 从同一组柱状占比生成守恒平滑曲线 =====
-  // 每个来源柱的概率质量只在可见 bins 内分配，解决原始 KDE 在边界处丢失质量、
-  // 以及曲线峰值与柱状峰值使用不同数据口径的问题。
-  const trendPct = new Array<number>(bins).fill(0);
-  const sigmaBins = Math.max(0.65, kdeBandwidth / binW);
-  if (n > 0) {
-    for (let source = 0; source < bins; source++) {
-      if (pct[source] <= 0) continue;
-      let weightSum = 0;
-      const weights = new Array<number>(bins).fill(0);
-      for (let target = 0; target < bins; target++) {
-        const dBins = target - source;
-        const weight = Math.exp(-(dBins * dBins) / (2 * sigmaBins * sigmaBins));
-        weights[target] = weight;
-        weightSum += weight;
+    for (let i = 0; i < curvePoints; i++) {
+      const x = xMin + ((xMax - xMin) * i) / (curvePoints - 1);
+      let sum = 0;
+      for (const sample of eff) {
+        const direct = x - sample;
+        const reflectedLeft = x - (2 * xMin - sample);
+        const reflectedRight = x - (2 * xMax - sample);
+        sum += Math.exp(-(direct * direct) / twoBandwidthSq);
+        sum += Math.exp(-(reflectedLeft * reflectedLeft) / twoBandwidthSq);
+        sum += Math.exp(-(reflectedRight * reflectedRight) / twoBandwidthSq);
       }
-      for (let target = 0; target < bins; target++) {
-        trendPct[target] += pct[source] * (weights[target] / weightSum);
-      }
+      density[i] = sum;
     }
   }
 
-  // 柱状图与趋势线共用“每 bin 样本占比”纵轴。
-  let pctMax = Math.max(0, ...pct, ...trendPct);
-  if (pctMax <= 0) pctMax = 1; // 空态兜底
-  // 自动选 Y 轴步长（0.5 / 1 / 2 / 5 / 10 / 20 / 50）并向上取整到步长倍数
-  const niceCeil = (v: number): number => {
-    const rough = v;
-    const steps = [0.5, 1, 2, 5, 10, 20, 50, 100];
-    for (const s of steps) {
-      const c = Math.ceil(rough / s) * s;
-      if (c / s <= 6 || s === 100) return c;
-    }
-    return 100;
-  };
-  const yMaxPct = niceCeil(pctMax * 1.15); // 留 15% 头顶
-  const yScale = plotH / yMaxPct; // 百分比 → 像素
+  // 纵轴使用峰值归一化密度，专注展示分布形状，不冒充区间样本百分比。
+  const densityMax = Math.max(0, ...density);
+  const relativeDensity = density.map((v) => densityMax > 0 ? (v / densityMax) * 100 : 0);
+  const yMaxDensity = 110; // 峰值 100，上方保留 10% 空间
+  const yScale = plotH / yMaxDensity;
 
-  // ===== 4) 网格 & Y 轴（真实百分比刻度） =====
+  // ===== 3) 网格与相对密度 Y 轴 =====
   ctx.save();
   ctx.strokeStyle = "rgba(255,255,255,0.05)";
   ctx.lineWidth = 1;
-  // Y 轴步长：0~yMaxPct 之间选 3~5 个等分的漂亮数字
+  // 0~100 分成四个等距刻度。
   const yTickCount = 4;
-  const yStep = yMaxPct / yTickCount;
+  const yStep = 100 / yTickCount;
   for (let i = 0; i <= yTickCount; i++) {
     const pctTick = yStep * i;
     const y = padT + plotH - pctTick * yScale;
@@ -1609,7 +1585,7 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
   ctx.font = "11px 'Nunito', system-ui, sans-serif";
   ctx.fillText(xLabel, padL + plotW / 2, padT + plotH + 20);
 
-  // Y 轴刻度（真实「样本占比 %」，所有 bin 之和 ≈ 100%）
+  // Y 轴刻度：相对分布密度，曲线最高点固定为 100。
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
   for (let i = 0; i <= yTickCount; i++) {
@@ -1624,7 +1600,7 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
         : `${pctTick.toFixed(0)}%`;
     ctx.fillText(txt, padL - 6, y);
   }
-  // Y 轴标签（说明含义，避免误解为总面积百分比）
+  // Y 轴标签明确说明这是峰值归一化密度，而非样本占比。
   ctx.save();
   ctx.translate(10, padT + plotH / 2);
   ctx.rotate(-Math.PI / 2);
@@ -1632,38 +1608,20 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
   ctx.font = "10px 'Nunito', system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("样本占比 (%)", 0, 0);
+  ctx.fillText("相对分布密度 (峰值=100)", 0, 0);
   ctx.restore();
   ctx.restore();
 
-  // ===== 5) 柱状图 =====
-  if (n > 0) {
-    for (let i = 0; i < bins; i++) {
-      const barPct = pct[i];
-      if (barPct <= 0) continue;
-      const xStart = xToPx(xMin + binW * i);
-      const barW = Math.max(1, xToPx(xMin + binW * (i + 1)) - xStart - 2);
-      const barH = barPct * yScale;
-      const y = padT + plotH - barH;
-      const g = ctx.createLinearGradient(0, y, 0, padT + plotH);
-      g.addColorStop(0, accent + "cc");
-      g.addColorStop(1, accent + "22");
-      ctx.fillStyle = g;
-      roundRect(ctx, xStart, y, barW, barH, 2);
-      ctx.fill();
-    }
-  }
-
-  // ===== 6) 柱状分布的守恒平滑趋势线 =====
+  // ===== 5) KDE 分布密度曲线 =====
   if (n >= 3) {
     ctx.save();
     // 填充
     ctx.beginPath();
     ctx.moveTo(padL, padT + plotH);
-    for (let i = 0; i < bins; i++) {
-      const xv = xMin + (i + 0.5) * binW;
+    for (let i = 0; i < curvePoints; i++) {
+      const xv = xMin + ((xMax - xMin) * i) / (curvePoints - 1);
       const px = xToPx(xv);
-      const py = padT + plotH - trendPct[i] * yScale;
+      const py = padT + plotH - relativeDensity[i] * yScale;
       ctx.lineTo(px, py);
     }
     ctx.lineTo(padL + plotW, padT + plotH);
@@ -1676,10 +1634,10 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
 
     // 曲线
     ctx.beginPath();
-    for (let i = 0; i < bins; i++) {
-      const xv = xMin + (i + 0.5) * binW;
+    for (let i = 0; i < curvePoints; i++) {
+      const xv = xMin + ((xMax - xMin) * i) / (curvePoints - 1);
       const px = xToPx(xv);
-      const py = padT + plotH - trendPct[i] * yScale;
+      const py = padT + plotH - relativeDensity[i] * yScale;
       if (i === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
     }
@@ -1691,7 +1649,7 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
     ctx.restore();
   }
 
-  // ===== 7) 样本不足提示 =====
+  // ===== 6) 样本不足提示 =====
   if (n === 0) {
     ctx.fillStyle = "#6e7e91";
     ctx.font = "12px 'Nunito', system-ui, sans-serif";
