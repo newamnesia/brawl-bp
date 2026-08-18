@@ -7,6 +7,8 @@ type ControlMode = "joystick" | "keyboard";
 const MAP_WIDTH = 21;  // 列数（横向单位）
 const MAP_HEIGHT = 33; // 行数（纵向单位）
 const HORIZONTAL_VIEW_UNITS = 31.2; // 屏幕横向固定可见格数；地图在其中居中
+const CAMERA_GROUND_ANGLE_DEG = 67;
+const GROUND_DEPTH_PROJECTION = Math.sin((CAMERA_GROUND_ANGLE_DEG * Math.PI) / 180);
 const PLAYER_RADIUS = 0.5; // 玩家半径 0.5 单位
 const MOVE_SPEED = 3;  // 移动速度 3 单位/秒
 
@@ -763,6 +765,7 @@ export default function OfflineTrainingGame() {
 
     // 缩放因子
     let scale = 1;
+    let scaleY = GROUND_DEPTH_PROJECTION;
     let offsetX = 0;
 
     const resize = () => {
@@ -780,6 +783,7 @@ export default function OfflineTrainingGame() {
       // 横向固定展示 31.2 格。21 格地图居中，两侧各留出 5.1 格背景视野；
       // 纵向沿用同一单位缩放比例，并继续由相机跟随玩家。
       scale = cssWidth / HORIZONTAL_VIEW_UNITS;
+      scaleY = scale * GROUND_DEPTH_PROJECTION;
       offsetX = (cssWidth - MAP_WIDTH * scale) / 2;
 
       forceUpdate((n) => n + 1);
@@ -875,8 +879,8 @@ export default function OfflineTrainingGame() {
         // 相机与视野范围（用于"子弹进入视野"判定）
         const cssW = container.clientWidth;
         const cssH = container.clientHeight;
-        const mapPixelHeight = MAP_HEIGHT * scale;
-        const playerCenterY = player.y * scale;
+        const mapPixelHeight = MAP_HEIGHT * scaleY;
+        const playerCenterY = player.y * scaleY;
         let oY: number;
         if (mapPixelHeight <= cssH) {
           oY = (cssH - mapPixelHeight) / 2;
@@ -888,8 +892,8 @@ export default function OfflineTrainingGame() {
         const viewMargin = 1;
         const viewMapLeft = (-offsetX) / scale - viewMargin;
         const viewMapRight = (cssW - offsetX) / scale + viewMargin;
-        const viewMapTop = (-oY) / scale - viewMargin;
-        const viewMapBottom = (cssH - oY) / scale + viewMargin;
+        const viewMapTop = (-oY) / scaleY - viewMargin;
+        const viewMapBottom = (cssH - oY) / scaleY + viewMargin;
 
         for (let i = bullets.length - 1; i >= 0; i--) {
           const b = bullets[i];
@@ -936,8 +940,8 @@ export default function OfflineTrainingGame() {
       const cssWidth = container.clientWidth;
       const cssHeight = container.clientHeight;
       // 相机跟随：让玩家始终处于屏幕竖直中线（无论暂停与否都重算）
-      const mapPixelHeight = MAP_HEIGHT * scale;
-      const playerCenterY = player.y * scale;
+      const mapPixelHeight = MAP_HEIGHT * scaleY;
+      const playerCenterY = player.y * scaleY;
       let offsetY: number;
       if (mapPixelHeight <= cssHeight) {
         offsetY = (cssHeight - mapPixelHeight) / 2;
@@ -952,7 +956,7 @@ export default function OfflineTrainingGame() {
 
       // 绘制地图区域背景
       ctx.fillStyle = "#162031";
-      ctx.fillRect(offsetX, offsetY, MAP_WIDTH * scale, MAP_HEIGHT * scale);
+      ctx.fillRect(offsetX, offsetY, MAP_WIDTH * scale, MAP_HEIGHT * scaleY);
 
       // 绘制网格
       ctx.strokeStyle = "#243044";
@@ -961,10 +965,10 @@ export default function OfflineTrainingGame() {
       for (let gx = 0; gx <= MAP_WIDTH; gx += 5) {
         const px = offsetX + gx * scale;
         ctx.moveTo(px, offsetY);
-        ctx.lineTo(px, offsetY + MAP_HEIGHT * scale);
+        ctx.lineTo(px, offsetY + MAP_HEIGHT * scaleY);
       }
       for (let gy = 0; gy <= MAP_HEIGHT; gy += 5) {
-        const py = offsetY + gy * scale;
+        const py = offsetY + gy * scaleY;
         ctx.moveTo(offsetX, py);
         ctx.lineTo(offsetX + MAP_WIDTH * scale, py);
       }
@@ -977,10 +981,10 @@ export default function OfflineTrainingGame() {
       for (let gx = 0; gx <= MAP_WIDTH; gx++) {
         const px = offsetX + gx * scale;
         ctx.moveTo(px, offsetY);
-        ctx.lineTo(px, offsetY + MAP_HEIGHT * scale);
+        ctx.lineTo(px, offsetY + MAP_HEIGHT * scaleY);
       }
       for (let gy = 0; gy <= MAP_HEIGHT; gy++) {
-        const py = offsetY + gy * scale;
+        const py = offsetY + gy * scaleY;
         ctx.moveTo(offsetX, py);
         ctx.lineTo(offsetX + MAP_WIDTH * scale, py);
       }
@@ -989,19 +993,21 @@ export default function OfflineTrainingGame() {
       // 地图边框
       ctx.strokeStyle = "#2d3f55";
       ctx.lineWidth = 3;
-      ctx.strokeRect(offsetX, offsetY, MAP_WIDTH * scale, MAP_HEIGHT * scale);
+      ctx.strokeRect(offsetX, offsetY, MAP_WIDTH * scale, MAP_HEIGHT * scaleY);
 
       // 绘制敌人射程圈（淡红色虚线提示）
       const enemyCenterPx = offsetX + ENEMY_X * scale;
-      const enemyCenterPy = offsetY + ENEMY_Y * scale;
+      const enemyCenterPy = offsetY + ENEMY_Y * scaleY;
       const enemyRadiusPx = ENEMY_RADIUS * scale;
+      const enemyRadiusPy = ENEMY_RADIUS * scaleY;
       const rangePx = ENEMY_RANGE * scale;
+      const rangePy = ENEMY_RANGE * scaleY;
       ctx.save();
       ctx.strokeStyle = "rgba(255, 82, 82, 0.25)";
       ctx.lineWidth = 1;
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
-      ctx.arc(enemyCenterPx, enemyCenterPy, rangePx, 0, Math.PI * 2);
+      ctx.ellipse(enemyCenterPx, enemyCenterPy, rangePx, rangePy, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
 
@@ -1010,44 +1016,46 @@ export default function OfflineTrainingGame() {
       ctx.shadowBlur = enemyRadiusPx * 0.8;
       ctx.fillStyle = "#ff5252";
       ctx.beginPath();
-      ctx.arc(enemyCenterPx, enemyCenterPy, enemyRadiusPx, 0, Math.PI * 2);
+      ctx.ellipse(enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.strokeStyle = "#ff8a80";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(enemyCenterPx, enemyCenterPy, enemyRadiusPx, 0, Math.PI * 2);
+      ctx.ellipse(enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
 
       // 绘制玩家（圆）
       const playerCenterPx = offsetX + player.x * scale;
-      const playerCenterPy = offsetY + player.y * scale;
+      const playerCenterPy = offsetY + player.y * scaleY;
       const playerRadiusPx = PLAYER_RADIUS * scale;
+      const playerRadiusPy = PLAYER_RADIUS * scaleY;
 
       ctx.shadowColor = "#4fc3f7";
       ctx.shadowBlur = playerRadiusPx * 0.8;
       ctx.fillStyle = "#4fc3f7";
       ctx.beginPath();
-      ctx.arc(playerCenterPx, playerCenterPy, playerRadiusPx, 0, Math.PI * 2);
+      ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.strokeStyle = "#81d4fa";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(playerCenterPx, playerCenterPy, playerRadiusPx, 0, Math.PI * 2);
+      ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
 
       // 绘制子弹（半径 0.25 的圆，红色）
       const bulletRadiusPx = BULLET_RADIUS * scale;
+      const bulletRadiusPy = BULLET_RADIUS * scaleY;
       ctx.shadowColor = "#ff5252";
       ctx.shadowBlur = bulletRadiusPx * 1.2;
       ctx.fillStyle = "#ff7070";
       ctx.beginPath();
       for (const b of bulletsRef.current) {
         const bx = offsetX + b.x * scale;
-        const by = offsetY + b.y * scale;
+        const by = offsetY + b.y * scaleY;
         ctx.moveTo(bx + bulletRadiusPx, by);
-        ctx.arc(bx, by, bulletRadiusPx, 0, Math.PI * 2);
+        ctx.ellipse(bx, by, bulletRadiusPx, bulletRadiusPy, 0, 0, Math.PI * 2);
       }
       ctx.fill();
       ctx.shadowBlur = 0;
@@ -1056,9 +1064,9 @@ export default function OfflineTrainingGame() {
       ctx.beginPath();
       for (const b of bulletsRef.current) {
         const bx = offsetX + b.x * scale;
-        const by = offsetY + b.y * scale;
+        const by = offsetY + b.y * scaleY;
         ctx.moveTo(bx + bulletRadiusPx, by);
-        ctx.arc(bx, by, bulletRadiusPx, 0, Math.PI * 2);
+        ctx.ellipse(bx, by, bulletRadiusPx, bulletRadiusPy, 0, 0, Math.PI * 2);
       }
       ctx.stroke();
 
@@ -1068,7 +1076,7 @@ export default function OfflineTrainingGame() {
       ctx.fillText(
         `位置: (${player.x.toFixed(1)}, ${player.y.toFixed(1)})`,
         offsetX + 8,
-        offsetY + MAP_HEIGHT * scale - 8,
+        offsetY + MAP_HEIGHT * scaleY - 8,
       );
 
       animationId = requestAnimationFrame(gameLoop);
