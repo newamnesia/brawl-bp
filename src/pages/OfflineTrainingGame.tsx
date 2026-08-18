@@ -103,7 +103,8 @@ type Prof = {
   // 有效转向检测：稳定窗口
   stableCandidateStart: number;  // ms
   stableCandidateAngle: number;  // 弧度
-  stableCandidateAngleSum: number; // 用于平均
+  stableCandidateSinSum: number; // 用圆周均值，避免 -180°/180° 跨界失真
+  stableCandidateCosSum: number;
   stableCandidateFrames: number;
   effectiveTurns: EffectiveTurn[]; // 环形缓冲（最多存 20 个）
   fakeoutsPerSec: number;        // 指标 6：每秒次数 EMA
@@ -137,7 +138,8 @@ function createProfiler(now: number): Prof {
     avgAfterDodgeFatigueMs: 300,
     stableCandidateStart: 0,
     stableCandidateAngle: 0,
-    stableCandidateAngleSum: 0,
+    stableCandidateSinSum: 0,
+    stableCandidateCosSum: 0,
     stableCandidateFrames: 0,
     effectiveTurns: [],
     fakeoutsPerSec: 0,
@@ -204,27 +206,35 @@ function profileStep(
     if (p.stableCandidateFrames === 0) {
       p.stableCandidateStart = now;
       p.stableCandidateAngle = angle;
-      p.stableCandidateAngleSum = angle;
+      p.stableCandidateSinSum = Math.sin(angle);
+      p.stableCandidateCosSum = Math.cos(angle);
       p.stableCandidateFrames = 1;
     } else {
       const delta = angleDeltaDeg(p.stableCandidateAngle, angle);
       if (delta <= TURN_TOLERANCE_DEG) {
         // 仍在容错内 → 稳定中
-        p.stableCandidateAngleSum += angle;
+        p.stableCandidateSinSum += Math.sin(angle);
+        p.stableCandidateCosSum += Math.cos(angle);
         p.stableCandidateFrames++;
         const elapsed = now - p.stableCandidateStart;
         if (elapsed >= TURN_STABLE_MS) {
           // 完成一次有效转向
-          const avgAng = p.stableCandidateAngleSum / p.stableCandidateFrames;
-          const t: EffectiveTurn = { angle: avgAng, timestamp: now, magAvg: rawMag >= 0 ? rawMag : mag };
-          p.effectiveTurns.push(t);
-          if (p.effectiveTurns.length > 20) p.effectiveTurns.shift();
-          turnEventAngle = avgAng;
+          const avgAng = Math.atan2(p.stableCandidateSinSum, p.stableCandidateCosSum);
+          const previousEffective = p.effectiveTurns[p.effectiveTurns.length - 1];
+          // “有效转向”必须是新稳定方向相对上一个已确认方向确实发生了变化。
+          // 持续沿同一方向推动摇杆不会每隔一个稳定窗口重复计数。
+          if (!previousEffective || angleDeltaDeg(previousEffective.angle, avgAng) > TURN_TOLERANCE_DEG) {
+            const t: EffectiveTurn = { angle: avgAng, timestamp: now, magAvg: rawMag >= 0 ? rawMag : mag };
+            p.effectiveTurns.push(t);
+            if (p.effectiveTurns.length > 20) p.effectiveTurns.shift();
+            turnEventAngle = avgAng;
+          }
 
           // 重置候选（但记录当前方向为起点，避免每帧都产生事件）
           p.stableCandidateStart = now;
           p.stableCandidateAngle = avgAng;
-          p.stableCandidateAngleSum = avgAng;
+          p.stableCandidateSinSum = Math.sin(avgAng);
+          p.stableCandidateCosSum = Math.cos(avgAng);
           p.stableCandidateFrames = 1;
 
           // 180 度转向耗时统计（基于有效转向对）
@@ -245,7 +255,8 @@ function profileStep(
         // 超出容错 → 重置候选，当前帧作为新起点
         p.stableCandidateStart = now;
         p.stableCandidateAngle = angle;
-        p.stableCandidateAngleSum = angle;
+        p.stableCandidateSinSum = Math.sin(angle);
+        p.stableCandidateCosSum = Math.cos(angle);
         p.stableCandidateFrames = 1;
       }
     }
@@ -362,9 +373,27 @@ function getMetrics(p: Prof): ProfileMetrics {
   };
 }
 
-// ============== 预判函数 ==============
-// 预测玩家在 T 秒后的位置，综合画像指标 + 当前状态
-function predictAimPoint(args: {
+// ============== 预判角度函数 ==============
+type AimPrediction = {
+  aimX: number;
+  aimY: number;
+  aimAngle: number;
+  predictedX: number;
+  predictedY: number;
+  tFlight: number;
+};
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+// 返回从 from 转到 to 的最短有符号角（弧度，范围 [-PI, PI]）。
+function signedAngleDelta(from: number, to: number): number {
+  return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+}
+
+// 基础拦截角 + 玩家画像修正。函数保持确定性，避免随机抖动让训练结果不可复现。
+function predictAimAngle(args: {
   playerX: number;
   playerY: number;
   velX: number;     // 当前 x 速度分量（单位/秒，含方向和大小）
@@ -376,83 +405,62 @@ function predictAimPoint(args: {
   now: number;
   p: Prof;
   metrics: ProfileMetrics;
-}): { aimX: number; aimY: number; predictedX: number; predictedY: number; tFlight: number } {
-  const { playerX, playerY, velX, velY, speed, enemyX, enemyY, bulletSpeed, p, metrics } = args;
+}): AimPrediction {
+  const { playerX, playerY, velX, velY, speed, enemyX, enemyY, bulletSpeed, now, p, metrics } = args;
+  const maxFlightS = BULLET_MAX_DIST / bulletSpeed;
+  const directAngle = Math.atan2(playerY - enemyY, playerX - enemyX);
+  let t = Math.min(maxFlightS, Math.hypot(playerX - enemyX, playerY - enemyY) / bulletSpeed);
 
-  // 步骤1：估算子弹飞行时间（迭代一次即可）
-  const dxE = playerX - enemyX;
-  const dyE = playerY - enemyY;
-  const distE = Math.hypot(dxE, dyE) || 1;
-  let t = distE / bulletSpeed;
-
-  // 步骤2：基于画像计算速度修正因子、虚脱期、反应延迟等
-  // A. 虚脱期：若当前在虚脱期内，前 T_fatigue_remaining 秒玩家几乎不动
-  let fatigueRemainingMs = 0;
+  // 1) 细腻度越高，当前方向越值得信任；180° 转向越慢，也越不容易在弹道时间内摆脱。
+  const precisionTrust = 0.25 + 0.75 * clamp01(metrics.finesse);
+  const turnLock = clamp01(metrics.avg180TurnTimeMs / Math.max(250, t * 1000));
+  // 2) 变向越频繁，当前方向随时间失效越快。
+  const directionPersistence = Math.exp(-Math.max(0, metrics.directionChangeFreq) * t * 0.8);
+  // 3) 站桩倾向直接降低有效位移，但不能把正在移动的玩家瞬间视作静止。
+  const activityTrust = 0.25 + 0.75 * (1 - clamp01(metrics.stillnessRatio));
+  // 4) 子弹出现后、玩家作出有效转向前，当前运动方向仍然有效。
+  const reactionS = Math.min(t, Math.max(0, metrics.reactionTimeMs) / 1000);
+  const preReactionShare = t > 0 ? reactionS / t : 0;
+  // 5) 已进入大转向后摇时，只保留少量惯性位移。
+  let fatigueScale = 1;
   if (p.watchingFatigue) {
-    const watched = performance.now() - p.fatigueStartAt;
-    fatigueRemainingMs = Math.max(0, Math.min(FATIGUE_MAX_WATCH_MS - watched, metrics.afterDodgeFatigueMs - watched));
-  } else {
-    // 统计层面：虚脱期平均时长 × 概率（最近是否发生大转向？不严格，用一个系数近似）
-    fatigueRemainingMs = 0;
+    const watchedMs = Math.max(0, now - p.fatigueStartAt);
+    const remainingMs = Math.max(0, Math.min(FATIGUE_MAX_WATCH_MS - watchedMs, metrics.afterDodgeFatigueMs - watchedMs));
+    fatigueScale = 1 - 0.85 * clamp01(remainingMs / Math.max(1, t * 1000));
   }
-  const fatigueRemainingS = fatigueRemainingMs / 1000;
+  // 6) 骗招不是稳定的反向运动；在期望值模型里应降低方向置信度，而不是随机反转瞄准。
+  const fakeoutTrust = 1 - 0.7 * clamp01(metrics.fakeoutsPerSec / 2);
 
-  // B. 反应延迟：子弹刚发射后，玩家需要反应时间才真正开始变向
-  // 这里用画像平均反应时间；若玩家当前在移动中，反应延迟对当前速度影响较小（视为已在反应）
-  const reactionDelayS = speed < INPUT_DEADZONE_MAG ? metrics.reactionTimeMs / 1000 : (metrics.reactionTimeMs / 1000) * 0.2;
+  const postReactionTrust = precisionTrust * turnLock * directionPersistence * activityTrust * fakeoutTrust;
+  const motionGain = clamp01((preReactionShare + (1 - preReactionShare) * postReactionTrust) * fatigueScale);
 
-  // C. 变向频率：频率高 → 玩家频繁变向，"方向持续可信度"降低
-  const freq = metrics.directionChangeFreq; // 次/秒
-  // 方向可信度：freq 越高，随时间指数衰减越快
-  const directionHalfLife = freq <= 0.2 ? 3 : 0.8 / (freq + 0.3); // 秒
-  const dirReliability = Math.exp(-t / Math.max(0.1, directionHalfLife));
-
-  // D. 静止倾向：stillness 高 = 玩家倾向停下
-  const stillStopProb = metrics.stillnessRatio; // [0,1]
-  const activeMoveBoost = (1 - stillStopProb) * dirReliability + stillStopProb * 0;
-
-  // E. 细腻度：finesse 高 → 方向稳定，预测按当前速度的权重更高；否则衰减
-  const velGain = (0.4 + 0.6 * metrics.finesse) * activeMoveBoost;
-
-  // F. 骗招倾向：freq_fo 高 → 有一定概率反向移动；权重 = min(freq_fo/2, 1) * 0.3
-  const fakeProb = Math.min(1, metrics.fakeoutsPerSec / 2) * 0.3;
-
-  // 迭代求解 t：基于匀速预测，两次迭代足够
+  // 迭代求解玩家预计位置与子弹飞行时间。
   let predX = playerX;
   let predY = playerY;
-  for (let iter = 0; iter < 2; iter++) {
-    // 预测玩家 t 秒后的位置
-    // 时段划分：[0, min(reaction, fatigue)] 静止 → 然后移动
-    const freezeS = Math.min(t, Math.max(fatigueRemainingS, reactionDelayS));
-    const moveS = Math.max(0, t - freezeS);
-    // 速度向量（含骗招反向概率部分）
-    const vxBase = velX * velGain;
-    const vyBase = velY * velGain;
-    // 骗招：一部分反向，另一部分正常
-    const vxPred = vxBase * (1 - fakeProb) + (-vxBase) * fakeProb;
-    const vyPred = vyBase * (1 - fakeProb) + (-vyBase) * fakeProb;
-    predX = playerX + vxPred * moveS;
-    predY = playerY + vyPred * moveS;
-    // 钳制到地图边界（不考虑墙反弹，简单钳制）
+  for (let iter = 0; iter < 3; iter++) {
+    const movingScale = speed < INPUT_DEADZONE_MAG ? 0 : motionGain;
+    predX = playerX + velX * movingScale * t;
+    predY = playerY + velY * movingScale * t;
     predX = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS, predX));
     predY = Math.max(PLAYER_RADIUS, Math.min(MAP_HEIGHT - PLAYER_RADIUS, predY));
-    // 更新 t
-    const dx = predX - enemyX;
-    const dy = predY - enemyY;
-    const d = Math.hypot(dx, dy) || 1;
-    t = d / bulletSpeed;
-    t = Math.max(0, Math.min(BULLET_MAX_DIST / bulletSpeed, t));
+    t = Math.min(maxFlightS, Math.hypot(predX - enemyX, predY - enemyY) / bulletSpeed);
   }
 
-  // 瞄准点 = 预测点（子弹按直线飞行到该点）
-  const dxAim = predX - enemyX;
-  const dyAim = predY - enemyY;
-  const dAim = Math.hypot(dxAim, dyAim) || 1;
-  // 限制在子弹最大射程内（避免预测出射程还打）
-  const aimDist = Math.min(BULLET_MAX_DIST, dAim);
-  const aimX = enemyX + (dxAim / dAim) * aimDist;
-  const aimY = enemyY + (dyAim / dAim) * aimDist;
-  return { aimX, aimY, predictedX: predX, predictedY: predY, tFlight: t };
+  const rawLeadAngle = Math.atan2(predY - enemyY, predX - enemyX);
+  // 样本越可信，允许的最大预判偏角越大；高骗招/高变向玩家会自然收敛到直瞄。
+  const maxLeadDeg = 6 + 39 * clamp01(precisionTrust * directionPersistence * fakeoutTrust);
+  const leadDelta = signedAngleDelta(directAngle, rawLeadAngle);
+  const maxLeadRad = (maxLeadDeg * Math.PI) / 180;
+  const aimAngle = directAngle + Math.max(-maxLeadRad, Math.min(maxLeadRad, leadDelta));
+  const aimDist = Math.min(BULLET_MAX_DIST, Math.hypot(predX - enemyX, predY - enemyY));
+  return {
+    aimX: enemyX + Math.cos(aimAngle) * aimDist,
+    aimY: enemyY + Math.sin(aimAngle) * aimDist,
+    aimAngle,
+    predictedX: predX,
+    predictedY: predY,
+    tFlight: t,
+  };
 }
 
 export default function OfflineTrainingGame() {
@@ -691,7 +699,7 @@ export default function OfflineTrainingGame() {
           // 射程判定：用玩家当前位置
           if (dx * dx + dy * dy <= ENEMY_RANGE * ENEMY_RANGE) {
             const metrics = getMetrics(prof);
-            const pred = predictAimPoint({
+            const pred = predictAimAngle({
               playerX: player.x,
               playerY: player.y,
               velX,
