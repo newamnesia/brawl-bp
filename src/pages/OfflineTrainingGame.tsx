@@ -1342,7 +1342,6 @@ export default function OfflineTrainingGame() {
                 xMin={0}
                 xMax={1.05}
                 bins={22}
-                kdeBandwidth={0.04}
                 unitLabel=""
               />
               <DistChartCard
@@ -1354,7 +1353,6 @@ export default function OfflineTrainingGame() {
                 xMin={120}
                 xMax={2500}
                 bins={24}
-                kdeBandwidth={60}
                 unitLabel=" ms"
               />
               <DistChartCard
@@ -1366,7 +1364,6 @@ export default function OfflineTrainingGame() {
                 xMin={80}
                 xMax={4200}
                 bins={24}
-                kdeBandwidth={70}
                 unitLabel=" ms"
               />
             </div>
@@ -1377,7 +1374,7 @@ export default function OfflineTrainingGame() {
   );
 }
 
-// ======= 自绘分布图（Canvas KDE 分布密度曲线） =======
+// ======= 自绘分布图（Canvas 区间频率曲线） =======
 type DistChartCardProps = {
   title: string;
   subtitle?: string;
@@ -1387,7 +1384,6 @@ type DistChartCardProps = {
   xMin: number;
   xMax: number;
   bins: number;
-  kdeBandwidth: number;
   unitLabel?: string;
 };
 
@@ -1400,7 +1396,6 @@ function DistChartCard({
   xMin,
   xMax,
   bins,
-  kdeBandwidth,
   unitLabel = "",
 }: DistChartCardProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1426,12 +1421,11 @@ function DistChartCard({
       xMin,
       xMax,
       bins,
-      kdeBandwidth,
       accent,
       xLabel,
       unitLabel,
     });
-  }, [samples, xMin, xMax, bins, kdeBandwidth, accent, xLabel, unitLabel]);
+  }, [samples, xMin, xMax, bins, accent, xLabel, unitLabel]);
 
   // 统计卡片与图形使用完全相同的有效区间，避免“图外样本”影响均值/中位数。
   const effectiveSamples = samples.filter((v) => Number.isFinite(v) && v >= xMin && v <= xMax);
@@ -1491,14 +1485,13 @@ type DrawArgs = {
   xMin: number;
   xMax: number;
   bins: number;
-  kdeBandwidth: number;
   accent: string;
   xLabel: string;
   unitLabel: string;
 };
 
 function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
-  const { width, height, samples, xMin, xMax, bins, kdeBandwidth, accent, xLabel, unitLabel } = a;
+  const { width, height, samples, xMin, xMax, bins, accent, xLabel, unitLabel } = a;
 
   // 布局
   const padL = 42, padR = 10, padT = 14, padB = 34;
@@ -1518,41 +1511,31 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
   for (const v of samples) if (Number.isFinite(v) && v >= xMin && v <= xMax) eff.push(v);
   const n = eff.length;
 
-  // ===== 2) 原始样本 KDE =====
-  // 在左右边界镜像样本，避免有限区间（尤其摇杆 0~1）两端的密度被低估。
-  const curvePoints = Math.max(120, bins * 6);
-  const density = new Array<number>(curvePoints).fill(0);
-  const bandwidth = Math.max(1e-6, kdeBandwidth);
-  const twoBandwidthSq = 2 * bandwidth * bandwidth;
+  // ===== 2) 真实区间频率 =====
+  // 连续值几乎不会精确重复，因此以等宽区间作为“值域单位”；每一点就是该区间
+  // 样本数 / 当前图内有效样本总数，不做平滑、核估计或峰值归一化。
+  const binWidth = (xMax - xMin) / bins;
+  const frequencyPct = new Array<number>(bins).fill(0);
   if (n > 0) {
-    for (let i = 0; i < curvePoints; i++) {
-      const x = xMin + ((xMax - xMin) * i) / (curvePoints - 1);
-      let sum = 0;
-      for (const sample of eff) {
-        const direct = x - sample;
-        const reflectedLeft = x - (2 * xMin - sample);
-        const reflectedRight = x - (2 * xMax - sample);
-        sum += Math.exp(-(direct * direct) / twoBandwidthSq);
-        sum += Math.exp(-(reflectedLeft * reflectedLeft) / twoBandwidthSq);
-        sum += Math.exp(-(reflectedRight * reflectedRight) / twoBandwidthSq);
-      }
-      density[i] = sum;
+    for (const sample of eff) {
+      const rawIndex = Math.floor((sample - xMin) / binWidth);
+      const index = Math.max(0, Math.min(bins - 1, rawIndex));
+      frequencyPct[index] += 100 / n;
     }
   }
 
-  // 纵轴使用峰值归一化密度，专注展示分布形状，不冒充区间样本百分比。
-  const densityMax = Math.max(0, ...density);
-  const relativeDensity = density.map((v) => densityMax > 0 ? (v / densityMax) * 100 : 0);
-  const yMaxDensity = 110; // 峰值 100，上方保留 10% 空间
-  const yScale = plotH / yMaxDensity;
+  const frequencyMax = Math.max(0, ...frequencyPct);
+  const niceSteps = [1, 2, 5, 10, 20, 25, 50, 100];
+  const yMaxPct = niceSteps.find((step) => step >= frequencyMax * 1.12) ?? 100;
+  const yScale = plotH / yMaxPct;
 
   // ===== 3) 网格与相对密度 Y 轴 =====
   ctx.save();
   ctx.strokeStyle = "rgba(255,255,255,0.05)";
   ctx.lineWidth = 1;
-  // 0~100 分成四个等距刻度。
+  // 0~当前真实峰值上界分成四个等距刻度。
   const yTickCount = 4;
-  const yStep = 100 / yTickCount;
+  const yStep = yMaxPct / yTickCount;
   for (let i = 0; i <= yTickCount; i++) {
     const pctTick = yStep * i;
     const y = padT + plotH - pctTick * yScale;
@@ -1585,7 +1568,7 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
   ctx.font = "11px 'Nunito', system-ui, sans-serif";
   ctx.fillText(xLabel, padL + plotW / 2, padT + plotH + 20);
 
-  // Y 轴刻度：相对分布密度，曲线最高点固定为 100。
+  // Y 轴刻度：每个值域区间的真实样本占比。
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
   for (let i = 0; i <= yTickCount; i++) {
@@ -1600,7 +1583,7 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
         : `${pctTick.toFixed(0)}%`;
     ctx.fillText(txt, padL - 6, y);
   }
-  // Y 轴标签明确说明这是峰值归一化密度，而非样本占比。
+  // Y 轴标签明确说明折线点的统计含义。
   ctx.save();
   ctx.translate(10, padT + plotH / 2);
   ctx.rotate(-Math.PI / 2);
@@ -1608,20 +1591,20 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
   ctx.font = "10px 'Nunito', system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("相对分布密度 (峰值=100)", 0, 0);
+  ctx.fillText("区间样本占比 (%)", 0, 0);
   ctx.restore();
   ctx.restore();
 
-  // ===== 5) KDE 分布密度曲线 =====
+  // ===== 5) 真实频率折线 =====
   if (n >= 3) {
     ctx.save();
     // 填充
     ctx.beginPath();
     ctx.moveTo(padL, padT + plotH);
-    for (let i = 0; i < curvePoints; i++) {
-      const xv = xMin + ((xMax - xMin) * i) / (curvePoints - 1);
+    for (let i = 0; i < bins; i++) {
+      const xv = xMin + (i + 0.5) * binWidth;
       const px = xToPx(xv);
-      const py = padT + plotH - relativeDensity[i] * yScale;
+      const py = padT + plotH - frequencyPct[i] * yScale;
       ctx.lineTo(px, py);
     }
     ctx.lineTo(padL + plotW, padT + plotH);
@@ -1634,10 +1617,10 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
 
     // 曲线
     ctx.beginPath();
-    for (let i = 0; i < curvePoints; i++) {
-      const xv = xMin + ((xMax - xMin) * i) / (curvePoints - 1);
+    for (let i = 0; i < bins; i++) {
+      const xv = xMin + (i + 0.5) * binWidth;
       const px = xToPx(xv);
-      const py = padT + plotH - relativeDensity[i] * yScale;
+      const py = padT + plotH - frequencyPct[i] * yScale;
       if (i === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
     }
