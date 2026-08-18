@@ -84,6 +84,7 @@ type EffectiveTurn = {
 type PendingBulletReaction = {
   bulletId: number;
   enterVisionAt: number; // ms
+  expiresAt: number;     // 子弹实际生命周期结束时刻，过后不能再产生反应样本
 };
 
 type Prof = {
@@ -378,9 +379,20 @@ function profileStep(
 }
 
 // 通知 Profiler：某颗子弹刚进入玩家视野（用于反应速度统计）
-function profileBulletEnterVision(p: Prof, now: number, bulletId: number) {
+function profileBulletEnterVision(p: Prof, now: number, bulletId: number, remainingLifeMs: number) {
   if (p.reactionFirstTurnSeen.has(bulletId)) return;
-  p.pendingReactions.push({ bulletId, enterVisionAt: now });
+  p.pendingReactions.push({
+    bulletId,
+    enterVisionAt: now,
+    expiresAt: now + Math.min(REACTION_MAX_MS, Math.max(0, remainingLifeMs)),
+  });
+}
+
+// 子弹命中或飞出射程后，相关反应观测立即结束，不能被之后的转向“补记”。
+function profileBulletRemoved(p: Prof, bulletId: number) {
+  const index = p.pendingReactions.findIndex((reaction) => reaction.bulletId === bulletId);
+  if (index >= 0) p.pendingReactions.splice(index, 1);
+  p.reactionFirstTurnSeen.add(bulletId);
 }
 
 // 通知 Profiler：发生了一次转向（反应速度触发用）
@@ -390,7 +402,7 @@ function profileTurnHappened(p: Prof, now: number, turnAngleDeg: number) {
   for (let i = p.pendingReactions.length - 1; i >= 0; i--) {
     const pr = p.pendingReactions[i];
     const rt = now - pr.enterVisionAt;
-    if (rt > REACTION_MAX_MS) {
+    if (now > pr.expiresAt || rt > REACTION_MAX_MS) {
       // 超时：丢弃
       p.reactionFirstTurnSeen.add(pr.bulletId);
       p.pendingReactions.splice(i, 1);
@@ -857,13 +869,15 @@ export default function OfflineTrainingGame() {
               b.y >= viewMapTop && b.y <= viewMapBottom
             ) {
               bulletEnteredVision.add(b.id);
-              profileBulletEnterVision(prof, now, b.id);
+              const remainingLifeMs = ((BULLET_MAX_DIST - b.traveled) / bulletSpeed) * 1000;
+              profileBulletEnterVision(prof, now, b.id, remainingLifeMs);
             }
           }
 
           // 超出最大飞行距离 → 消失
           if (b.traveled >= BULLET_MAX_DIST) {
             bullets.splice(i, 1);
+            profileBulletRemoved(prof, b.id);
             continue;
           }
 
@@ -872,6 +886,7 @@ export default function OfflineTrainingGame() {
           const ddy = player.y - b.y;
           if (ddx * ddx + ddy * ddy <= rSum2) {
             bullets.splice(i, 1);
+            profileBulletRemoved(prof, b.id);
             hitCountRef.current += 1;
             setHitCount(hitCountRef.current);
           }
