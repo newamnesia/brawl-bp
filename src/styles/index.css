@@ -29,6 +29,13 @@ body {
     radial-gradient(ellipse at 80% 100%, rgba(79, 195, 247, 0.06) 0%, transparent 50%);
   color: var(--text);
   min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 button {
@@ -1402,5 +1409,248 @@ input:focus {
   color: #6b5c25;
   text-align: center;
   padding: 1.5rem 0;
+}
+
+/* ========== 手机横屏统一适配 ========== */
+@media (orientation: landscape) and (min-width: 568px) and (max-height: 600px) {
+  .app-shell {
+    max-width: 1180px;
+    padding:
+      max(0.55rem, env(safe-area-inset-top))
+      max(0.8rem, env(safe-area-inset-right))
+      max(1rem, env(safe-area-inset-bottom))
+      max(0.8rem, env(safe-area-inset-left));
+  }
+
+  .page-title {
+    font-size: clamp(1.25rem, 4.2vh, 1.65rem);
+    line-height: 1.1;
+    margin-bottom: 0.15rem;
+  }
+
+  .page-subtitle {
+    font-size: 0.8rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .card {
+    padding: 0.8rem 1rem;
+    margin-bottom: 0.65rem;
+    border-radius: 12px;
+  }
+
+  .tutorial-box {
+    padding: 0.6rem 0.85rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .tutorial-box.tutorial-highlight {
+    border-left-width: 4px;
+  }
+
+  .tutorial-intro,
+  .tutorial-box.tutorial-highlight .tutorial-intro {
+    font-size: 0.85rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .tutorial-emphasis,
+  .tutorial-list {
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .tutorial-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.2rem 1.25rem;
+  }
+
+  .form-group {
+    margin-bottom: 0.6rem;
+  }
+
+  input {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    min-height: 38px;
+    padding: 0.5rem 1rem;
+    font-size: 0.88rem;
+  }
+
+  .divider {
+    margin: 0.65rem 0;
+  }
+
+  .lobby-section,
+  .credits-box {
+    margin-top: 0.75rem;
+  }
+
+  .credits-box {
+    padding: 0.65rem 0.85rem;
+  }
+
+  .credits-text {
+    line-height: 1.4;
+  }
+
+  .toggle-group {
+    gap: 0.35rem;
+    margin-bottom: 0.55rem !important;
+  }
+
+  .toggle-group button {
+    min-width: max-content;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.8rem;
+  }
+
+  /* 训练设置页的两种操作方式横向并排。 */
+  .toggle-group[style*="flex-direction: column"] {
+    flex-direction: row !important;
+  }
+
+  .hero-grid {
+    grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+    gap: 0.4rem;
+  }
+
+  .hero-name {
+    font-size: 0.65rem;
+  }
+
+  .hero-en-name {
+    font-size: 0.48rem;
+  }
+
+  .hero-search {
+    padding: 0.3rem 0;
+    margin-bottom: 0.4rem;
+  }
+
+  .team-panel {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .team-box {
+    padding: 0.65rem;
+  }
+
+  .phase-banner,
+  .spectator-banner {
+    padding: 0.45rem 0.7rem;
+    margin-bottom: 0.55rem;
+    font-size: 0.9rem;
+  }
+
+  .timer {
+    font-size: 1.8rem;
+  }
+
+  .member-panel,
+  .swap-modal-card {
+    padding: 0.7rem 0.85rem;
+  }
+
+  .swap-modal {
+    top: max(0.25rem, env(safe-area-inset-top));
+  }
+
+  .mode-grid {
+    grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+  }
+
+  .mode-card {
+    padding: 0.4rem 0.3rem;
+  }
+
+  .mode-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .map-grid {
+    grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+    max-height: min(58vh, 300px);
+  }
+
+  .map-preview-grid {
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .map-preview-card {
+    padding: 0.35rem;
+  }
+
+  .map-preview-name {
+    font-size: 0.72rem;
+  }
+
+  .map-confirmed-img {
+    height: min(42vh, 150px);
+  }
+
+  .hero-note {
+    right: max(0.6rem, env(safe-area-inset-right));
+    bottom: max(0.6rem, env(safe-area-inset-bottom));
+    width: min(520px, 72vw);
+    max-height: calc(100dvh - 1.2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding: 0.75rem 0.9rem;
+  }
+
+  .hero-note-header,
+  .hero-note-tabs {
+    margin-bottom: 0.4rem;
+  }
+
+  .stat-row {
+    padding: 0.3rem 0.5rem;
+  }
+
+  .training-hud {
+    padding:
+      max(0.4rem, env(safe-area-inset-top))
+      max(0.65rem, env(safe-area-inset-right))
+      0.5rem
+      max(0.65rem, env(safe-area-inset-left)) !important;
+  }
+
+  .training-pause-backdrop {
+    padding:
+      max(0.35rem, env(safe-area-inset-top))
+      max(0.5rem, env(safe-area-inset-right))
+      max(0.35rem, env(safe-area-inset-bottom))
+      max(0.5rem, env(safe-area-inset-left)) !important;
+  }
+
+  .training-pause-card {
+    width: min(1180px, 100%) !important;
+    max-height: 100% !important;
+    padding: 0.75rem !important;
+  }
+
+  .training-chart-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+  }
+
+  .training-chart-grid > div {
+    min-width: 0;
+    padding: 0.65rem !important;
+  }
+
+  .training-joystick-zone {
+    left: env(safe-area-inset-left) !important;
+    width: calc(50% - env(safe-area-inset-left)) !important;
+  }
 }
 

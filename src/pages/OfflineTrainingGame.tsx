@@ -1126,6 +1126,7 @@ export default function OfflineTrainingGame() {
   return (
     <div
       ref={containerRef}
+      className="training-game"
       style={{
         position: "fixed",
         inset: 0,
@@ -1138,6 +1139,7 @@ export default function OfflineTrainingGame() {
 
       {/* 顶部信息栏 */}
       <div
+        className="training-hud"
         style={{
           position: "absolute",
           top: 0,
@@ -1234,6 +1236,7 @@ export default function OfflineTrainingGame() {
       {/* 摇杆区 */}
       {mode === "joystick" && (
         <div
+          className="training-joystick-zone"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -1299,6 +1302,7 @@ export default function OfflineTrainingGame() {
       {/* 键盘操作提示 */}
       {mode === "keyboard" && (
         <div
+          className="training-pause-backdrop"
           style={{
             position: "absolute",
             bottom: "1.5rem",
@@ -1313,6 +1317,7 @@ export default function OfflineTrainingGame() {
           }}
         >
           <div
+            className="training-pause-card"
             style={{
               width: 48,
               height: 48,
@@ -1409,7 +1414,7 @@ export default function OfflineTrainingGame() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem" }}>
+            <div className="training-chart-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem" }}>
               <DistChartCard
                 title="数据1 · 摇杆归一化距离分布"
                 subtitle="1.0 = 摇杆边界；排除松开 & 极小死区"
