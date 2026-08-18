@@ -604,8 +604,6 @@ export default function OfflineTrainingGame() {
     stickMag: number[];
     reactionMs: number[];
     turnIntervalMs: number[];
-    rapidTurnsPerSec: number;
-    jitterReversalsPerSec: number;
   } | null>(null);
 
   // 同步 paused state → ref（避免游戏循环读脏值）
@@ -614,13 +612,10 @@ export default function OfflineTrainingGame() {
     if (paused && profilerRef.current) {
       // 浅拷贝引用快照（样本数组只追加，不突变，所以直接引用即可）
       const prof = profilerRef.current;
-      const metrics = getMetrics(prof);
       setPauseSnapshot({
         stickMag: prof.samplesStickMag,
         reactionMs: prof.samplesReactionMs,
         turnIntervalMs: prof.samplesTurnIntervalMs,
-        rapidTurnsPerSec: metrics.rapidTurnsPerSec,
-        jitterReversalsPerSec: metrics.jitterReversalsPerSec,
       });
     } else if (!paused) {
       setPauseSnapshot(null);
@@ -1372,10 +1367,6 @@ export default function OfflineTrainingGame() {
                 <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "#ffffff" }}>训练数据分布</div>
                 <div style={{ fontSize: "0.8rem", color: "#8899aa", marginTop: 2 }}>
                   点击「继续」可回到训练继续采样
-                </div>
-                <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", marginTop: "0.55rem" }}>
-                  <StatChip label="高频变向" value={`${pauseSnapshot.rapidTurnsPerSec.toFixed(2)} 次/秒`} accent="#ef5350" />
-                  <StatChip label="高频抖动" value={`${pauseSnapshot.jitterReversalsPerSec.toFixed(2)} 次/秒`} accent="#ff7043" />
                 </div>
               </div>
               <div style={{ display: "flex", gap: "0.5rem" }}>
