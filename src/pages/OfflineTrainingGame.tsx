@@ -18,7 +18,7 @@ const ENEMY_RANGE = 10;       // 射程半径
 const FIRE_INTERVAL = 1;      // 发射间隔 1s
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
 const BULLET_RADIUS = 0.25;   // 子弹半径 0.25 单位（圆）
-const DEFAULT_BULLET_SPEED = 7; // 默认子弹速度（单位/秒）
+const BULLET_SPEED_BY_TIER: Record<string, number> = { low: 7, mid: 10.5, high: 14 };
 
 type Bullet = {
   x: number;          // 子弹中心 x
@@ -415,7 +415,7 @@ function profileTurnHappened(p: Prof, now: number, turnAngleDeg: number) {
     else p.avgReactionTimeMs = ema(p.avgReactionTimeMs, rt, EMA_ALPHA_FAST);
     // ===== 数据2 反应时间分布：人类合理区间 =====
     // 一般 150ms ~ 2000ms 是合理区间（极限运动员 120ms 起步，慢到 2.5s）
-    if (rt >= 120 && rt <= 2500 && p.samplesReactionMs.length < 5000) {
+    if (rt >= 120 && rt <= REACTION_MAX_MS && p.samplesReactionMs.length < 5000) {
       p.samplesReactionMs.push(rt);
     }
     p.reactionFirstTurnSeen.add(pr.bulletId);
@@ -573,10 +573,13 @@ export default function OfflineTrainingGame() {
   const mode = (searchParams.get("mode") as ControlMode) || "keyboard";
   const speedTier = searchParams.get("speedTier") || "mid";
 
-  // 从 URL 读取子弹速度（最小 0.01，非法时回退默认）
+  // 从 URL 读取子弹速度（最小 0.01，非法时回退到当前档位，而不是固定低速）。
   const rawSpeed = parseFloat(searchParams.get("bulletSpeed") ?? "");
+  const tierFallbackSpeed = BULLET_SPEED_BY_TIER[speedTier] ?? BULLET_SPEED_BY_TIER.mid;
   const bulletSpeed: number =
-    Number.isFinite(rawSpeed) && rawSpeed >= 0.01 ? rawSpeed : DEFAULT_BULLET_SPEED;
+    Number.isFinite(rawSpeed) && rawSpeed >= 0.01 ? rawSpeed : tierFallbackSpeed;
+  // 反应时间不可能超过子弹从出生到飞满射程的时间。
+  const reactionWindowMaxMs = Math.min(REACTION_MAX_MS, (BULLET_MAX_DIST / bulletSpeed) * 1000);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1418,12 +1421,12 @@ export default function OfflineTrainingGame() {
               />
               <DistChartCard
                 title="数据2 · 反应时间分布"
-                subtitle="子弹出现在视野 → 首次转向避让 (ms)"
+                subtitle={`子弹进入视野 → 首次转向；当前档最大窗口 ${reactionWindowMaxMs.toFixed(0)} ms`}
                 accent="#ffb74d"
                 samples={pauseSnapshot.reactionMs}
                 xLabel="反应时间 (ms)"
                 xMin={120}
-                xMax={2500}
+                xMax={reactionWindowMaxMs}
                 bins={24}
                 unitLabel=" ms"
               />
