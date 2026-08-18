@@ -5,9 +5,9 @@ type ControlMode = "joystick" | "keyboard";
 type SpeedTier = "low" | "mid" | "high";
 
 const SPEED_TIERS: Record<SpeedTier, { label: string; value: number; hint: string }> = {
-  low: { label: "低", value: 7, hint: "轻松练习用" },
-  mid: { label: "中", value: 10.5, hint: "标准挑战" },
-  high: { label: "高", value: 14, hint: "极限反应训练" },
+  low: { label: "低", value: 10.5, hint: "轻松练习用" },
+  mid: { label: "中", value: 14, hint: "标准挑战" },
+  high: { label: "高", value: 17.5, hint: "极限反应训练" },
 };
 
 export default function OfflineTraining() {

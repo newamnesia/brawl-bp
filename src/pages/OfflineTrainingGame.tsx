@@ -21,7 +21,7 @@ const ENEMY_RANGE = 10;       // 射程半径
 const FIRE_INTERVAL = 1;      // 发射间隔 1s
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
 const BULLET_RADIUS = 0.25;   // 子弹半径 0.25 单位（圆）
-const BULLET_SPEED_BY_TIER: Record<string, number> = { low: 7, mid: 10.5, high: 14 };
+const BULLET_SPEED_BY_TIER: Record<string, number> = { low: 10.5, mid: 14, high: 17.5 };
 
 type Bullet = {
   x: number;          // 子弹中心 x
