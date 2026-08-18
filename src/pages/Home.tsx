@@ -193,6 +193,14 @@ export default function Home() {
         查看所有可选地图（单人预览）
       </button>
 
+      <button
+        className="btn-primary"
+        style={{ marginTop: "1rem", width: "100%" }}
+        onClick={() => navigate("/offline-training")}
+      >
+        离线走位训练
+      </button>
+
       <div className="credits-box">
         <p className="credits-title">创作声明</p>
         <p className="credits-text">
