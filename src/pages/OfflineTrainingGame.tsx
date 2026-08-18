@@ -6,9 +6,10 @@ type ControlMode = "joystick" | "keyboard";
 // 地图常量
 const MAP_WIDTH = 21;  // 列数（横向单位）
 const MAP_HEIGHT = 33; // 行数（纵向单位）
-const HORIZONTAL_VIEW_UNITS = 31.2; // 屏幕横向固定可见格数；地图在其中居中
-const CAMERA_GROUND_ANGLE_DEG = 67;
-const GROUND_DEPTH_PROJECTION = Math.sin((CAMERA_GROUND_ANGLE_DEG * Math.PI) / 180);
+const CAMERA_FOV_DEG = 40;
+const CAMERA_ROTATION_X_DEG = 40;
+const CAMERA_DISTANCE = 40;
+const CAMERA_HEIGHT = 30;
 const PLAYER_RADIUS = 0.5; // 玩家半径 0.5 单位
 const MOVE_SPEED = 3;  // 移动速度 3 单位/秒
 const MOVE_ACCELERATION_TIME = 0.1;
@@ -48,6 +49,52 @@ type HitParticle = {
   maxLife: number;
   size: number;
 };
+
+type ScreenPoint = { x: number; y: number; depth: number };
+
+// 地图位于 XY 平面，相机沿地图纵轴后退并抬高，始终看向地图中心。
+// 先应用标准透视矩阵，再统一缩放到横向完整展示 21 列。
+function createCameraProjection(width: number, height: number) {
+  const centerX = MAP_WIDTH / 2;
+  const centerY = MAP_HEIGHT / 2;
+  const pitch = CAMERA_ROTATION_X_DEG * Math.PI / 180;
+  const configuredHorizontalDistance = CAMERA_DISTANCE;
+  const configuredHeight = CAMERA_HEIGHT;
+  const lookDistance = Math.hypot(configuredHorizontalDistance, configuredHeight);
+  // Rotation X 严格控制画面俯角；Distance/Height 共同确定透视景深。
+  const effectivePitch = pitch;
+  const focal = (height / 2) / Math.tan((CAMERA_FOV_DEG * Math.PI / 180) / 2);
+
+  const rawProject = (x: number, y: number): ScreenPoint => {
+    const localX = x - centerX;
+    const localY = y - centerY;
+    const viewY = localY * Math.sin(effectivePitch);
+    const depth = Math.max(1, lookDistance - localY * Math.cos(effectivePitch));
+    return {
+      x: focal * localX / depth,
+      y: focal * viewY / depth,
+      depth,
+    };
+  };
+
+  const corners = [
+    rawProject(0, 0), rawProject(MAP_WIDTH, 0),
+    rawProject(0, MAP_HEIGHT), rawProject(MAP_WIDTH, MAP_HEIGHT),
+  ];
+  const minX = Math.min(...corners.map((point) => point.x));
+  const maxX = Math.max(...corners.map((point) => point.x));
+  const frameScale = width / Math.max(1, maxX - minX);
+  const projectedCenter = rawProject(centerX, centerY);
+
+  return (x: number, y: number): ScreenPoint => {
+    const point = rawProject(x, y);
+    return {
+      x: width / 2 + (point.x - projectedCenter.x) * frameScale,
+      y: height / 2 + (point.y - projectedCenter.y) * frameScale,
+      depth: point.depth,
+    };
+  };
+}
 
 // ============== Profiler 常量 ==============
 // 输入死区：向量模长小于此值视为无操作（用于统计静止倾向和变向循环）
@@ -844,11 +891,6 @@ export default function OfflineTrainingGame() {
       }
     };
 
-    // 缩放因子
-    let scale = 1;
-    let scaleY = GROUND_DEPTH_PROJECTION;
-    let offsetX = 0;
-
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
       const cssWidth = container.clientWidth;
@@ -860,12 +902,6 @@ export default function OfflineTrainingGame() {
       canvas.style.height = cssHeight + "px";
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      // 横向固定展示 31.2 格。21 格地图居中，两侧各留出 5.1 格背景视野；
-      // 纵向沿用同一单位缩放比例，并继续由相机跟随玩家。
-      scale = cssWidth / HORIZONTAL_VIEW_UNITS;
-      scaleY = scale * GROUND_DEPTH_PROJECTION;
-      offsetX = (cssWidth - MAP_WIDTH * scale) / 2;
 
       forceUpdate((n) => n + 1);
     };
@@ -976,24 +1012,10 @@ export default function OfflineTrainingGame() {
         // ======== 更新子弹 + 碰撞检测 + 生命周期 + 视野事件 ========
         const bullets = bulletsRef.current;
 
-        // 相机与视野范围（用于"子弹进入视野"判定）
+        // 透视相机视野（用于"子弹进入视野"判定）
         const cssW = container.clientWidth;
         const cssH = container.clientHeight;
-        const mapPixelHeight = MAP_HEIGHT * scaleY;
-        const playerCenterY = player.y * scaleY;
-        let oY: number;
-        if (mapPixelHeight <= cssH) {
-          oY = (cssH - mapPixelHeight) / 2;
-        } else {
-          oY = cssH / 2 - playerCenterY;
-          oY = Math.min(0, Math.max(cssH - mapPixelHeight, oY));
-        }
-        // 视野对应地图坐标系范围（含少量外延，避免边界闪烁）
-        const viewMargin = 1;
-        const viewMapLeft = (-offsetX) / scale - viewMargin;
-        const viewMapRight = (cssW - offsetX) / scale + viewMargin;
-        const viewMapTop = (-oY) / scaleY - viewMargin;
-        const viewMapBottom = (cssH - oY) / scaleY + viewMargin;
+        const project = createCameraProjection(cssW, cssH);
 
         for (let i = bullets.length - 1; i >= 0; i--) {
           const b = bullets[i];
@@ -1005,10 +1027,8 @@ export default function OfflineTrainingGame() {
 
           // 进入视野检测（第一次）
           if (!bulletEnteredVision.has(b.id)) {
-            if (
-              b.x >= viewMapLeft && b.x <= viewMapRight &&
-              b.y >= viewMapTop && b.y <= viewMapBottom
-            ) {
+            const screenBullet = project(b.x, b.y);
+            if (screenBullet.x >= -8 && screenBullet.x <= cssW + 8 && screenBullet.y >= -8 && screenBullet.y <= cssH + 8) {
               bulletEnteredVision.add(b.id);
               const remainingLifeMs = ((BULLET_MAX_DIST - b.traveled) / bulletSpeed) * 1000;
               const baselineAngle = curSpeed >= INPUT_DEADZONE_MAG ? Math.atan2(input.y, input.x) : null;
@@ -1056,16 +1076,8 @@ export default function OfflineTrainingGame() {
       const player = playerRef.current;
       const cssWidth = container.clientWidth;
       const cssHeight = container.clientHeight;
-      // 相机跟随：让玩家始终处于屏幕竖直中线（无论暂停与否都重算）
-      const mapPixelHeight = MAP_HEIGHT * scaleY;
-      const playerCenterY = player.y * scaleY;
-      let offsetY: number;
-      if (mapPixelHeight <= cssHeight) {
-        offsetY = (cssHeight - mapPixelHeight) / 2;
-      } else {
-        offsetY = cssHeight / 2 - playerCenterY;
-        offsetY = Math.min(0, Math.max(cssHeight - mapPixelHeight, offsetY));
-      }
+      const project = createCameraProjection(cssWidth, cssHeight);
+      const mapCorners = [project(0, 0), project(MAP_WIDTH, 0), project(MAP_WIDTH, MAP_HEIGHT), project(0, MAP_HEIGHT)];
 
       // 清屏
       ctx.fillStyle = "#0f1419";
@@ -1073,21 +1085,27 @@ export default function OfflineTrainingGame() {
 
       // 绘制地图区域背景
       ctx.fillStyle = "#162031";
-      ctx.fillRect(offsetX, offsetY, MAP_WIDTH * scale, MAP_HEIGHT * scaleY);
+      ctx.beginPath();
+      ctx.moveTo(mapCorners[0].x, mapCorners[0].y);
+      for (let i = 1; i < mapCorners.length; i++) ctx.lineTo(mapCorners[i].x, mapCorners[i].y);
+      ctx.closePath();
+      ctx.fill();
 
       // 绘制网格
       ctx.strokeStyle = "#243044";
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let gx = 0; gx <= MAP_WIDTH; gx += 5) {
-        const px = offsetX + gx * scale;
-        ctx.moveTo(px, offsetY);
-        ctx.lineTo(px, offsetY + MAP_HEIGHT * scaleY);
+        const from = project(gx, 0);
+        const to = project(gx, MAP_HEIGHT);
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
       }
       for (let gy = 0; gy <= MAP_HEIGHT; gy += 5) {
-        const py = offsetY + gy * scaleY;
-        ctx.moveTo(offsetX, py);
-        ctx.lineTo(offsetX + MAP_WIDTH * scale, py);
+        const from = project(0, gy);
+        const to = project(MAP_WIDTH, gy);
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
       }
       ctx.stroke();
 
@@ -1096,35 +1114,44 @@ export default function OfflineTrainingGame() {
       ctx.lineWidth = 0.5;
       ctx.beginPath();
       for (let gx = 0; gx <= MAP_WIDTH; gx++) {
-        const px = offsetX + gx * scale;
-        ctx.moveTo(px, offsetY);
-        ctx.lineTo(px, offsetY + MAP_HEIGHT * scaleY);
+        const from = project(gx, 0);
+        const to = project(gx, MAP_HEIGHT);
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
       }
       for (let gy = 0; gy <= MAP_HEIGHT; gy++) {
-        const py = offsetY + gy * scaleY;
-        ctx.moveTo(offsetX, py);
-        ctx.lineTo(offsetX + MAP_WIDTH * scale, py);
+        const from = project(0, gy);
+        const to = project(MAP_WIDTH, gy);
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
       }
       ctx.stroke();
 
       // 地图边框
       ctx.strokeStyle = "#2d3f55";
       ctx.lineWidth = 3;
-      ctx.strokeRect(offsetX, offsetY, MAP_WIDTH * scale, MAP_HEIGHT * scaleY);
+      ctx.beginPath();
+      ctx.moveTo(mapCorners[0].x, mapCorners[0].y);
+      for (let i = 1; i < mapCorners.length; i++) ctx.lineTo(mapCorners[i].x, mapCorners[i].y);
+      ctx.closePath();
+      ctx.stroke();
 
       // 绘制敌人射程圈（淡红色虚线提示）
-      const enemyCenterPx = offsetX + ENEMY_X * scale;
-      const enemyCenterPy = offsetY + ENEMY_Y * scaleY;
-      const enemyRadiusPx = ENEMY_RADIUS * scale;
-      const enemyRadiusPy = ENEMY_RADIUS * scaleY;
-      const rangePx = ENEMY_RANGE * scale;
-      const rangePy = ENEMY_RANGE * scaleY;
+      const enemyScreen = project(ENEMY_X, ENEMY_Y);
+      const enemyRadiusPx = Math.abs(project(ENEMY_X + ENEMY_RADIUS, ENEMY_Y).x - enemyScreen.x);
+      const enemyRadiusPy = Math.abs(project(ENEMY_X, ENEMY_Y + ENEMY_RADIUS).y - enemyScreen.y);
       ctx.save();
       ctx.strokeStyle = "rgba(255, 82, 82, 0.25)";
       ctx.lineWidth = 1;
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
-      ctx.ellipse(enemyCenterPx, enemyCenterPy, rangePx, rangePy, 0, 0, Math.PI * 2);
+      for (let i = 0; i <= 72; i++) {
+        const angle = i / 72 * Math.PI * 2;
+        const point = project(ENEMY_X + Math.cos(angle) * ENEMY_RANGE, ENEMY_Y + Math.sin(angle) * ENEMY_RANGE);
+        if (i === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      }
+      ctx.closePath();
       ctx.stroke();
       ctx.restore();
 
@@ -1133,43 +1160,44 @@ export default function OfflineTrainingGame() {
       ctx.shadowBlur = enemyRadiusPx * 0.8;
       ctx.fillStyle = "#ff5252";
       ctx.beginPath();
-      ctx.ellipse(enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
+      ctx.ellipse(enemyScreen.x, enemyScreen.y, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.strokeStyle = "#ff8a80";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
+      ctx.ellipse(enemyScreen.x, enemyScreen.y, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
 
       // 绘制玩家（圆）
-      const playerCenterPx = offsetX + player.x * scale;
-      const playerCenterPy = offsetY + player.y * scaleY;
-      const playerRadiusPx = PLAYER_RADIUS * scale;
-      const playerRadiusPy = PLAYER_RADIUS * scaleY;
+      const playerScreen = project(player.x, player.y);
+      const playerRadiusPx = Math.abs(project(player.x + PLAYER_RADIUS, player.y).x - playerScreen.x);
+      const playerRadiusPy = Math.abs(project(player.x, player.y + PLAYER_RADIUS).y - playerScreen.y);
 
       ctx.shadowColor = "#4fc3f7";
       ctx.shadowBlur = playerRadiusPx * 0.8;
       ctx.fillStyle = "#4fc3f7";
       ctx.beginPath();
-      ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
+      ctx.ellipse(playerScreen.x, playerScreen.y, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.strokeStyle = "#81d4fa";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
+      ctx.ellipse(playerScreen.x, playerScreen.y, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
 
       // 绘制子弹贴图；贴图跟随弹道方向旋转，碰撞仍使用实例自身的物理半径。
       for (const b of bulletsRef.current) {
-        const bx = offsetX + b.x * scale;
-        const by = offsetY + b.y * scaleY;
-        const radiusX = b.radius * scale;
-        const radiusY = b.radius * scaleY;
+        const bulletScreen = project(b.x, b.y);
+        const bx = bulletScreen.x;
+        const by = bulletScreen.y;
+        const radiusX = Math.abs(project(b.x + b.radius, b.y).x - bx);
+        const radiusY = Math.abs(project(b.x, b.y + b.radius).y - by);
         const image = projectileImages[b.texture];
         if (image.complete && image.naturalWidth > 0) {
-          const angle = Math.atan2(b.vy * scaleY, b.vx * scale);
+          const heading = project(b.x + b.vx * 0.05, b.y + b.vy * 0.05);
+          const angle = Math.atan2(heading.y - by, heading.x - bx);
           // 素材包含透明发光留白，绘制范围放大到碰撞直径的 3 倍。
           const drawWidth = radiusX * 6;
           const drawHeight = radiusY * 6;
@@ -1190,10 +1218,12 @@ export default function OfflineTrainingGame() {
       ctx.save();
       for (const particle of hitParticles) {
         const alpha = Math.max(0, particle.life / particle.maxLife);
-        const px = offsetX + particle.x * scale;
-        const py = offsetY + particle.y * scaleY;
-        const radiusX = particle.size * scale * (0.65 + alpha * 0.35);
-        const radiusY = particle.size * scaleY * (0.65 + alpha * 0.35);
+        const particleScreen = project(particle.x, particle.y);
+        const px = particleScreen.x;
+        const py = particleScreen.y;
+        const sizeFactor = 0.65 + alpha * 0.35;
+        const radiusX = Math.abs(project(particle.x + particle.size, particle.y).x - px) * sizeFactor;
+        const radiusY = Math.abs(project(particle.x, particle.y + particle.size).y - py) * sizeFactor;
         ctx.globalAlpha = alpha;
         ctx.fillStyle = alpha > 0.55 ? "#ff5252" : "#d32f2f";
         ctx.shadowColor = "#ff1744";
@@ -1209,8 +1239,8 @@ export default function OfflineTrainingGame() {
       ctx.font = "12px 'Nunito', system-ui, sans-serif";
       ctx.fillText(
         `位置: (${player.x.toFixed(1)}, ${player.y.toFixed(1)})`,
-        offsetX + 8,
-        offsetY + MAP_HEIGHT * scaleY - 8,
+        Math.min(mapCorners[0].x, mapCorners[3].x) + 8,
+        Math.max(mapCorners[2].y, mapCorners[3].y) - 8,
       );
 
       animationId = requestAnimationFrame(gameLoop);
