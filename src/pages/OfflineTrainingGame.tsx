@@ -967,7 +967,7 @@ export default function OfflineTrainingGame() {
               vy: (ay / da) * bulletSpeed,
               traveled: 0,
               id: shotId,
-              radius: projectileTier === "mid" ? 0.375 : 0.25,
+              radius: projectileTier === "mid" ? 0.325 : 0.25,
               texture: projectileTier,
             });
           }
@@ -1609,7 +1609,7 @@ export default function OfflineTrainingGame() {
 
             <div className="training-chart-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem" }}>
               <DistChartCard
-                title="数据1 · 摇杆归一化距离分布"
+                title="数据1 · 摇杆触控点分布"
                 subtitle="1.0 = 摇杆边界；排除松开 & 极小死区"
                 accent="#4fc3f7"
                 samples={pauseSnapshot.stickMag}
@@ -1631,8 +1631,8 @@ export default function OfflineTrainingGame() {
                 unitLabel=" ms"
               />
               <DistChartCard
-                title="数据3 · 变向循环时间间隔分布"
-                subtitle="死区出→回完整循环之间的间隔 (ms)"
+                title="数据3 · 变相时间分布"
+                subtitle="统计每两次转向间的时间间隔分布"
                 accent="#ba68c8"
                 samples={pauseSnapshot.turnIntervalMs}
                 xLabel="时间间隔 (ms)"
