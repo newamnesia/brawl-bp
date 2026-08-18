@@ -664,6 +664,7 @@ export default function OfflineTrainingGame() {
   // 暂停状态
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   // 暂停时的三大样本快照（传给面板绘图）
   const [pauseSnapshot, setPauseSnapshot] = useState<{
     stickMag: number[];
@@ -689,6 +690,41 @@ export default function OfflineTrainingGame() {
 
   const togglePause = () => {
     setPaused((v) => !v);
+  };
+
+  useEffect(() => {
+    const fullscreenDocument = document as Document & { webkitFullscreenElement?: Element | null };
+    const syncFullscreenState = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenState);
+    syncFullscreenState();
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreenState);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    const target = containerRef.current as (HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> | void }) | null;
+    const fullscreenDocument = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+    if (!target) return;
+    try {
+      if (document.fullscreenElement || fullscreenDocument.webkitFullscreenElement) {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else await fullscreenDocument.webkitExitFullscreen?.();
+      } else if (target.requestFullscreen) {
+        await target.requestFullscreen();
+      } else {
+        await target.webkitRequestFullscreen?.();
+      }
+    } catch {
+      // 浏览器可能因系统策略拒绝全屏；保持当前界面，不中断训练。
+    }
   };
 
   // 子弹 + 开火计时（用 ref 避免重渲染）
@@ -1232,10 +1268,27 @@ export default function OfflineTrainingGame() {
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <div style={{ fontSize: "0.8rem", color: "#8899aa", whiteSpace: "nowrap" }}>
+        <div className="training-hud-actions" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <div className="training-control-label" style={{ fontSize: "0.8rem", color: "#8899aa", whiteSpace: "nowrap" }}>
             操作方式: {mode === "joystick" ? "触控摇杆" : "键盘 WASD"}
           </div>
+          <button
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "退出全屏" : "进入全屏并隐藏浏览器栏"}
+            style={{
+              background: isFullscreen ? "rgba(105, 240, 174, 0.16)" : "rgba(255, 255, 255, 0.08)",
+              color: isFullscreen ? "#69f0ae" : "var(--text)",
+              border: `1px solid ${isFullscreen ? "rgba(105, 240, 174, 0.55)" : "var(--border)"}`,
+              padding: "0.4rem 0.8rem",
+              borderRadius: "8px",
+              fontWeight: 800,
+              fontSize: "0.85rem",
+              pointerEvents: "auto",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {isFullscreen ? "▣ 退出全屏" : "⛶ 全屏"}
+          </button>
           <button
             onClick={togglePause}
             style={{

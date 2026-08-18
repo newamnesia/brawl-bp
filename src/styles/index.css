@@ -1624,6 +1624,19 @@ input:focus {
       max(0.65rem, env(safe-area-inset-left)) !important;
   }
 
+  .training-hud-actions {
+    gap: 0.3rem !important;
+  }
+
+  .training-hud-actions button {
+    padding: 0.35rem 0.55rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  .training-control-label {
+    display: none;
+  }
+
   .training-pause-backdrop {
     padding:
       max(0.35rem, env(safe-area-inset-top))
