@@ -6,8 +6,8 @@ type ControlMode = "joystick" | "keyboard";
 // 地图常量
 const MAP_WIDTH = 21;  // 列数（横向单位）
 const MAP_HEIGHT = 33; // 行数（纵向单位）
-const CAMERA_HORIZONTAL_FOV_DEG = 40;
-const CAMERA_ROTATION_X_DEG = 40;
+const CAMERA_VERTICAL_FOV_DEG = 50;
+const CAMERA_ROTATION_X_DEG = 55;
 const CAMERA_POSITION = { x: 10.5, y: 30, z: -30 } as const;
 const PLAYER_RADIUS = 0.5; // 玩家半径 0.5 单位
 const MOVE_SPEED = 3;  // 移动速度 3 单位/秒
@@ -51,15 +51,15 @@ type HitParticle = {
 
 type ScreenPoint = { x: number; y: number; depth: number };
 
-// 地图位于 XZ 地面，相机位置为 (10.5, 30, -30)，Yaw/Roll 均为 0。
-// Pitch=40° 后应用水平 FOV=40° 的透视矩阵，再以地图中心校准画面中心。
+// 地图位于 XZ 地面，相机与地图世界坐标固定，Yaw/Roll 均为 0。
+// Pitch=55°、垂直 FOV=50°；宽高比变化时只改变横向可见范围，不缩放地图。
 function createCameraProjection(width: number, height: number) {
   const centerX = MAP_WIDTH / 2;
   const centerY = MAP_HEIGHT / 2;
   const pitch = CAMERA_ROTATION_X_DEG * Math.PI / 180;
   const sinPitch = Math.sin(pitch);
   const cosPitch = Math.cos(pitch);
-  const focal = (width / 2) / Math.tan((CAMERA_HORIZONTAL_FOV_DEG * Math.PI / 180) / 2);
+  const focal = (height / 2) / Math.tan((CAMERA_VERTICAL_FOV_DEG * Math.PI / 180) / 2);
 
   const rawProject = (x: number, y: number): ScreenPoint => {
     const relativeX = x - CAMERA_POSITION.x;
@@ -75,20 +75,13 @@ function createCameraProjection(width: number, height: number) {
     };
   };
 
-  const corners = [
-    rawProject(0, 0), rawProject(MAP_WIDTH, 0),
-    rawProject(0, MAP_HEIGHT), rawProject(MAP_WIDTH, MAP_HEIGHT),
-  ];
-  const minX = Math.min(...corners.map((point) => point.x));
-  const maxX = Math.max(...corners.map((point) => point.x));
-  const frameScale = width / Math.max(1, maxX - minX);
   const projectedCenter = rawProject(centerX, centerY);
 
   return (x: number, y: number): ScreenPoint => {
     const point = rawProject(x, y);
     return {
-      x: width / 2 + (point.x - projectedCenter.x) * frameScale,
-      y: height / 2 + (point.y - projectedCenter.y) * frameScale,
+      x: width / 2 + point.x - projectedCenter.x,
+      y: height / 2 + point.y - projectedCenter.y,
       depth: point.depth,
     };
   };
