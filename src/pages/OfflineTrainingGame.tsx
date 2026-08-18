@@ -42,6 +42,12 @@ const LARGE_TURN_DEG = 90;
 const FAKEOUT_WINDOW_MS = 250;
 // 骗招反向夹角阈值（度）：最小夹角超过此值视为方向相反
 const FAKEOUT_REVERSE_DEG = 170;
+// 高频方向事件：不要求摇杆回中，专门捕捉持续推杆状态下的快速切向。
+const RAPID_TURN_MIN_DEG = 35;
+const RAPID_TURN_MAX_GAP_MS = 260;
+const RAPID_EVENT_MIN_GAP_MS = 40;
+const JITTER_REVERSE_MAX_GAP_MS = 160;
+const RAPID_ROLLING_WINDOW_MS = 1500;
 // 虚脱期停滞阈值：虚脱期输入模长 < 该值视为"停滞/回中"
 const FATIGUE_STALL_MAG = 0.15;
 // 虚脱期最大观测时长（ms）：超过此时间未恢复则停止观测
@@ -61,6 +67,12 @@ function angleDeltaDeg(a1: number, a2: number): number {
   let d = (a2 - a1) * 180 / Math.PI;
   d = ((d + 180) % 360 + 360) % 360 - 180;
   return Math.abs(d);
+}
+
+function signedAngleDeltaDeg(a1: number, a2: number): number {
+  let d = (a2 - a1) * 180 / Math.PI;
+  d = ((d + 180) % 360 + 360) % 360 - 180;
+  return d;
 }
 
 type EffectiveTurn = {
@@ -113,6 +125,11 @@ type Prof = {
   lastInputAngle: number | null;
   stableDirectionSince: number;  // 当前方向连续保持在容错范围内的起点
   deadzoneSince: number;         // 连续静止的起点
+  rapidAnchorAngle: number | null;
+  lastRapidTurnAt: number;
+  lastRapidTurnSign: -1 | 0 | 1;
+  rapidTurnTimes: number[];      // 滚动窗口内的高频切向事件
+  jitterTimes: number[];         // 滚动窗口内的快速反向抖动事件
   // —— 暂停面板分布曲线原始样本 ——
   samplesStickMag: number[];     // 数据1：摇杆归一化距离（0~1），排除松杆&死区
   samplesReactionMs: number[];   // 数据2：反应时间（ms），人类合理区间
@@ -151,6 +168,11 @@ function createProfiler(now: number): Prof {
     lastInputAngle: null,
     stableDirectionSince: now,
     deadzoneSince: now,
+    rapidAnchorAngle: null,
+    lastRapidTurnAt: 0,
+    lastRapidTurnSign: 0,
+    rapidTurnTimes: [],
+    jitterTimes: [],
     samplesStickMag: [],
     samplesReactionMs: [],
     samplesTurnIntervalMs: [],
@@ -189,6 +211,33 @@ function profileStep(
     p.lastInputAngle = angle;
     p.stableDirectionSince = now;
   }
+
+  // ===== 高频抖动 / 高频变向 =====
+  // 以最近一次已确认的快速切向为锚点；35° 以下视为手指噪声，不产生事件。
+  if (inDead) {
+    p.rapidAnchorAngle = null;
+    p.lastRapidTurnSign = 0;
+  } else if (p.rapidAnchorAngle === null) {
+    p.rapidAnchorAngle = angle;
+  } else {
+    const rapidDelta = signedAngleDeltaDeg(p.rapidAnchorAngle, angle);
+    const sinceLastRapid = now - p.lastRapidTurnAt;
+    if (Math.abs(rapidDelta) >= RAPID_TURN_MIN_DEG && sinceLastRapid >= RAPID_EVENT_MIN_GAP_MS) {
+      const sign: -1 | 1 = rapidDelta > 0 ? 1 : -1;
+      if (p.lastRapidTurnAt > 0 && sinceLastRapid <= RAPID_TURN_MAX_GAP_MS) {
+        p.rapidTurnTimes.push(now);
+        if (p.lastRapidTurnSign !== 0 && sign !== p.lastRapidTurnSign && sinceLastRapid <= JITTER_REVERSE_MAX_GAP_MS) {
+          p.jitterTimes.push(now);
+        }
+      }
+      p.rapidAnchorAngle = angle;
+      p.lastRapidTurnAt = now;
+      p.lastRapidTurnSign = sign;
+    }
+  }
+  const rollingCutoff = now - RAPID_ROLLING_WINDOW_MS;
+  while (p.rapidTurnTimes.length > 0 && p.rapidTurnTimes[0] < rollingCutoff) p.rapidTurnTimes.shift();
+  while (p.jitterTimes.length > 0 && p.jitterTimes[0] < rollingCutoff) p.jitterTimes.shift();
 
   p.totalFrames++;
   if (inDead) p.deadFrames++;
@@ -374,6 +423,8 @@ type ProfileMetrics = {
   reactionTimeMs: number;     // 4) [ms] 极限反应速度
   afterDodgeFatigueMs: number; // 5) [ms] 闪避后虚脱期
   fakeoutsPerSec: number;     // 6) [/秒] 骗招倾向
+  rapidTurnsPerSec: number;   // 高频变向（无需回中）
+  jitterReversalsPerSec: number; // 高频正反抖动
 };
 function getMetrics(p: Prof): ProfileMetrics {
   const magNorm = Math.min(1, Math.max(0, p.avgStickMagnitude));
@@ -390,6 +441,8 @@ function getMetrics(p: Prof): ProfileMetrics {
     reactionTimeMs: p.avgReactionTimeMs,
     afterDodgeFatigueMs: p.avgAfterDodgeFatigueMs,
     fakeoutsPerSec: p.fakeoutsPerSec,
+    rapidTurnsPerSec: p.rapidTurnTimes.length / (RAPID_ROLLING_WINDOW_MS / 1000),
+    jitterReversalsPerSec: p.jitterTimes.length / (RAPID_ROLLING_WINDOW_MS / 1000),
   };
 }
 
@@ -461,8 +514,12 @@ function predictAimAngle(args: {
   }
   // 6) 骗招不是稳定的反向运动；在期望值模型里应降低方向置信度，而不是随机反转瞄准。
   const fakeoutTrust = 1 - 0.7 * clamp01(metrics.fakeoutsPerSec / 2);
+  // 高频切向会让当前方向迅速过期；快速正反翻转（抖动）的惩罚更强。
+  const rapidTurnLevel = clamp01(metrics.rapidTurnsPerSec / 5);
+  const jitterLevel = clamp01(metrics.jitterReversalsPerSec / 3);
+  const highFrequencyTrust = 1 - 0.8 * Math.max(rapidTurnLevel * 0.75, jitterLevel);
 
-  const postReactionTrust = precisionTrust * turnLock * directionPersistence * activityTrust * fakeoutTrust;
+  const postReactionTrust = precisionTrust * turnLock * directionPersistence * activityTrust * fakeoutTrust * highFrequencyTrust;
   const profileMotionGain = clamp01((preReactionShare + (1 - preReactionShare) * postReactionTrust) * fatigueScale);
   // 持续单向移动是强于历史画像的实时证据；最终收敛到完整的匀速拦截。
   const motionGain = profileMotionGain + (1 - profileMotionGain) * straightLineFit;
@@ -481,7 +538,7 @@ function predictAimAngle(args: {
 
   const rawLeadAngle = Math.atan2(predY - enemyY, predX - enemyX);
   // 样本越可信，允许的最大预判偏角越大；高骗招/高变向玩家会自然收敛到直瞄。
-  const profileLeadTrust = clamp01(precisionTrust * directionPersistence * fakeoutTrust);
+  const profileLeadTrust = clamp01(precisionTrust * directionPersistence * fakeoutTrust * highFrequencyTrust);
   const leadTrust = profileLeadTrust + (1 - profileLeadTrust) * straightLineFit;
   const maxLeadDeg = 6 + 39 * leadTrust;
   const leadDelta = signedAngleDelta(directAngle, rawLeadAngle);
@@ -547,6 +604,8 @@ export default function OfflineTrainingGame() {
     stickMag: number[];
     reactionMs: number[];
     turnIntervalMs: number[];
+    rapidTurnsPerSec: number;
+    jitterReversalsPerSec: number;
   } | null>(null);
 
   // 同步 paused state → ref（避免游戏循环读脏值）
@@ -555,10 +614,13 @@ export default function OfflineTrainingGame() {
     if (paused && profilerRef.current) {
       // 浅拷贝引用快照（样本数组只追加，不突变，所以直接引用即可）
       const prof = profilerRef.current;
+      const metrics = getMetrics(prof);
       setPauseSnapshot({
         stickMag: prof.samplesStickMag,
         reactionMs: prof.samplesReactionMs,
         turnIntervalMs: prof.samplesTurnIntervalMs,
+        rapidTurnsPerSec: metrics.rapidTurnsPerSec,
+        jitterReversalsPerSec: metrics.jitterReversalsPerSec,
       });
     } else if (!paused) {
       setPauseSnapshot(null);
@@ -1310,6 +1372,10 @@ export default function OfflineTrainingGame() {
                 <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "#ffffff" }}>训练数据分布</div>
                 <div style={{ fontSize: "0.8rem", color: "#8899aa", marginTop: 2 }}>
                   点击「继续」可回到训练继续采样
+                </div>
+                <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", marginTop: "0.55rem" }}>
+                  <StatChip label="高频变向" value={`${pauseSnapshot.rapidTurnsPerSec.toFixed(2)} 次/秒`} accent="#ef5350" />
+                  <StatChip label="高频抖动" value={`${pauseSnapshot.jitterReversalsPerSec.toFixed(2)} 次/秒`} accent="#ff7043" />
                 </div>
               </div>
               <div style={{ display: "flex", gap: "0.5rem" }}>
