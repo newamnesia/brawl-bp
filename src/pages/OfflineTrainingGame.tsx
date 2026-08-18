@@ -1433,9 +1433,11 @@ function DistChartCard({
     });
   }, [samples, xMin, xMax, bins, kdeBandwidth, accent, xLabel, unitLabel]);
 
-  const n = samples.length;
-  const sorted = n > 0 ? [...samples].sort((a, b) => a - b) : [];
-  const mean = n > 0 ? samples.reduce((a, b) => a + b, 0) / n : NaN;
+  // 统计卡片与图形使用完全相同的有效区间，避免“图外样本”影响均值/中位数。
+  const effectiveSamples = samples.filter((v) => Number.isFinite(v) && v >= xMin && v <= xMax);
+  const n = effectiveSamples.length;
+  const sorted = n > 0 ? [...effectiveSamples].sort((a, b) => a - b) : [];
+  const mean = n > 0 ? effectiveSamples.reduce((a, b) => a + b, 0) / n : NaN;
   const p50 = n > 0 ? sorted[Math.floor(n * 0.5)] : NaN;
 
   return (
@@ -1530,29 +1532,30 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
     for (let i = 0; i < bins; i++) pct[i] = (counts[i] / n) * 100;
   }
 
-  // ===== 3) KDE 拟合曲线（正态核）：先得到"每单位 X 的概率密度"，再换算成"每 bin 的百分比" =====
-  //   KDE 输出是概率密度 (单位：1/X)。为了和直方图"每 bin 百分比"同一量级，
-  //   我们把 KDE 值 * binW * 100，这样在 binW 上积分≈100%。
-  const kdeN = 120;
-  const kdePct = new Array<number>(kdeN).fill(0);
-  const h = Math.max(1e-6, kdeBandwidth);
-  const h2 = h * h;
-  const inv_h_sqrt2pi = 1 / (h * Math.sqrt(2 * Math.PI));
+  // ===== 3) 从同一组柱状占比生成守恒平滑曲线 =====
+  // 每个来源柱的概率质量只在可见 bins 内分配，解决原始 KDE 在边界处丢失质量、
+  // 以及曲线峰值与柱状峰值使用不同数据口径的问题。
+  const trendPct = new Array<number>(bins).fill(0);
+  const sigmaBins = Math.max(0.65, kdeBandwidth / binW);
   if (n > 0) {
-    for (let i = 0; i < kdeN; i++) {
-      const xv = xMin + ((xMax - xMin) * i) / (kdeN - 1);
-      let s = 0;
-      for (let j = 0; j < n; j++) {
-        const d = xv - eff[j];
-        s += Math.exp(-(d * d) / (2 * h2));
+    for (let source = 0; source < bins; source++) {
+      if (pct[source] <= 0) continue;
+      let weightSum = 0;
+      const weights = new Array<number>(bins).fill(0);
+      for (let target = 0; target < bins; target++) {
+        const dBins = target - source;
+        const weight = Math.exp(-(dBins * dBins) / (2 * sigmaBins * sigmaBins));
+        weights[target] = weight;
+        weightSum += weight;
       }
-      const density = (s * inv_h_sqrt2pi) / n; // 概率密度 ≈ dP/dx
-      kdePct[i] = density * binW * 100; // 每 bin 百分比
+      for (let target = 0; target < bins; target++) {
+        trendPct[target] += pct[source] * (weights[target] / weightSum);
+      }
     }
   }
 
-  // 直方图 & KDE 的最大百分比，Y 轴顶格向上取整到合理步长
-  let pctMax = Math.max(0, ...pct, ...kdePct);
+  // 柱状图与趋势线共用“每 bin 样本占比”纵轴。
+  let pctMax = Math.max(0, ...pct, ...trendPct);
   if (pctMax <= 0) pctMax = 1; // 空态兜底
   // 自动选 Y 轴步长（0.5 / 1 / 2 / 5 / 10 / 20 / 50）并向上取整到步长倍数
   const niceCeil = (v: number): number => {
@@ -1651,16 +1654,16 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
     }
   }
 
-  // ===== 6) KDE 拟合曲线 =====
+  // ===== 6) 柱状分布的守恒平滑趋势线 =====
   if (n >= 3) {
     ctx.save();
     // 填充
     ctx.beginPath();
     ctx.moveTo(padL, padT + plotH);
-    for (let i = 0; i < kdeN; i++) {
-      const xv = xMin + ((xMax - xMin) * i) / (kdeN - 1);
+    for (let i = 0; i < bins; i++) {
+      const xv = xMin + (i + 0.5) * binW;
       const px = xToPx(xv);
-      const py = padT + plotH - kdePct[i] * yScale;
+      const py = padT + plotH - trendPct[i] * yScale;
       ctx.lineTo(px, py);
     }
     ctx.lineTo(padL + plotW, padT + plotH);
@@ -1673,10 +1676,10 @@ function drawDistributionChart(ctx: CanvasRenderingContext2D, a: DrawArgs) {
 
     // 曲线
     ctx.beginPath();
-    for (let i = 0; i < kdeN; i++) {
-      const xv = xMin + ((xMax - xMin) * i) / (kdeN - 1);
+    for (let i = 0; i < bins; i++) {
+      const xv = xMin + (i + 0.5) * binW;
       const px = xToPx(xv);
-      const py = padT + plotH - kdePct[i] * yScale;
+      const py = padT + plotH - trendPct[i] * yScale;
       if (i === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
     }
