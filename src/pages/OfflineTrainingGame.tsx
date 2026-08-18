@@ -11,8 +11,8 @@ const CAMERA_GROUND_ANGLE_DEG = 67;
 const GROUND_DEPTH_PROJECTION = Math.sin((CAMERA_GROUND_ANGLE_DEG * Math.PI) / 180);
 const PLAYER_RADIUS = 0.5; // 玩家半径 0.5 单位
 const MOVE_SPEED = 3;  // 移动速度 3 单位/秒
-const MOVE_ACCELERATION_TIME = 0.2;
-const MOVE_ACCELERATION = MOVE_SPEED / MOVE_ACCELERATION_TIME; // 15 单位/秒²
+const MOVE_ACCELERATION_TIME = 0.1;
+const MOVE_ACCELERATION = MOVE_SPEED / MOVE_ACCELERATION_TIME; // 30 单位/秒²
 
 // 敌人 + 子弹常量
 // 第10行（1-indexed）正中间方格：行9（0-indexed）中心 y=9.5；列10（0-indexed，21列正中）中心 x=10.5
@@ -24,8 +24,8 @@ const FIRE_INTERVAL = 1;      // 发射间隔 1s
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_TEXTURES = {
-  mid: "/assets/projectiles/bullet-14.png",
-  high: "/assets/projectiles/bullet-17-5.png",
+  mid: "/assets/projectiles/bullet-14-v3.png",
+  high: "/assets/projectiles/bullet-17-5-v3.png",
 } as const;
 
 type Bullet = {

@@ -124,7 +124,7 @@ export default function OfflineTraining() {
         <ul className="tutorial-list">
           <li>地图尺寸：<strong>21 × 33</strong> 单位（竖版，21列×33行）</li>
           <li>玩家体积：半径 <strong>0.5</strong> 单位圆形</li>
-          <li>移动速度：最高 <strong>3 单位/秒</strong>，从静止匀加速 <strong>0.2 秒</strong>到最大速度</li>
+          <li>移动速度：最高 <strong>3 单位/秒</strong>，从静止匀加速 <strong>0.1 秒</strong>到最大速度</li>
           <li>视野：横向固定 <strong>31.2</strong> 格，地图居中，以约 <strong>67°</strong> 地面夹角投影</li>
         </ul>
       </div>
