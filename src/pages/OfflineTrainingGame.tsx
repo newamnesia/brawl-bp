@@ -6,6 +6,7 @@ type ControlMode = "joystick" | "keyboard";
 // 地图常量
 const MAP_WIDTH = 21;  // 列数（横向单位）
 const MAP_HEIGHT = 33; // 行数（纵向单位）
+const HORIZONTAL_VIEW_UNITS = 31.2; // 屏幕横向固定可见格数；地图在其中居中
 const PLAYER_RADIUS = 0.5; // 玩家半径 0.5 单位
 const MOVE_SPEED = 3;  // 移动速度 3 单位/秒
 
@@ -776,9 +777,10 @@ export default function OfflineTrainingGame() {
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      // 优先横向填满：以宽度为基准缩放
-      scale = cssWidth / MAP_WIDTH;
-      offsetX = 0;
+      // 横向固定展示 31.2 格。21 格地图居中，两侧各留出 5.1 格背景视野；
+      // 纵向沿用同一单位缩放比例，并继续由相机跟随玩家。
+      scale = cssWidth / HORIZONTAL_VIEW_UNITS;
+      offsetX = (cssWidth - MAP_WIDTH * scale) / 2;
 
       forceUpdate((n) => n + 1);
     };

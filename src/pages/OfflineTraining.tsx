@@ -126,7 +126,7 @@ export default function OfflineTraining() {
           <li>地图尺寸：<strong>21 × 33</strong> 单位（竖版，21列×33行）</li>
           <li>玩家体积：半径 <strong>0.5</strong> 单位圆形</li>
           <li>移动速度：<strong>3 单位/秒</strong>（按角度三角函数分解分量）</li>
-          <li>视野：横向自适应填充屏幕，竖向按比例缩放</li>
+          <li>视野：横向固定显示 <strong>31.2</strong> 格，21 格地图居中，纵向同比例缩放</li>
         </ul>
       </div>
     </div>
