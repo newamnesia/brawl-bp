@@ -22,11 +22,11 @@ const ENEMY_Y = 9.5;
 const ENEMY_RADIUS = 0.5;
 const ENEMY_RANGE = 10;       // 射程半径
 const MAGAZINE_CAPACITY = 3;
-const MAGAZINE_RELOAD_SECONDS = 1.8;
-const FIRE_INTERVAL_MIN = 0.65;
-const FIRE_INTERVAL_MAX = 1.55;
-const BURST_INTERVAL_MIN = 0.16;
-const BURST_INTERVAL_MAX = 0.28;
+const MAGAZINE_RELOAD_SECONDS = 1.5;
+// 普通射击平均间隔 1.9s，慢于单发恢复时间 1.5s。
+const FIRE_INTERVAL_MIN = 1.55;
+const FIRE_INTERVAL_MAX = 2.25;
+const BURST_INTERVAL_SECONDS = 0.4;
 const BURST_PROBABILITY = 0.3;
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
@@ -1006,6 +1006,7 @@ export default function OfflineTrainingGame() {
           const dy = player.y - ENEMY_Y;
           // 射程判定：用玩家当前位置
           if (magazineAmmoRef.current > 0 && dx * dx + dy * dy <= ENEMY_RANGE * ENEMY_RANGE) {
+            const ammoBeforeShot = magazineAmmoRef.current;
             const shotId = bulletIdRef.current++;
             const metrics = getMetrics(prof);
             const pred = predictAimAngle({
@@ -1042,9 +1043,9 @@ export default function OfflineTrainingGame() {
             if (burstFollowupRef.current) {
               burstFollowupRef.current = false;
               fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
-            } else if (magazineAmmoRef.current > 0 && Math.random() < BURST_PROBABILITY) {
+            } else if (ammoBeforeShot >= 2 && Math.random() < BURST_PROBABILITY) {
               burstFollowupRef.current = true;
-              fireTimerRef.current = BURST_INTERVAL_MIN + Math.random() * (BURST_INTERVAL_MAX - BURST_INTERVAL_MIN);
+              fireTimerRef.current = BURST_INTERVAL_SECONDS;
             } else {
               fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
             }
