@@ -21,7 +21,13 @@ const ENEMY_X = 10.5;
 const ENEMY_Y = 9.5;
 const ENEMY_RADIUS = 0.5;
 const ENEMY_RANGE = 10;       // 射程半径
-const FIRE_INTERVAL = 1;      // 发射间隔 1s
+const MAGAZINE_CAPACITY = 3;
+const MAGAZINE_RELOAD_SECONDS = 1.8;
+const FIRE_INTERVAL_MIN = 0.65;
+const FIRE_INTERVAL_MAX = 1.55;
+const BURST_INTERVAL_MIN = 0.16;
+const BURST_INTERVAL_MAX = 0.28;
+const BURST_PROBABILITY = 0.3;
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_TEXTURES = {
@@ -147,6 +153,10 @@ type Prof = {
   // 当前行为状态：用于区分“持续单向直行”和真正的主动走位。
   lastInputAngle: number | null;
   stableDirectionSince: number;  // 当前方向连续保持在容错范围内的起点
+  recentTurnAt: number;          // 最近一次明显转向时刻
+  recentTurnFromAngle: number | null; // 转向前的长期方向
+  recentTurnFromStableMs: number; // 转向前方向持续时长
+  returnFeintScore: number;      // 短暂变向后回原方向的近期倾向 [0,1]
   deadzoneSince: number;         // 连续静止的起点
   rapidAnchorAngle: number | null;
   lastRapidTurnAt: number;
@@ -190,6 +200,10 @@ function createProfiler(now: number): Prof {
     lastFakeoutAt: 0,
     lastInputAngle: null,
     stableDirectionSince: now,
+    recentTurnAt: 0,
+    recentTurnFromAngle: null,
+    recentTurnFromStableMs: 0,
+    returnFeintScore: 0,
     deadzoneSince: now,
     rapidAnchorAngle: null,
     lastRapidTurnAt: 0,
@@ -222,6 +236,9 @@ function profileStep(
   const inDead = mag < INPUT_DEADZONE_MAG;
   const angle = inDead ? 0 : Math.atan2(inputY, inputX);
 
+  // 骗方向行为采用约 15 秒记忆衰减，近期重复使用时会快速提高权重。
+  p.returnFeintScore *= Math.exp(-_dtMs / 15000);
+
   // 记录最近的连续行为，而不只依赖整局平均值。
   // 方向变化未超过容错量时，视为同一个“单向直行”区间。
   if (inDead) {
@@ -231,6 +248,19 @@ function profileStep(
     p.lastInputAngle = angle;
     p.stableDirectionSince = now;
   } else if (angleDeltaDeg(p.lastInputAngle, angle) > TURN_TOLERANCE_DEG) {
+    const previousAngle = p.lastInputAngle;
+    const previousStableMs = Math.max(0, now - p.stableDirectionSince);
+    // A→B 后在 850ms 内回到 A，视为一次“射前骗向后回原路”的候选模式。
+    if (
+      p.recentTurnFromAngle !== null &&
+      now - p.recentTurnAt <= 850 &&
+      angleDeltaDeg(p.recentTurnFromAngle, angle) <= TURN_TOLERANCE_DEG
+    ) {
+      p.returnFeintScore = Math.min(1, p.returnFeintScore + 0.32);
+    }
+    p.recentTurnAt = now;
+    p.recentTurnFromAngle = previousAngle;
+    p.recentTurnFromStableMs = previousStableMs;
     p.lastInputAngle = angle;
     p.stableDirectionSince = now;
   }
@@ -562,6 +592,22 @@ function predictAimAngle(args: {
   const stableTravelS = speed < INPUT_DEADZONE_MAG ? 0 : Math.max(0, now - p.stableDirectionSince) / 1000;
   const straightLineFit = smooth01((stableTravelS - TURN_STABLE_MS / 1000) / 1.2);
 
+  // 玩家若刚从一个长期稳定方向突然切走，开火瞬间方向可能只是诱导。
+  // 结合其历史“切走后快速返回”倾向，在当前方向与转向前方向之间交替封锁；
+  // 连发的相邻 shotId 会自然覆盖两个方向，避免固定骗向获得 100% 躲避。
+  const recentTurnAgeMs = now - p.recentTurnAt;
+  const transientWindow = 520;
+  const hadStableRun = smooth01((p.recentTurnFromStableMs - 350) / 900);
+  const transientTurn = p.recentTurnFromAngle !== null
+    ? smooth01((transientWindow - recentTurnAgeMs) / transientWindow) * hadStableRun
+    : 0;
+  const returnFeintRisk = transientTurn * (0.45 + 0.55 * clamp01(p.returnFeintScore));
+  const priorDirectionWeight = returnFeintRisk * (shotId % 2 === 0 ? 0.9 : 0.35);
+  const priorVelX = p.recentTurnFromAngle === null ? velX : Math.cos(p.recentTurnFromAngle) * speed;
+  const priorVelY = p.recentTurnFromAngle === null ? velY : Math.sin(p.recentTurnFromAngle) * speed;
+  const predictedVelX = velX * (1 - priorDirectionWeight) + priorVelX * priorDirectionWeight;
+  const predictedVelY = velY * (1 - priorDirectionWeight) + priorVelY * priorDirectionWeight;
+
   // 1) 细腻度越高，当前方向越值得信任；180° 转向越慢，也越不容易在弹道时间内摆脱。
   const precisionTrust = 0.25 + 0.75 * clamp01(metrics.finesse);
   const turnLock = clamp01(metrics.avg180TurnTimeMs / Math.max(250, t * 1000));
@@ -597,8 +643,8 @@ function predictAimAngle(args: {
   let predY = playerY;
   for (let iter = 0; iter < 3; iter++) {
     const movingScale = speed < INPUT_DEADZONE_MAG ? 0 : motionGain;
-    predX = playerX + velX * movingScale * t;
-    predY = playerY + velY * movingScale * t;
+    predX = playerX + predictedVelX * movingScale * t;
+    predY = playerY + predictedVelY * movingScale * t;
     predX = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS, predX));
     predY = Math.max(PLAYER_RADIUS, Math.min(MAP_HEIGHT - PLAYER_RADIUS, predY));
     t = Math.min(maxFlightS, Math.hypot(predX - enemyX, predY - enemyY) / bulletSpeed);
@@ -679,6 +725,7 @@ export default function OfflineTrainingGame() {
 
   const [, forceUpdate] = useState(0);
   const [hitCount, setHitCount] = useState(0);
+  const [magazineAmmo, setMagazineAmmo] = useState(MAGAZINE_CAPACITY);
 
   // 暂停状态
   const [paused, setPaused] = useState(false);
@@ -748,7 +795,10 @@ export default function OfflineTrainingGame() {
 
   // 子弹 + 开火计时（用 ref 避免重渲染）
   const bulletsRef = useRef<Bullet[]>([]);
-  const fireTimerRef = useRef(FIRE_INTERVAL);
+  const fireTimerRef = useRef(FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN));
+  const magazineAmmoRef = useRef(MAGAZINE_CAPACITY);
+  const magazineReloadTimerRef = useRef(MAGAZINE_RELOAD_SECONDS);
+  const burstFollowupRef = useRef(false);
   const hitCountRef = useRef(0); // 与 state 同步，供循环内读取/累加
   const bulletIdRef = useRef(1);
 
@@ -818,6 +868,11 @@ export default function OfflineTrainingGame() {
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
     playerVelocityRef.current = { x: 0, y: 0 };
+    magazineAmmoRef.current = MAGAZINE_CAPACITY;
+    magazineReloadTimerRef.current = MAGAZINE_RELOAD_SECONDS;
+    burstFollowupRef.current = false;
+    fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
+    setMagazineAmmo(MAGAZINE_CAPACITY);
 
     const projectileImages: Record<keyof typeof BULLET_TEXTURES, HTMLImageElement> = {
       mid: new Image(),
@@ -933,14 +988,24 @@ export default function OfflineTrainingGame() {
         }
         profileStep(prof, now, input.x, input.y, dtMs, rawMag, engaged);
 
-        // ======== 开火计时器（每秒一发 + 预判瞄准） ========
+        // ======== 弹匣恢复 + 随机开火（含最多一次双发追射） ========
+        if (magazineAmmoRef.current < MAGAZINE_CAPACITY) {
+          magazineReloadTimerRef.current -= dt;
+          if (magazineReloadTimerRef.current <= 0) {
+            magazineAmmoRef.current += 1;
+            setMagazineAmmo(magazineAmmoRef.current);
+            magazineReloadTimerRef.current += MAGAZINE_RELOAD_SECONDS;
+          }
+        } else {
+          magazineReloadTimerRef.current = MAGAZINE_RELOAD_SECONDS;
+        }
+
         fireTimerRef.current -= dt;
         if (fireTimerRef.current <= 0) {
-          fireTimerRef.current += FIRE_INTERVAL;
           const dx = player.x - ENEMY_X;
           const dy = player.y - ENEMY_Y;
           // 射程判定：用玩家当前位置
-          if (dx * dx + dy * dy <= ENEMY_RANGE * ENEMY_RANGE) {
+          if (magazineAmmoRef.current > 0 && dx * dx + dy * dy <= ENEMY_RANGE * ENEMY_RANGE) {
             const shotId = bulletIdRef.current++;
             const metrics = getMetrics(prof);
             const pred = predictAimAngle({
@@ -971,6 +1036,22 @@ export default function OfflineTrainingGame() {
               radius: projectileTier === "mid" ? 0.325 : 0.25,
               texture: projectileTier,
             });
+            magazineAmmoRef.current -= 1;
+            setMagazineAmmo(magazineAmmoRef.current);
+
+            if (burstFollowupRef.current) {
+              burstFollowupRef.current = false;
+              fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
+            } else if (magazineAmmoRef.current > 0 && Math.random() < BURST_PROBABILITY) {
+              burstFollowupRef.current = true;
+              fireTimerRef.current = BURST_INTERVAL_MIN + Math.random() * (BURST_INTERVAL_MAX - BURST_INTERVAL_MIN);
+            } else {
+              fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
+            }
+          } else {
+            // 无弹或玩家不在射程时也重新抽取等待，避免补弹瞬间固定开火。
+            burstFollowupRef.current = false;
+            fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
           }
         }
 
@@ -1248,7 +1329,10 @@ export default function OfflineTrainingGame() {
       bulletsRef.current = [];
       playerVelocityRef.current = { x: 0, y: 0 };
       bulletIdRef.current = 1;
-      fireTimerRef.current = FIRE_INTERVAL;
+      fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
+      magazineAmmoRef.current = MAGAZINE_CAPACITY;
+      magazineReloadTimerRef.current = MAGAZINE_RELOAD_SECONDS;
+      burstFollowupRef.current = false;
     };
   }, [mode, bulletSpeed]);
 
@@ -1386,6 +1470,39 @@ export default function OfflineTrainingGame() {
               }}
             >
               子弹档: {speedTierLabel} · {bulletSpeed.toFixed(2)}/s
+            </div>
+            <div
+              aria-label={`敌方弹匣 ${magazineAmmo}/${MAGAZINE_CAPACITY}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                background: "rgba(239, 83, 80, 0.12)",
+                border: "1px solid rgba(239, 83, 80, 0.42)",
+                color: "#ffcdd2",
+                fontWeight: 800,
+                padding: "0.3rem 0.7rem",
+                borderRadius: "999px",
+                fontSize: "0.82rem",
+              }}
+            >
+              <span>敌方弹匣</span>
+              <span style={{ display: "flex", gap: "0.25rem" }}>
+                {Array.from({ length: MAGAZINE_CAPACITY }, (_, index) => (
+                  <span
+                    key={index}
+                    style={{
+                      display: "inline-block",
+                      width: 7,
+                      height: 15,
+                      borderRadius: "4px 4px 2px 2px",
+                      background: index < magazineAmmo ? "#ff5252" : "rgba(255,255,255,0.16)",
+                      boxShadow: index < magazineAmmo ? "0 0 6px rgba(255,82,82,0.75)" : "none",
+                    }}
+                  />
+                ))}
+              </span>
+              <span style={{ color: "#ef9a9a", fontVariantNumeric: "tabular-nums" }}>{magazineAmmo}/{MAGAZINE_CAPACITY}</span>
             </div>
           </div>
         </div>
