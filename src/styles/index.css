@@ -35,19 +35,19 @@ body {
 
 .training-survival-status {
   position: absolute;
-  top: 50%;
-  right: max(0px, env(safe-area-inset-right));
-  left: auto;
+  top: max(0.5rem, env(safe-area-inset-top));
+  right: auto;
+  left: 0;
   z-index: 4;
-  width: min(220px, 29vw);
-  transform: translateY(-50%);
+  width: var(--training-side-gutter, 13vw);
+  transform: none;
   text-align: center;
   pointer-events: none;
   font-variant-numeric: tabular-nums;
   padding: 0.45rem 0.7rem 0.4rem;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-right: 0;
-  border-radius: 14px 0 0 14px;
+  border-left: 0;
+  border-radius: 0 14px 14px 0;
   background: rgba(15, 20, 25, 0.48);
   backdrop-filter: blur(7px);
   -webkit-backdrop-filter: blur(7px);
@@ -118,6 +118,67 @@ body {
 
 .training-hud-actions button {
   width: 100%;
+}
+
+.training-compact-only {
+  display: none;
+}
+
+.training-game[data-hud-layout="compact"] .training-wide-only,
+.training-game[data-hud-layout="compact"] .training-hud-title,
+.training-game[data-hud-layout="compact"] .training-control-label {
+  display: none;
+}
+
+.training-game[data-hud-layout="compact"] .training-compact-only {
+  display: inline;
+}
+
+.training-game[data-hud-layout="compact"] .training-survival-status {
+  padding: 0.3rem 0.15rem;
+  border-radius: 0 8px 8px 0;
+}
+
+.training-game[data-hud-layout="compact"] .training-survival-time {
+  font-size: clamp(0.62rem, 2.3vw, 1rem);
+}
+
+.training-game[data-hud-layout="compact"] .training-health-bar {
+  height: 6px;
+  margin-top: 0.25rem;
+}
+
+.training-game[data-hud-layout="compact"] .training-health-text {
+  font-size: clamp(0.48rem, 1.65vw, 0.68rem);
+}
+
+.training-game[data-hud-layout="compact"] .training-hud {
+  gap: 0.3rem !important;
+  padding: 0.35rem 0.2rem !important;
+  border-radius: 0 8px 8px 0 !important;
+}
+
+.training-game[data-hud-layout="compact"] .training-hud > div:first-child > div {
+  align-items: stretch !important;
+  gap: 0.25rem !important;
+}
+
+.training-game[data-hud-layout="compact"] .training-hud > div:first-child > div > div {
+  padding: 0.2rem 0.1rem !important;
+  border-radius: 6px !important;
+  font-size: clamp(0.5rem, 1.7vw, 0.68rem) !important;
+  justify-content: center;
+  text-align: center;
+}
+
+.training-game[data-hud-layout="compact"] .training-hud-actions {
+  gap: 0.25rem !important;
+}
+
+.training-game[data-hud-layout="compact"] .training-hud-actions button {
+  min-width: 0;
+  padding: 0.3rem 0 !important;
+  font-size: clamp(0.62rem, 2vw, 0.82rem) !important;
 }
 
 #root {
