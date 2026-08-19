@@ -4,9 +4,9 @@ import { useState } from "react";
 type ControlMode = "joystick" | "keyboard";
 type SpeedTier = "mid" | "high";
 
-const SPEED_TIERS: Record<SpeedTier, { label: string; value: number; hint: string }> = {
-  mid: { label: "中", value: 14, hint: "标准挑战" },
-  high: { label: "高", value: 17.5, hint: "极限反应训练" },
+const SPEED_TIERS: Record<SpeedTier, { label: string; value: number }> = {
+  mid: { label: "贝亚", value: 14 },
+  high: { label: "佩佩", value: 17.5 },
 };
 
 export default function OfflineTraining() {
@@ -52,16 +52,6 @@ export default function OfflineTraining() {
                     }}
                   >
                     {cfg.value.toFixed(2)} /s
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.7rem",
-                      color: "var(--muted)",
-                      fontWeight: 400,
-                      marginTop: "0.2rem",
-                    }}
-                  >
-                    {cfg.hint}
                   </div>
                 </button>
               );
