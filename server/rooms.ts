@@ -23,6 +23,8 @@ interface Player {
   nickname: string;
   role: PlayerRole;
   ready: boolean;
+  resumeToken: string;
+  disconnectTimer: ReturnType<typeof setTimeout> | null;
 }
 
 interface PendingSwap {
@@ -58,6 +60,20 @@ interface Room {
 
 const rooms = new Map<string, Room>();
 const socketToRoom = new Map<string, string>();
+const RECONNECT_GRACE_MS = 120_000;
+
+function generateResumeToken(): string {
+  return randomBytes(24).toString("hex");
+}
+
+function publicPlayer(player: Player) {
+  return {
+    id: player.id,
+    nickname: player.nickname,
+    role: player.role,
+    ready: player.ready,
+  };
+}
 
 function generateCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -147,8 +163,8 @@ function buildRoomState(room: Room, viewer: Player): RoomState {
     code: room.code,
     roomName: room.roomName,
     phase: room.phase,
-    players: [...room.players.values()],
-    spectators: [...room.spectators.values()],
+    players: [...room.players.values()].map(publicPlayer),
+    spectators: [...room.spectators.values()].map(publicPlayer),
     hostId: room.hostId,
     firstPicker: room.firstPicker,
     pickStep: room.pickStep,
@@ -326,7 +342,7 @@ export function registerRoomHandlers(io: Server) {
   io.on("connection", (socket: Socket) => {
     socket.on(
       "create_room",
-      (nickname: string, cb: (res: { ok: boolean; code?: string; error?: string }) => void) => {
+      (nickname: string, cb: (res: { ok: boolean; code?: string; resumeToken?: string; error?: string }) => void) => {
         if (!nickname?.trim()) {
           cb({ ok: false, error: "请输入昵称" });
           return;
@@ -365,12 +381,14 @@ export function registerRoomHandlers(io: Server) {
           nickname: nickname.trim(),
           role: "host",
           ready: false,
+          resumeToken: generateResumeToken(),
+          disconnectTimer: null,
         };
         room.players.set(socket.id, player);
         rooms.set(code, room);
         socketToRoom.set(socket.id, code);
         socket.join(code);
-        cb({ ok: true, code });
+        cb({ ok: true, code, resumeToken: player.resumeToken });
         broadcastRoom(io, room);
         broadcastLobbyList(io);
       },
@@ -380,7 +398,7 @@ export function registerRoomHandlers(io: Server) {
       "join_room",
       (
         payload: { code: string; nickname: string },
-        cb: (res: { ok: boolean; error?: string }) => void,
+        cb: (res: { ok: boolean; resumeToken?: string; error?: string }) => void,
       ) => {
         const code = payload.code?.toUpperCase().trim();
         const nickname = payload.nickname?.trim();
@@ -410,11 +428,13 @@ export function registerRoomHandlers(io: Server) {
           nickname,
           role: "guest",
           ready: false,
+          resumeToken: generateResumeToken(),
+          disconnectTimer: null,
         };
         room.players.set(socket.id, player);
         socketToRoom.set(socket.id, code);
         socket.join(code);
-        cb({ ok: true });
+        cb({ ok: true, resumeToken: player.resumeToken });
         broadcastRoom(io, room);
         broadcastLobbyList(io);
       },
@@ -491,7 +511,7 @@ export function registerRoomHandlers(io: Server) {
       "join_room_spectator",
       (
         payload: { code: string; nickname: string },
-        cb: (res: { ok: boolean; error?: string }) => void,
+        cb: (res: { ok: boolean; resumeToken?: string; error?: string }) => void,
       ) => {
         const code = payload.code?.toUpperCase().trim();
         const nickname = payload.nickname?.trim();
@@ -521,11 +541,13 @@ export function registerRoomHandlers(io: Server) {
           nickname,
           role: "spectator",
           ready: false,
+          resumeToken: generateResumeToken(),
+          disconnectTimer: null,
         };
         room.spectators.set(socket.id, spectator);
         socketToRoom.set(socket.id, code);
         socket.join(code);
-        cb({ ok: true });
+        cb({ ok: true, resumeToken: spectator.resumeToken });
         broadcastRoom(io, room);
         broadcastLobbyList(io);
       },
