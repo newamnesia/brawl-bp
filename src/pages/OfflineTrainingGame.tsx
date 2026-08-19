@@ -1549,9 +1549,7 @@ export default function OfflineTrainingGame() {
           justifyContent: "space-between",
           alignItems: "flex-start",
           gap: "1rem",
-          background: "linear-gradient(180deg, rgba(15,20,25,0.62) 0%, rgba(15,20,25,0.28) 72%, transparent 100%)",
-          backdropFilter: "blur(6px)",
-          WebkitBackdropFilter: "blur(6px)",
+          background: "transparent",
           pointerEvents: "none",
           zIndex: 2,
         }}
