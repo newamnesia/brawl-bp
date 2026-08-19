@@ -1549,7 +1549,9 @@ export default function OfflineTrainingGame() {
           justifyContent: "space-between",
           alignItems: "flex-start",
           gap: "1rem",
-          background: "linear-gradient(180deg, rgba(15,20,25,0.94) 0%, transparent 100%)",
+          background: "linear-gradient(180deg, rgba(15,20,25,0.62) 0%, rgba(15,20,25,0.28) 72%, transparent 100%)",
+          backdropFilter: "blur(6px)",
+          WebkitBackdropFilter: "blur(6px)",
           pointerEvents: "none",
           zIndex: 2,
         }}
@@ -1688,6 +1690,22 @@ export default function OfflineTrainingGame() {
             }}
           >
             返回
+          </button>
+          <button
+            onClick={() => navigate("/")}
+            style={{
+              background: "rgba(255, 255, 255, 0.08)",
+              color: "var(--text)",
+              border: "1px solid var(--border)",
+              padding: "0.4rem 0.8rem",
+              borderRadius: "8px",
+              fontWeight: 700,
+              fontSize: "0.85rem",
+              pointerEvents: "auto",
+              whiteSpace: "nowrap",
+            }}
+          >
+            返回主菜单
           </button>
         </div>
       </div>

@@ -204,7 +204,7 @@ export default function Home() {
       <div className="credits-box">
         <p className="credits-title">创作声明</p>
         <p className="credits-text">
-          作者 ID 辗转。本项目使用 Cursor 与 Trae 协助完成，角色头像取自 GitHub 的 Brawlify CDN 项目。
+          作者 ID 辗转。本项目使用agent协助完成，角色头像取自 GitHub 的 Brawlify CDN 项目。
         </p>
         <p className="credits-text credits-disclaimer">
           免责声明：本站为《荒野乱斗》(Brawl Stars) 粉丝向非商业工具，与 Supercell 无任何隶属或合作关系，未获其官方授权或背书。游戏内所有角色名称、形象、数值等内容的著作权归 Supercell 及相关权利人所有，仅用于爱好者便捷参考，不代表官方立场。如权利人提出异议，将立即下架相关内容。

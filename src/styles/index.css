@@ -43,6 +43,13 @@ body {
   text-align: center;
   pointer-events: none;
   font-variant-numeric: tabular-nums;
+  padding: 0.45rem 0.7rem 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(15, 20, 25, 0.48);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .training-survival-time {
