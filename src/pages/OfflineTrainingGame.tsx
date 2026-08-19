@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 type ControlMode = "joystick" | "keyboard";
+type TrainingMode = "practice" | "survival";
 
 // 地图常量
 const MAP_WIDTH = 21;  // 列数（横向单位）
@@ -33,6 +34,13 @@ const BEA_RELOAD_SECONDS = 1.0;
 const BEA_FIRE_INTERVAL_MIN = 1.05;
 const BEA_FIRE_INTERVAL_MAX = 1.35;
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
+const PLAYER_MAX_HEALTH = 6000;
+const HEALTH_REGEN_DELAY_SECONDS = 3;
+const HEALTH_REGEN_PER_SECOND = PLAYER_MAX_HEALTH * 0.2;
+const BEA_NORMAL_DAMAGE = 1600;
+const BEA_ENHANCED_DAMAGE = 4400;
+const PIPER_MIN_DAMAGE = 720;
+const PIPER_MAX_DAMAGE = 3600;
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_TEXTURES = {
   beaNormal: "/assets/projectiles/bea-normal-v3.png",
@@ -691,6 +699,8 @@ export default function OfflineTrainingGame() {
   const [searchParams] = useSearchParams();
   const mode = (searchParams.get("mode") as ControlMode) || "keyboard";
   const speedTier = searchParams.get("speedTier") || "mid";
+  const trainingMode: TrainingMode = searchParams.get("trainingMode") === "survival" ? "survival" : "practice";
+  const isSurvivalMode = trainingMode === "survival";
 
   // 从 URL 读取子弹速度（最小 0.01，非法时回退到当前档位，而不是固定低速）。
   const rawSpeed = parseFloat(searchParams.get("bulletSpeed") ?? "");
@@ -735,6 +745,10 @@ export default function OfflineTrainingGame() {
 
   const [, forceUpdate] = useState(0);
   const [hitCount, setHitCount] = useState(0);
+  const [health, setHealth] = useState(PLAYER_MAX_HEALTH);
+  const [survivalTime, setSurvivalTime] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [restartNonce, setRestartNonce] = useState(0);
   const [magazineAmmo, setMagazineAmmo] = useState(magazineCapacity);
   const [magazineReloadProgress, setMagazineReloadProgress] = useState(0);
 
@@ -814,6 +828,10 @@ export default function OfflineTrainingGame() {
   const beaEnhancedShotsRef = useRef(0);
   const hitCountRef = useRef(0); // 与 state 同步，供循环内读取/累加
   const bulletIdRef = useRef(1);
+  const healthRef = useRef(PLAYER_MAX_HEALTH);
+  const secondsSinceDamageRef = useRef(0);
+  const survivalTimeRef = useRef(0);
+  const lastSurvivalUiUpdateRef = useRef(0);
 
   // Profiler（每局新建）
   const profilerRef = useRef<Prof | null>(null);
@@ -880,6 +898,7 @@ export default function OfflineTrainingGame() {
 
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
+    playerRef.current = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
     playerVelocityRef.current = { x: 0, y: 0 };
     magazineAmmoRef.current = magazineCapacity;
     magazineReloadTimerRef.current = magazineReloadSeconds;
@@ -888,6 +907,14 @@ export default function OfflineTrainingGame() {
     fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
     setMagazineAmmo(magazineCapacity);
     setMagazineReloadProgress(0);
+    healthRef.current = PLAYER_MAX_HEALTH;
+    secondsSinceDamageRef.current = 0;
+    survivalTimeRef.current = 0;
+    hitCountRef.current = 0;
+    setHealth(PLAYER_MAX_HEALTH);
+    setSurvivalTime(0);
+    setHitCount(0);
+    setGameOver(false);
 
     const projectileImages: Record<keyof typeof BULLET_TEXTURES, HTMLImageElement> = {
       beaNormal: new Image(),
@@ -1004,6 +1031,24 @@ export default function OfflineTrainingGame() {
           rawMag = -1;
         }
         profileStep(prof, now, input.x, input.y, dtMs, rawMag, engaged);
+
+        if (isSurvivalMode) {
+          const rangeDx = player.x - ENEMY_X;
+          const rangeDy = player.y - ENEMY_Y;
+          const inAttackRange = rangeDx * rangeDx + rangeDy * rangeDy <= ENEMY_RANGE * ENEMY_RANGE;
+          if (inAttackRange) survivalTimeRef.current += dt;
+          else survivalTimeRef.current = 0;
+
+          secondsSinceDamageRef.current += dt;
+          if (secondsSinceDamageRef.current >= HEALTH_REGEN_DELAY_SECONDS && healthRef.current < PLAYER_MAX_HEALTH) {
+            healthRef.current = Math.min(PLAYER_MAX_HEALTH, healthRef.current + HEALTH_REGEN_PER_SECOND * dt);
+          }
+          if (now - lastSurvivalUiUpdateRef.current >= 50) {
+            setHealth(Math.round(healthRef.current));
+            setSurvivalTime(survivalTimeRef.current);
+            lastSurvivalUiUpdateRef.current = now;
+          }
+        }
 
         // ======== 弹匣恢复 + 随机开火（含最多一次双发追射） ========
         if (magazineAmmoRef.current < magazineCapacity) {
@@ -1149,6 +1194,21 @@ export default function OfflineTrainingGame() {
             spawnHitParticles(player.x, player.y);
             hitCountRef.current += 1;
             setHitCount(hitCountRef.current);
+            if (isSurvivalMode) {
+              const damage = b.texture === "beaNormal"
+                ? BEA_NORMAL_DAMAGE
+                : b.texture === "beaEnhanced"
+                  ? BEA_ENHANCED_DAMAGE
+                  : PIPER_MIN_DAMAGE + (PIPER_MAX_DAMAGE - PIPER_MIN_DAMAGE) * Math.min(1, b.traveled / BULLET_MAX_DIST);
+              healthRef.current = Math.max(0, healthRef.current - damage);
+              secondsSinceDamageRef.current = 0;
+              setHealth(Math.round(healthRef.current));
+              if (healthRef.current <= 0) {
+                pausedRef.current = true;
+                setSurvivalTime(survivalTimeRef.current);
+                setGameOver(true);
+              }
+            }
           }
         }
 
@@ -1368,8 +1428,9 @@ export default function OfflineTrainingGame() {
       lastMagazineUiUpdateRef.current = 0;
       burstFollowupRef.current = false;
       beaEnhancedShotsRef.current = 0;
+      lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, bulletSpeed]);
+  }, [mode, bulletSpeed, isSurvivalMode, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1454,6 +1515,16 @@ export default function OfflineTrainingGame() {
       }}
     >
       <canvas ref={canvasRef} style={{ display: "block" }} />
+
+      {isSurvivalMode && (
+        <div className="training-survival-status" aria-live="polite">
+          <div className="training-survival-time">{survivalTime.toFixed(1)}s</div>
+          <div className="training-health-bar" aria-label={`生命值 ${health}/${PLAYER_MAX_HEALTH}`}>
+            <span style={{ width: `${Math.max(0, health / PLAYER_MAX_HEALTH) * 100}%` }} />
+          </div>
+          <div className="training-health-text">{health} / {PLAYER_MAX_HEALTH}</div>
+        </div>
+      )}
 
       {/* 顶部信息栏 */}
       <div
@@ -1610,6 +1681,26 @@ export default function OfflineTrainingGame() {
           </button>
         </div>
       </div>
+
+      {gameOver && (
+        <div className="training-game-over">
+          <div className="training-game-over-card">
+            <div className="training-game-over-title">本轮结束</div>
+            <div className="training-game-over-time">生存时间 {survivalTime.toFixed(1)} 秒</div>
+            <button
+              className="btn-primary"
+              onClick={() => {
+                pausedRef.current = false;
+                setPaused(false);
+                setRestartNonce((value) => value + 1);
+              }}
+            >
+              再来一次
+            </button>
+            <button className="btn-secondary" onClick={() => navigate("/offline-training")}>返回设置</button>
+          </div>
+        </div>
+      )}
 
       {/* 摇杆区 */}
       {mode === "joystick" && (

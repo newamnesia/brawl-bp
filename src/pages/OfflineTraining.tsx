@@ -3,6 +3,7 @@ import { useState } from "react";
 
 type ControlMode = "joystick" | "keyboard";
 type SpeedTier = "mid" | "high";
+type TrainingMode = "practice" | "survival";
 
 const SPEED_TIERS: Record<SpeedTier, { label: string; value: number }> = {
   mid: { label: "贝亚", value: 14 },
@@ -13,12 +14,13 @@ export default function OfflineTraining() {
   const navigate = useNavigate();
   const [selectedMode, setSelectedMode] = useState<ControlMode | null>(null);
   const [selectedSpeed, setSelectedSpeed] = useState<SpeedTier>("mid");
+  const [trainingMode, setTrainingMode] = useState<TrainingMode>("practice");
 
   const handleStart = () => {
     if (!selectedMode) return;
     const speedVal = SPEED_TIERS[selectedSpeed].value;
     navigate(
-      `/offline-training/game?mode=${selectedMode}&speedTier=${selectedSpeed}&bulletSpeed=${speedVal.toFixed(2)}`,
+      `/offline-training/game?mode=${selectedMode}&speedTier=${selectedSpeed}&bulletSpeed=${speedVal.toFixed(2)}&trainingMode=${trainingMode}`,
     );
   };
 
@@ -28,6 +30,30 @@ export default function OfflineTraining() {
       <p className="page-subtitle">选择操作方式开始训练</p>
 
       <div className="card">
+        <div className="form-group">
+          <label>训练规则</label>
+          <div className="toggle-group">
+            <button
+              type="button"
+              className={trainingMode === "practice" ? "active" : ""}
+              onClick={() => setTrainingMode("practice")}
+              style={{ flex: 1, padding: "0.85rem 0.5rem", textAlign: "center" }}
+            >
+              <div style={{ fontWeight: 800 }}>普通训练</div>
+              <div style={{ marginTop: "0.2rem", fontSize: "0.78rem", color: "var(--muted)", fontWeight: 400 }}>无血量限制，无限练习</div>
+            </button>
+            <button
+              type="button"
+              className={trainingMode === "survival" ? "active" : ""}
+              onClick={() => setTrainingMode("survival")}
+              style={{ flex: 1, padding: "0.85rem 0.5rem", textAlign: "center" }}
+            >
+              <div style={{ fontWeight: 800 }}>生存模式</div>
+              <div style={{ marginTop: "0.2rem", fontSize: "0.78rem", color: "var(--muted)", fontWeight: 400 }}>6000 生命，记录生存时间</div>
+            </button>
+          </div>
+        </div>
+
         <div className="form-group">
           <label>子弹速度档</label>
           <div className="toggle-group">
