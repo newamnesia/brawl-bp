@@ -726,6 +726,7 @@ export default function OfflineTrainingGame() {
   const [, forceUpdate] = useState(0);
   const [hitCount, setHitCount] = useState(0);
   const [magazineAmmo, setMagazineAmmo] = useState(MAGAZINE_CAPACITY);
+  const [magazineReloadProgress, setMagazineReloadProgress] = useState(0);
 
   // 暂停状态
   const [paused, setPaused] = useState(false);
@@ -798,6 +799,7 @@ export default function OfflineTrainingGame() {
   const fireTimerRef = useRef(FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN));
   const magazineAmmoRef = useRef(MAGAZINE_CAPACITY);
   const magazineReloadTimerRef = useRef(MAGAZINE_RELOAD_SECONDS);
+  const lastMagazineUiUpdateRef = useRef(0);
   const burstFollowupRef = useRef(false);
   const hitCountRef = useRef(0); // 与 state 同步，供循环内读取/累加
   const bulletIdRef = useRef(1);
@@ -873,6 +875,7 @@ export default function OfflineTrainingGame() {
     burstFollowupRef.current = false;
     fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
     setMagazineAmmo(MAGAZINE_CAPACITY);
+    setMagazineReloadProgress(0);
 
     const projectileImages: Record<keyof typeof BULLET_TEXTURES, HTMLImageElement> = {
       mid: new Image(),
@@ -995,6 +998,12 @@ export default function OfflineTrainingGame() {
             magazineAmmoRef.current += 1;
             setMagazineAmmo(magazineAmmoRef.current);
             magazineReloadTimerRef.current += MAGAZINE_RELOAD_SECONDS;
+            if (magazineAmmoRef.current >= MAGAZINE_CAPACITY) setMagazineReloadProgress(0);
+          }
+          if (now - lastMagazineUiUpdateRef.current >= 33) {
+            const reloadProgress = 1 - magazineReloadTimerRef.current / MAGAZINE_RELOAD_SECONDS;
+            setMagazineReloadProgress(Math.max(0, Math.min(1, reloadProgress)));
+            lastMagazineUiUpdateRef.current = now;
           }
         } else {
           magazineReloadTimerRef.current = MAGAZINE_RELOAD_SECONDS;
@@ -1333,6 +1342,7 @@ export default function OfflineTrainingGame() {
       fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
       magazineAmmoRef.current = MAGAZINE_CAPACITY;
       magazineReloadTimerRef.current = MAGAZINE_RELOAD_SECONDS;
+      lastMagazineUiUpdateRef.current = 0;
       burstFollowupRef.current = false;
     };
   }, [mode, bulletSpeed]);
@@ -1497,8 +1507,18 @@ export default function OfflineTrainingGame() {
                       width: 7,
                       height: 15,
                       borderRadius: "4px 4px 2px 2px",
-                      background: index < magazineAmmo ? "#ff5252" : "rgba(255,255,255,0.16)",
+                      border: "1px solid rgba(255, 205, 210, 0.42)",
+                      background: (() => {
+                        const fill = index < magazineAmmo
+                          ? 100
+                          : index === magazineAmmo && magazineAmmo < MAGAZINE_CAPACITY
+                            ? magazineReloadProgress * 100
+                            : 0;
+                        return `linear-gradient(to top, #ff5252 0%, #ff5252 ${fill}%, rgba(255,255,255,0.12) ${fill}%, rgba(255,255,255,0.12) 100%)`;
+                      })(),
                       boxShadow: index < magazineAmmo ? "0 0 6px rgba(255,82,82,0.75)" : "none",
+                      transition: "background 40ms linear, box-shadow 120ms ease",
+                      boxSizing: "border-box",
                     }}
                   />
                 ))}
