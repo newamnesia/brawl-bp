@@ -28,10 +28,15 @@ const FIRE_INTERVAL_MIN = 1.55;
 const FIRE_INTERVAL_MAX = 2.25;
 const BURST_INTERVAL_SECONDS = 0.4;
 const BURST_PROBABILITY = 0.3;
+const BEA_MAGAZINE_CAPACITY = 1;
+const BEA_RELOAD_SECONDS = 1.0;
+const BEA_FIRE_INTERVAL_MIN = 1.05;
+const BEA_FIRE_INTERVAL_MAX = 1.35;
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_TEXTURES = {
-  mid: "/assets/projectiles/bullet-14-v3.png?v=4",
+  beaNormal: "/assets/projectiles/bea-normal-v3.png",
+  beaEnhanced: "/assets/projectiles/bea-enhanced-v3.png",
   high: "/assets/projectiles/bullet-17-5-v3.png?v=4",
 } as const;
 
@@ -692,6 +697,11 @@ export default function OfflineTrainingGame() {
   const tierFallbackSpeed = BULLET_SPEED_BY_TIER[speedTier] ?? BULLET_SPEED_BY_TIER.mid;
   const bulletSpeed: number =
     Number.isFinite(rawSpeed) && rawSpeed >= 0.01 ? rawSpeed : tierFallbackSpeed;
+  const isBeaMode = speedTier === "mid";
+  const magazineCapacity = isBeaMode ? BEA_MAGAZINE_CAPACITY : MAGAZINE_CAPACITY;
+  const magazineReloadSeconds = isBeaMode ? BEA_RELOAD_SECONDS : MAGAZINE_RELOAD_SECONDS;
+  const fireIntervalMin = isBeaMode ? BEA_FIRE_INTERVAL_MIN : FIRE_INTERVAL_MIN;
+  const fireIntervalMax = isBeaMode ? BEA_FIRE_INTERVAL_MAX : FIRE_INTERVAL_MAX;
   // 反应时间不可能超过子弹从出生到飞满射程的时间。
   const reactionWindowMaxMs = Math.min(REACTION_MAX_MS, (BULLET_MAX_DIST / bulletSpeed) * 1000);
 
@@ -725,7 +735,7 @@ export default function OfflineTrainingGame() {
 
   const [, forceUpdate] = useState(0);
   const [hitCount, setHitCount] = useState(0);
-  const [magazineAmmo, setMagazineAmmo] = useState(MAGAZINE_CAPACITY);
+  const [magazineAmmo, setMagazineAmmo] = useState(magazineCapacity);
   const [magazineReloadProgress, setMagazineReloadProgress] = useState(0);
 
   // 暂停状态
@@ -796,11 +806,12 @@ export default function OfflineTrainingGame() {
 
   // 子弹 + 开火计时（用 ref 避免重渲染）
   const bulletsRef = useRef<Bullet[]>([]);
-  const fireTimerRef = useRef(FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN));
-  const magazineAmmoRef = useRef(MAGAZINE_CAPACITY);
-  const magazineReloadTimerRef = useRef(MAGAZINE_RELOAD_SECONDS);
+  const fireTimerRef = useRef(fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin));
+  const magazineAmmoRef = useRef(magazineCapacity);
+  const magazineReloadTimerRef = useRef(magazineReloadSeconds);
   const lastMagazineUiUpdateRef = useRef(0);
   const burstFollowupRef = useRef(false);
+  const beaEnhancedShotsRef = useRef(0);
   const hitCountRef = useRef(0); // 与 state 同步，供循环内读取/累加
   const bulletIdRef = useRef(1);
 
@@ -870,18 +881,21 @@ export default function OfflineTrainingGame() {
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
     playerVelocityRef.current = { x: 0, y: 0 };
-    magazineAmmoRef.current = MAGAZINE_CAPACITY;
-    magazineReloadTimerRef.current = MAGAZINE_RELOAD_SECONDS;
+    magazineAmmoRef.current = magazineCapacity;
+    magazineReloadTimerRef.current = magazineReloadSeconds;
     burstFollowupRef.current = false;
-    fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
-    setMagazineAmmo(MAGAZINE_CAPACITY);
+    beaEnhancedShotsRef.current = 0;
+    fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
+    setMagazineAmmo(magazineCapacity);
     setMagazineReloadProgress(0);
 
     const projectileImages: Record<keyof typeof BULLET_TEXTURES, HTMLImageElement> = {
-      mid: new Image(),
+      beaNormal: new Image(),
+      beaEnhanced: new Image(),
       high: new Image(),
     };
-    projectileImages.mid.src = BULLET_TEXTURES.mid;
+    projectileImages.beaNormal.src = BULLET_TEXTURES.beaNormal;
+    projectileImages.beaEnhanced.src = BULLET_TEXTURES.beaEnhanced;
     projectileImages.high.src = BULLET_TEXTURES.high;
     const hitParticles: HitParticle[] = [];
 
@@ -992,21 +1006,21 @@ export default function OfflineTrainingGame() {
         profileStep(prof, now, input.x, input.y, dtMs, rawMag, engaged);
 
         // ======== 弹匣恢复 + 随机开火（含最多一次双发追射） ========
-        if (magazineAmmoRef.current < MAGAZINE_CAPACITY) {
+        if (magazineAmmoRef.current < magazineCapacity) {
           magazineReloadTimerRef.current -= dt;
           if (magazineReloadTimerRef.current <= 0) {
             magazineAmmoRef.current += 1;
             setMagazineAmmo(magazineAmmoRef.current);
-            magazineReloadTimerRef.current += MAGAZINE_RELOAD_SECONDS;
-            if (magazineAmmoRef.current >= MAGAZINE_CAPACITY) setMagazineReloadProgress(0);
+            magazineReloadTimerRef.current += magazineReloadSeconds;
+            if (magazineAmmoRef.current >= magazineCapacity) setMagazineReloadProgress(0);
           }
           if (now - lastMagazineUiUpdateRef.current >= 33) {
-            const reloadProgress = 1 - magazineReloadTimerRef.current / MAGAZINE_RELOAD_SECONDS;
+            const reloadProgress = 1 - magazineReloadTimerRef.current / magazineReloadSeconds;
             setMagazineReloadProgress(Math.max(0, Math.min(1, reloadProgress)));
             lastMagazineUiUpdateRef.current = now;
           }
         } else {
-          magazineReloadTimerRef.current = MAGAZINE_RELOAD_SECONDS;
+          magazineReloadTimerRef.current = magazineReloadSeconds;
         }
 
         fireTimerRef.current -= dt;
@@ -1035,7 +1049,10 @@ export default function OfflineTrainingGame() {
             const ax = pred.aimX - ENEMY_X;
             const ay = pred.aimY - ENEMY_Y;
             const da = Math.hypot(ax, ay) || 1;
-            const projectileTier: keyof typeof BULLET_TEXTURES = Math.abs(bulletSpeed - 14) < 0.01 ? "mid" : "high";
+            const isEnhancedBeaShot = isBeaMode && beaEnhancedShotsRef.current > 0;
+            const projectileTexture: keyof typeof BULLET_TEXTURES = isBeaMode
+              ? isEnhancedBeaShot ? "beaEnhanced" : "beaNormal"
+              : "high";
             bulletsRef.current.push({
               x: ENEMY_X,
               y: ENEMY_Y,
@@ -1043,25 +1060,26 @@ export default function OfflineTrainingGame() {
               vy: (ay / da) * bulletSpeed,
               traveled: 0,
               id: shotId,
-              radius: projectileTier === "mid" ? 0.325 : 0.25,
-              texture: projectileTier,
+              radius: isBeaMode ? 0.325 : 0.25,
+              texture: projectileTexture,
             });
+            if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
             magazineAmmoRef.current -= 1;
             setMagazineAmmo(magazineAmmoRef.current);
 
             if (burstFollowupRef.current) {
               burstFollowupRef.current = false;
-              fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
-            } else if (ammoBeforeShot >= 2 && Math.random() < BURST_PROBABILITY) {
+              fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
+            } else if (!isBeaMode && ammoBeforeShot >= 2 && Math.random() < BURST_PROBABILITY) {
               burstFollowupRef.current = true;
               fireTimerRef.current = BURST_INTERVAL_SECONDS;
             } else {
-              fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
+              fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
             }
           } else {
             // 无弹或玩家不在射程时也重新抽取等待，避免补弹瞬间固定开火。
             burstFollowupRef.current = false;
-            fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
+            fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
           }
         }
 
@@ -1123,6 +1141,11 @@ export default function OfflineTrainingGame() {
           if (ddx * ddx + ddy * ddy <= rSum2) {
             bullets.splice(i, 1);
             profileBulletRemoved(prof, b.id);
+            if (b.texture === "beaNormal") {
+              beaEnhancedShotsRef.current = 2;
+            } else if (b.texture === "beaEnhanced") {
+              beaEnhancedShotsRef.current = 0;
+            }
             spawnHitParticles(player.x, player.y);
             hitCountRef.current += 1;
             setHitCount(hitCountRef.current);
@@ -1293,7 +1316,7 @@ export default function OfflineTrainingGame() {
           ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
           ctx.restore();
         } else {
-          ctx.fillStyle = b.texture === "mid" ? "#ff8a40" : "#70d7ff";
+          ctx.fillStyle = b.texture === "high" ? "#70d7ff" : b.texture === "beaEnhanced" ? "#fff59d" : "#ffca28";
           ctx.beginPath();
           ctx.ellipse(bx, by, radiusX, radiusY, 0, 0, Math.PI * 2);
           ctx.fill();
@@ -1339,11 +1362,12 @@ export default function OfflineTrainingGame() {
       bulletsRef.current = [];
       playerVelocityRef.current = { x: 0, y: 0 };
       bulletIdRef.current = 1;
-      fireTimerRef.current = FIRE_INTERVAL_MIN + Math.random() * (FIRE_INTERVAL_MAX - FIRE_INTERVAL_MIN);
-      magazineAmmoRef.current = MAGAZINE_CAPACITY;
-      magazineReloadTimerRef.current = MAGAZINE_RELOAD_SECONDS;
+      fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
+      magazineAmmoRef.current = magazineCapacity;
+      magazineReloadTimerRef.current = magazineReloadSeconds;
       lastMagazineUiUpdateRef.current = 0;
       burstFollowupRef.current = false;
+      beaEnhancedShotsRef.current = 0;
     };
   }, [mode, bulletSpeed]);
 
@@ -1415,7 +1439,7 @@ export default function OfflineTrainingGame() {
   const js = joystickRef.current;
 
   const speedTierLabel =
-    speedTier === "high" ? "高" : "中";
+    speedTier === "high" ? "佩佩" : "贝亚";
 
   return (
     <div
@@ -1480,10 +1504,10 @@ export default function OfflineTrainingGame() {
                 fontSize: "0.82rem",
               }}
             >
-              子弹档: {speedTierLabel} · {bulletSpeed.toFixed(2)}/s
+              敌方角色: {speedTierLabel}
             </div>
             <div
-              aria-label={`敌方弹匣 ${magazineAmmo}/${MAGAZINE_CAPACITY}`}
+              aria-label={`敌方弹匣 ${magazineAmmo}/${magazineCapacity}`}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -1499,7 +1523,7 @@ export default function OfflineTrainingGame() {
             >
               <span>敌方弹匣</span>
               <span style={{ display: "flex", gap: "0.25rem" }}>
-                {Array.from({ length: MAGAZINE_CAPACITY }, (_, index) => (
+                {Array.from({ length: magazineCapacity }, (_, index) => (
                   <span
                     key={index}
                     style={{
@@ -1511,7 +1535,7 @@ export default function OfflineTrainingGame() {
                       background: (() => {
                         const fill = index < magazineAmmo
                           ? 100
-                          : index === magazineAmmo && magazineAmmo < MAGAZINE_CAPACITY
+                          : index === magazineAmmo && magazineAmmo < magazineCapacity
                             ? magazineReloadProgress * 100
                             : 0;
                         return `linear-gradient(to top, #ff5252 0%, #ff5252 ${fill}%, rgba(255,255,255,0.12) ${fill}%, rgba(255,255,255,0.12) 100%)`;
@@ -1523,7 +1547,7 @@ export default function OfflineTrainingGame() {
                   />
                 ))}
               </span>
-              <span style={{ color: "#ef9a9a", fontVariantNumeric: "tabular-nums" }}>{magazineAmmo}/{MAGAZINE_CAPACITY}</span>
+              <span style={{ color: "#ef9a9a", fontVariantNumeric: "tabular-nums" }}>{magazineAmmo}/{magazineCapacity}</span>
             </div>
           </div>
         </div>

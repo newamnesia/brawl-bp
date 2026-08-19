@@ -44,15 +44,6 @@ export default function OfflineTraining() {
                   <div style={{ fontWeight: 800, fontSize: "1rem", marginBottom: "0.2rem" }}>
                     {cfg.label}
                   </div>
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      color: selectedSpeed === tier ? "var(--text)" : "var(--muted)",
-                      fontWeight: 400,
-                    }}
-                  >
-                    {cfg.value.toFixed(2)} /s
-                  </div>
                 </button>
               );
             })}
