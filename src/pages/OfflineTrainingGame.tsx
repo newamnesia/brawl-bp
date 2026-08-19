@@ -41,6 +41,7 @@ const BEA_NORMAL_DAMAGE = 1600;
 const BEA_ENHANCED_DAMAGE = 4400;
 const PIPER_MIN_DAMAGE = 720;
 const PIPER_MAX_DAMAGE = 3600;
+const TRAINING_TIME_LIMIT_SECONDS = 60;
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_TEXTURES = {
   beaNormal: "/assets/projectiles/bea-normal-v3.png",
@@ -747,7 +748,7 @@ export default function OfflineTrainingGame() {
   const [hitCount, setHitCount] = useState(0);
   const [health, setHealth] = useState(PLAYER_MAX_HEALTH);
   const [survivalTime, setSurvivalTime] = useState(0);
-  const [gameOver, setGameOver] = useState(false);
+  const [roundResult, setRoundResult] = useState<"victory" | "defeat" | null>(null);
   const [restartNonce, setRestartNonce] = useState(0);
   const [magazineAmmo, setMagazineAmmo] = useState(magazineCapacity);
   const [magazineReloadProgress, setMagazineReloadProgress] = useState(0);
@@ -914,7 +915,7 @@ export default function OfflineTrainingGame() {
     setHealth(PLAYER_MAX_HEALTH);
     setSurvivalTime(0);
     setHitCount(0);
-    setGameOver(false);
+    setRoundResult(null);
 
     const projectileImages: Record<keyof typeof BULLET_TEXTURES, HTMLImageElement> = {
       beaNormal: new Image(),
@@ -1036,7 +1037,7 @@ export default function OfflineTrainingGame() {
           const rangeDx = player.x - ENEMY_X;
           const rangeDy = player.y - ENEMY_Y;
           const inAttackRange = rangeDx * rangeDx + rangeDy * rangeDy <= ENEMY_RANGE * ENEMY_RANGE;
-          if (inAttackRange) survivalTimeRef.current += dt;
+          if (inAttackRange) survivalTimeRef.current = Math.min(TRAINING_TIME_LIMIT_SECONDS, survivalTimeRef.current + dt);
           else survivalTimeRef.current = 0;
 
           secondsSinceDamageRef.current += dt;
@@ -1047,6 +1048,13 @@ export default function OfflineTrainingGame() {
             setHealth(Math.round(healthRef.current));
             setSurvivalTime(survivalTimeRef.current);
             lastSurvivalUiUpdateRef.current = now;
+          }
+          if (survivalTimeRef.current >= TRAINING_TIME_LIMIT_SECONDS) {
+            setSurvivalTime(TRAINING_TIME_LIMIT_SECONDS);
+            pausedRef.current = true;
+            setRoundResult("victory");
+            animationId = requestAnimationFrame(gameLoop);
+            return;
           }
         }
 
@@ -1206,7 +1214,7 @@ export default function OfflineTrainingGame() {
               if (healthRef.current <= 0) {
                 pausedRef.current = true;
                 setSurvivalTime(survivalTimeRef.current);
-                setGameOver(true);
+                setRoundResult("defeat");
               }
             }
           }
@@ -1518,11 +1526,13 @@ export default function OfflineTrainingGame() {
 
       {isSurvivalMode && (
         <div className="training-survival-status" aria-live="polite">
-          <div className="training-survival-time">{survivalTime.toFixed(1)}s</div>
-          <div className="training-health-bar" aria-label={`生命值 ${health}/${PLAYER_MAX_HEALTH}`}>
-            <span style={{ width: `${Math.max(0, health / PLAYER_MAX_HEALTH) * 100}%` }} />
-          </div>
-          <div className="training-health-text">{health} / {PLAYER_MAX_HEALTH}</div>
+          <div className="training-survival-time">{survivalTime.toFixed(1)} / {TRAINING_TIME_LIMIT_SECONDS}s</div>
+          <>
+            <div className="training-health-bar" aria-label={`生命值 ${health}/${PLAYER_MAX_HEALTH}`}>
+              <span style={{ width: `${Math.max(0, health / PLAYER_MAX_HEALTH) * 100}%` }} />
+            </div>
+            <div className="training-health-text">{health} / {PLAYER_MAX_HEALTH}</div>
+          </>
         </div>
       )}
 
@@ -1682,11 +1692,15 @@ export default function OfflineTrainingGame() {
         </div>
       </div>
 
-      {gameOver && (
+      {roundResult && (
         <div className="training-game-over">
           <div className="training-game-over-card">
-            <div className="training-game-over-title">本轮结束</div>
-            <div className="training-game-over-time">生存时间 {survivalTime.toFixed(1)} 秒</div>
+            <div className={`training-game-over-title ${roundResult === "victory" ? "victory" : ""}`}>
+              {roundResult === "victory" ? "训练胜利！" : "本轮结束"}
+            </div>
+            <div className="training-game-over-time">
+              {roundResult === "victory" ? "你在攻击范围内坚持了 60 秒" : `生存时间 ${survivalTime.toFixed(1)} 秒`}
+            </div>
             <button
               className="btn-primary"
               onClick={() => {
