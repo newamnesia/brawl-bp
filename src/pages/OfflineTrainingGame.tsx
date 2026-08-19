@@ -967,11 +967,6 @@ export default function OfflineTrainingGame() {
       scale = cssWidth / HORIZONTAL_VIEW_UNITS;
       scaleY = scale * GROUND_DEPTH_PROJECTION;
       offsetX = (cssWidth - MAP_WIDTH * scale) / 2;
-      // 以透视后最宽的地图下沿为准，侧栏始终限制在左侧黑色留白内。
-      const widestMapWidth = MAP_WIDTH * scale * (1 + PERSPECTIVE_WIDTH_STRENGTH / 2);
-      const sideGutter = Math.max(0, (cssWidth - widestMapWidth) / 2 - 4);
-      container.style.setProperty("--training-side-gutter", `${sideGutter}px`);
-      container.dataset.hudLayout = sideGutter >= 150 && cssWidth / cssHeight >= 1.2 ? "wide" : "compact";
 
       forceUpdate((n) => n + 1);
     };
@@ -1531,10 +1526,7 @@ export default function OfflineTrainingGame() {
 
       {isSurvivalMode && (
         <div className="training-survival-status" aria-live="polite">
-          <div className="training-survival-time">
-            <span className="training-wide-only">{survivalTime.toFixed(1)} / {TRAINING_TIME_LIMIT_SECONDS}s</span>
-            <span className="training-compact-only">{survivalTime.toFixed(1)}s</span>
-          </div>
+          <div className="training-survival-time">{survivalTime.toFixed(1)} / {TRAINING_TIME_LIMIT_SECONDS}s</div>
           <>
             <div className="training-health-bar" aria-label={`生命值 ${health}/${PLAYER_MAX_HEALTH}`}>
               <span style={{ width: `${Math.max(0, health / PLAYER_MAX_HEALTH) * 100}%` }} />
@@ -1550,9 +1542,9 @@ export default function OfflineTrainingGame() {
         style={{
           position: "absolute",
           top: "50%",
-          left: 0,
+          left: "max(0px, env(safe-area-inset-left))",
           right: "auto",
-          width: "var(--training-side-gutter, 13vw)",
+          width: "min(220px, 32vw)",
           maxHeight: "calc(100dvh - 1rem)",
           padding: "0.7rem 0.75rem",
           display: "flex",
@@ -1572,7 +1564,7 @@ export default function OfflineTrainingGame() {
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.45rem" }}>
-            <div className="training-hud-title" style={{ fontWeight: 800, fontSize: "0.95rem", color: "#4fc3f7" }}>
+            <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#4fc3f7" }}>
               离线走位训练
             </div>
             {/* 受击计数器（左上角） */}
@@ -1588,7 +1580,7 @@ export default function OfflineTrainingGame() {
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              <span className="training-wide-only">受击次数: </span>✦ {hitCount}
+              受击次数: {hitCount}
             </div>
             <div
               style={{
@@ -1601,7 +1593,7 @@ export default function OfflineTrainingGame() {
                 fontSize: "0.82rem",
               }}
             >
-              <span className="training-wide-only">敌方角色: </span>{speedTierLabel}
+              敌方角色: {speedTierLabel}
             </div>
             <div
               aria-label={`敌方弹匣 ${magazineAmmo}/${magazineCapacity}`}
@@ -1618,7 +1610,7 @@ export default function OfflineTrainingGame() {
                 fontSize: "0.82rem",
               }}
             >
-              <span className="training-wide-only">敌方弹匣</span>
+              <span>敌方弹匣</span>
               <span style={{ display: "flex", gap: "0.25rem" }}>
                 {Array.from({ length: magazineCapacity }, (_, index) => (
                   <span
@@ -1644,7 +1636,7 @@ export default function OfflineTrainingGame() {
                   />
                 ))}
               </span>
-              <span className="training-wide-only" style={{ color: "#ef9a9a", fontVariantNumeric: "tabular-nums" }}>{magazineAmmo}/{magazineCapacity}</span>
+              <span style={{ color: "#ef9a9a", fontVariantNumeric: "tabular-nums" }}>{magazineAmmo}/{magazineCapacity}</span>
             </div>
           </div>
         </div>
@@ -1668,8 +1660,7 @@ export default function OfflineTrainingGame() {
               whiteSpace: "nowrap",
             }}
           >
-            <span className="training-wide-only">{isFullscreen ? "▣ 退出全屏" : "⛶ 全屏"}</span>
-            <span className="training-compact-only">⛶</span>
+            {isFullscreen ? "▣ 退出全屏" : "⛶ 全屏"}
           </button>
           <button
             onClick={togglePause}
@@ -1689,8 +1680,7 @@ export default function OfflineTrainingGame() {
               boxShadow: paused ? "0 2px 10px rgba(67, 160, 71, 0.4)" : "none",
             }}
           >
-            <span className="training-wide-only">{paused ? "▶ 继续" : "⏸ 暂停"}</span>
-            <span className="training-compact-only">{paused ? "▶" : "⏸"}</span>
+            {paused ? "▶ 继续" : "⏸ 暂停"}
           </button>
           <button
             onClick={() => navigate("/offline-training")}
@@ -1705,8 +1695,7 @@ export default function OfflineTrainingGame() {
               pointerEvents: "auto",
             }}
           >
-            <span className="training-wide-only">返回</span>
-            <span className="training-compact-only">↩</span>
+            返回
           </button>
           <button
             onClick={() => navigate("/")}
@@ -1722,8 +1711,7 @@ export default function OfflineTrainingGame() {
               whiteSpace: "nowrap",
             }}
           >
-            <span className="training-wide-only">返回主菜单</span>
-            <span className="training-compact-only">⌂</span>
+            返回主菜单
           </button>
         </div>
       </div>
