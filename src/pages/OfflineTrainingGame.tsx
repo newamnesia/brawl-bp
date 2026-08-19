@@ -25,8 +25,8 @@ const FIRE_INTERVAL = 1;      // 发射间隔 1s
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_TEXTURES = {
-  mid: "/assets/projectiles/bullet-14-v3.png",
-  high: "/assets/projectiles/bullet-17-5-v3.png",
+  mid: "/assets/projectiles/bullet-14-v3.png?v=4",
+  high: "/assets/projectiles/bullet-17-5-v3.png?v=4",
 } as const;
 
 type Bullet = {
