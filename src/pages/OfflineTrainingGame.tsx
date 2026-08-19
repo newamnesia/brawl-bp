@@ -1536,26 +1536,20 @@ export default function OfflineTrainingGame() {
         </div>
       )}
 
-      {/* 侧边信息栏 */}
+      {/* 顶部信息栏 */}
       <div
         className="training-hud"
         style={{
           position: "absolute",
-          top: "50%",
-          left: "max(0px, env(safe-area-inset-left))",
-          right: "auto",
-          width: "min(220px, 32vw)",
-          maxHeight: "calc(100dvh - 1rem)",
-          padding: "0.7rem 0.75rem",
+          top: 0,
+          left: 0,
+          right: 0,
+          padding: "0.75rem 1rem",
           display: "flex",
-          flexDirection: "column",
-          alignItems: "stretch",
-          gap: "0.65rem",
-          transform: "translateY(-50%)",
-          border: "1px solid rgba(255,255,255,0.12)",
-          borderLeft: 0,
-          borderRadius: "0 16px 16px 0",
-          background: "linear-gradient(90deg, rgba(15,20,25,0.58) 0%, rgba(15,20,25,0.4) 100%)",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "1rem",
+          background: "linear-gradient(180deg, rgba(15,20,25,0.62) 0%, rgba(15,20,25,0.28) 72%, transparent 100%)",
           backdropFilter: "blur(6px)",
           WebkitBackdropFilter: "blur(6px)",
           pointerEvents: "none",
@@ -1563,7 +1557,7 @@ export default function OfflineTrainingGame() {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "0.45rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
             <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#4fc3f7" }}>
               离线走位训练
             </div>
@@ -1641,7 +1635,7 @@ export default function OfflineTrainingGame() {
           </div>
         </div>
 
-        <div className="training-hud-actions" style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: "0.4rem" }}>
+        <div className="training-hud-actions" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <div className="training-control-label" style={{ fontSize: "0.8rem", color: "#8899aa", whiteSpace: "nowrap" }}>
             操作方式: {mode === "joystick" ? "触控摇杆" : "键盘 WASD"}
           </div>

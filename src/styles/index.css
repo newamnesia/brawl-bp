@@ -35,19 +35,17 @@ body {
 
 .training-survival-status {
   position: absolute;
-  top: 50%;
-  right: max(0px, env(safe-area-inset-right));
-  left: auto;
+  top: max(0.65rem, env(safe-area-inset-top));
+  left: 50%;
   z-index: 4;
-  width: min(220px, 29vw);
-  transform: translateY(-50%);
+  width: min(240px, 34vw);
+  transform: translateX(-50%);
   text-align: center;
   pointer-events: none;
   font-variant-numeric: tabular-nums;
   padding: 0.45rem 0.7rem 0.4rem;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-right: 0;
-  border-radius: 14px 0 0 14px;
+  border-radius: 14px;
   background: rgba(15, 20, 25, 0.48);
   backdrop-filter: blur(7px);
   -webkit-backdrop-filter: blur(7px);
@@ -115,10 +113,6 @@ body {
 .training-game-over-time { margin: 0.65rem 0 1.2rem; font-size: 1.05rem; font-weight: 800; }
 .training-game-over-card .btn-primary,
 .training-game-over-card .btn-secondary { width: 100%; margin-top: 0.5rem; }
-
-.training-hud-actions button {
-  width: 100%;
-}
 
 #root {
   min-height: 100vh;
