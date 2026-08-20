@@ -33,6 +33,9 @@ const BEA_MAGAZINE_CAPACITY = 1;
 const BEA_RELOAD_SECONDS = 1.0;
 const BEA_FIRE_INTERVAL_MIN = 1.05;
 const BEA_FIRE_INTERVAL_MAX = 1.35;
+const BEA_HONEY_SAFE_TRIGGER_MS = 7000;
+const BEA_HONEY_WAVE_DURATION_MS = 3000;
+const BEA_HONEY_SLOW_MULTIPLIER = 0.7;
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
 const PLAYER_MAX_HEALTH = 6000;
 const HEALTH_REGEN_DELAY_SECONDS = 3;
@@ -896,6 +899,10 @@ export default function OfflineTrainingGame() {
     let animationId: number;
     let lastTime = performance.now();
     const nowStart = lastTime;
+    let nextHoneyWaveAt = nowStart + BEA_HONEY_SAFE_TRIGGER_MS;
+    let honeyWaveStartAt = Number.NEGATIVE_INFINITY;
+    let honeyWaveEndAt = Number.NEGATIVE_INFINITY;
+    let honeySlowUntil = Number.NEGATIVE_INFINITY;
 
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
@@ -982,6 +989,14 @@ export default function OfflineTrainingGame() {
       lastTime = now;
       const dtMs = dt * 1000;
 
+      // 暂停时冻结蜂蜜能力的触发、动画与减速计时。
+      if (pausedRef.current) {
+        nextHoneyWaveAt += dtMs;
+        if (Number.isFinite(honeyWaveStartAt)) honeyWaveStartAt += dtMs;
+        if (Number.isFinite(honeyWaveEndAt)) honeyWaveEndAt += dtMs;
+        if (Number.isFinite(honeySlowUntil)) honeySlowUntil += dtMs;
+      }
+
       if (!pausedRef.current) {
         // —— 逻辑更新（暂停时跳过） ——
         // 更新玩家位置
@@ -990,8 +1005,21 @@ export default function OfflineTrainingGame() {
         const prof = profilerRef.current!;
 
         const velocity = playerVelocityRef.current;
-        const targetVelX = input.x * MOVE_SPEED;
-        const targetVelY = input.y * MOVE_SPEED;
+        if (isBeaMode && now >= nextHoneyWaveAt && now >= honeyWaveEndAt) {
+          honeyWaveStartAt = now;
+          honeyWaveEndAt = now + BEA_HONEY_WAVE_DURATION_MS;
+          nextHoneyWaveAt = honeyWaveEndAt + BEA_HONEY_SAFE_TRIGGER_MS;
+          const honeyDx = player.x - ENEMY_X;
+          const honeyDy = player.y - ENEMY_Y;
+          if (honeyDx * honeyDx + honeyDy * honeyDy <= ENEMY_RANGE * ENEMY_RANGE) {
+            honeySlowUntil = now + BEA_HONEY_WAVE_DURATION_MS;
+          }
+        }
+        const movementSpeed = isBeaMode && now < honeySlowUntil
+          ? MOVE_SPEED * BEA_HONEY_SLOW_MULTIPLIER
+          : MOVE_SPEED;
+        const targetVelX = input.x * movementSpeed;
+        const targetVelY = input.y * movementSpeed;
         const deltaVelX = targetVelX - velocity.x;
         const deltaVelY = targetVelY - velocity.y;
         const deltaVel = Math.hypot(deltaVelX, deltaVelY);
@@ -1199,6 +1227,7 @@ export default function OfflineTrainingGame() {
             } else if (b.texture === "beaEnhanced") {
               beaEnhancedShotsRef.current = 0;
             }
+            if (isBeaMode) nextHoneyWaveAt = now + BEA_HONEY_SAFE_TRIGGER_MS;
             spawnHitParticles(player.x, player.y);
             hitCountRef.current += 1;
             setHitCount(hitCountRef.current);
@@ -1270,6 +1299,38 @@ export default function OfflineTrainingGame() {
       ctx.lineTo(bottomLeftX, projectY(MAP_HEIGHT));
       ctx.closePath();
       ctx.fill();
+
+      // 贝亚蜂蜜海：仅高于地图底色，后续网格、射程圈、角色和子弹都会覆盖它。
+      if (isBeaMode && now >= honeyWaveStartAt && now < honeyWaveEndAt) {
+        const waveProgress = (now - honeyWaveStartAt) / BEA_HONEY_WAVE_DURATION_MS;
+        const traceHoneyCircle = (radius: number) => {
+          ctx.beginPath();
+          for (let i = 0; i <= 96; i++) {
+            const angle = i / 96 * Math.PI * 2;
+            const worldX = ENEMY_X + Math.cos(angle) * radius;
+            const worldY = ENEMY_Y + Math.sin(angle) * radius;
+            const px = projectX(worldX, worldY);
+            const py = projectY(worldY);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+        };
+
+        ctx.save();
+        traceHoneyCircle(ENEMY_RANGE);
+        ctx.fillStyle = "rgba(255, 193, 7, 0.075)";
+        ctx.fill();
+        for (let ring = 0; ring < 5; ring++) {
+          const phase = (waveProgress * 3 + ring / 5) % 1;
+          const radius = ENEMY_RANGE * (0.08 + phase * 0.92);
+          traceHoneyCircle(radius);
+          ctx.strokeStyle = `rgba(255, 213, 79, ${0.28 * (1 - phase)})`;
+          ctx.lineWidth = 1.5 + (1 - phase) * 2;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
 
       // 绘制网格
       ctx.strokeStyle = "#243044";
