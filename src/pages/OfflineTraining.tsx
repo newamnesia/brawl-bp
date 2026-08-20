@@ -29,6 +29,15 @@ export default function OfflineTraining() {
       <h1 className="page-title">离线走位训练</h1>
       <p className="page-subtitle">选择操作方式开始训练</p>
 
+      <div className="tutorial-box">
+        <p className="tutorial-intro">使用教程</p>
+        <ul className="tutorial-list">
+          <li>本网页支持手机<strong>横屏</strong>使用，横屏可获得更完整的训练视野。</li>
+          <li>进入训练后，可点击界面中的<strong>“全屏”</strong>按钮开启沉浸式训练。</li>
+          <li>如有建议或问题，欢迎添加<strong>主页展示的联系方式</strong>进行反馈。</li>
+        </ul>
+      </div>
+
       <div className="card">
         <div className="form-group">
           <label>训练规则</label>
