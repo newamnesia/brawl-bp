@@ -1473,23 +1473,41 @@ export default function OfflineTrainingGame() {
 
         ctx.save();
         traceHoneyCircle(ENEMY_RANGE);
-        ctx.fillStyle = "rgba(255, 179, 0, 0.18)";
+        const seaPulse = 0.16 + Math.sin(waveProgress * Math.PI * 3) * 0.025;
+        ctx.fillStyle = `rgba(255, 179, 0, ${seaPulse})`;
         ctx.fill();
         ctx.shadowColor = "rgba(255, 193, 7, 0.9)";
         ctx.shadowBlur = 10;
         for (let ring = 0; ring < 4; ring++) {
-          // 原先 3 次完整扩散/动画，现降至 1.5 次；smoothstep 让传递带粘滞启停感。
-          const phase = (waveProgress * 1.5 + ring / 4) % 1;
+          // 每次三秒动画只推进 0.75 轮，较上一版再次减半。
+          const phase = (waveProgress * 0.75 + ring / 4) % 1;
           const viscousPhase = phase * phase * (3 - 2 * phase);
           const radius = ENEMY_RANGE * (0.08 + viscousPhase * 0.92);
-          traceHoneyCircle(radius, 0.012 + (1 - phase) * 0.012);
-          // 宽而暗的拖尾托住较亮的内缘，表现蜂蜜厚度。
-          ctx.strokeStyle = `rgba(255, 160, 0, ${0.28 * (1 - phase)})`;
-          ctx.lineWidth = 7 + (1 - phase) * 5;
+          const wobble = 0.014 + (1 - phase) * 0.014;
+          const fade = 1 - phase;
+
+          // 后方宽阔、半透明的浪体，形成蜂蜜海浪的厚重拖尾。
+          traceHoneyCircle(radius * 0.965, wobble * 1.15);
+          ctx.strokeStyle = `rgba(245, 124, 0, ${0.16 * fade})`;
+          ctx.lineWidth = 15 + fade * 8;
           ctx.stroke();
-          traceHoneyCircle(radius, 0.012 + (1 - phase) * 0.012);
+
+          // 琥珀色主浪脊。
+          traceHoneyCircle(radius, wobble);
+          ctx.strokeStyle = `rgba(255, 160, 0, ${0.34 * fade})`;
+          ctx.lineWidth = 8 + fade * 5;
+          ctx.stroke();
+
+          // 浪峰内缘的浅金色高光。
+          traceHoneyCircle(radius, wobble);
           ctx.strokeStyle = `rgba(255, 224, 130, ${0.62 * (1 - phase)})`;
           ctx.lineWidth = 2.2 + (1 - phase) * 2.8;
+          ctx.stroke();
+
+          // 浪峰前沿增加一条极细亮边，使传递方向更像海浪推进。
+          traceHoneyCircle(radius * 1.012, wobble * 0.8);
+          ctx.strokeStyle = `rgba(255, 248, 225, ${0.34 * fade})`;
+          ctx.lineWidth = 1.2 + fade;
           ctx.stroke();
         }
         ctx.restore();
