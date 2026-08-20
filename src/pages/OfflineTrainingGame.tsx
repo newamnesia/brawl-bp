@@ -899,10 +899,10 @@ export default function OfflineTrainingGame() {
     let animationId: number;
     let lastTime = performance.now();
     const nowStart = lastTime;
-    let nextHoneyWaveAt = nowStart + BEA_HONEY_SAFE_TRIGGER_MS;
-    let honeyWaveStartAt = Number.NEGATIVE_INFINITY;
-    let honeyWaveEndAt = Number.NEGATIVE_INFINITY;
-    let honeySlowUntil = Number.NEGATIVE_INFINITY;
+    let honeySafeElapsedMs = 0;
+    let honeyWaveElapsedMs = 0;
+    let honeyWaveRemainingMs = 0;
+    let honeySlowRemainingMs = 0;
 
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
@@ -989,14 +989,6 @@ export default function OfflineTrainingGame() {
       lastTime = now;
       const dtMs = dt * 1000;
 
-      // 暂停时冻结蜂蜜能力的触发、动画与减速计时。
-      if (pausedRef.current) {
-        nextHoneyWaveAt += dtMs;
-        if (Number.isFinite(honeyWaveStartAt)) honeyWaveStartAt += dtMs;
-        if (Number.isFinite(honeyWaveEndAt)) honeyWaveEndAt += dtMs;
-        if (Number.isFinite(honeySlowUntil)) honeySlowUntil += dtMs;
-      }
-
       if (!pausedRef.current) {
         // —— 逻辑更新（暂停时跳过） ——
         // 更新玩家位置
@@ -1005,17 +997,26 @@ export default function OfflineTrainingGame() {
         const prof = profilerRef.current!;
 
         const velocity = playerVelocityRef.current;
-        if (isBeaMode && now >= nextHoneyWaveAt && now >= honeyWaveEndAt) {
-          honeyWaveStartAt = now;
-          honeyWaveEndAt = now + BEA_HONEY_WAVE_DURATION_MS;
-          nextHoneyWaveAt = honeyWaveEndAt + BEA_HONEY_SAFE_TRIGGER_MS;
-          const honeyDx = player.x - ENEMY_X;
-          const honeyDy = player.y - ENEMY_Y;
-          if (honeyDx * honeyDx + honeyDy * honeyDy <= ENEMY_RANGE * ENEMY_RANGE) {
-            honeySlowUntil = now + BEA_HONEY_WAVE_DURATION_MS;
+        if (isBeaMode) {
+          if (honeyWaveRemainingMs > 0) {
+            honeyWaveRemainingMs = Math.max(0, honeyWaveRemainingMs - dtMs);
+            honeyWaveElapsedMs = Math.min(BEA_HONEY_WAVE_DURATION_MS, honeyWaveElapsedMs + dtMs);
+          } else {
+            honeySafeElapsedMs += dtMs;
+            if (honeySafeElapsedMs >= BEA_HONEY_SAFE_TRIGGER_MS) {
+              honeySafeElapsedMs = 0;
+              honeyWaveElapsedMs = 0;
+              honeyWaveRemainingMs = BEA_HONEY_WAVE_DURATION_MS;
+              const honeyDx = player.x - ENEMY_X;
+              const honeyDy = player.y - ENEMY_Y;
+              if (honeyDx * honeyDx + honeyDy * honeyDy <= ENEMY_RANGE * ENEMY_RANGE) {
+                honeySlowRemainingMs = BEA_HONEY_WAVE_DURATION_MS;
+              }
+            }
           }
+          honeySlowRemainingMs = Math.max(0, honeySlowRemainingMs - dtMs);
         }
-        const movementSpeed = isBeaMode && now < honeySlowUntil
+        const movementSpeed = isBeaMode && honeySlowRemainingMs > 0
           ? MOVE_SPEED * BEA_HONEY_SLOW_MULTIPLIER
           : MOVE_SPEED;
         const targetVelX = input.x * movementSpeed;
@@ -1227,7 +1228,7 @@ export default function OfflineTrainingGame() {
             } else if (b.texture === "beaEnhanced") {
               beaEnhancedShotsRef.current = 0;
             }
-            if (isBeaMode) nextHoneyWaveAt = now + BEA_HONEY_SAFE_TRIGGER_MS;
+            if (isBeaMode) honeySafeElapsedMs = 0;
             spawnHitParticles(player.x, player.y);
             hitCountRef.current += 1;
             setHitCount(hitCountRef.current);
@@ -1301,8 +1302,8 @@ export default function OfflineTrainingGame() {
       ctx.fill();
 
       // 贝亚蜂蜜海：仅高于地图底色，后续网格、射程圈、角色和子弹都会覆盖它。
-      if (isBeaMode && now >= honeyWaveStartAt && now < honeyWaveEndAt) {
-        const waveProgress = (now - honeyWaveStartAt) / BEA_HONEY_WAVE_DURATION_MS;
+      if (isBeaMode && honeyWaveRemainingMs > 0) {
+        const waveProgress = honeyWaveElapsedMs / BEA_HONEY_WAVE_DURATION_MS;
         const traceHoneyCircle = (radius: number) => {
           ctx.beginPath();
           for (let i = 0; i <= 96; i++) {
