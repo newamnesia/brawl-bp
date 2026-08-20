@@ -33,7 +33,8 @@ const BEA_MAGAZINE_CAPACITY = 1;
 const BEA_RELOAD_SECONDS = 1.0;
 const BEA_FIRE_INTERVAL_MIN = 1.05;
 const BEA_FIRE_INTERVAL_MAX = 1.35;
-const BEA_HONEY_SAFE_TRIGGER_MS = 7000;
+const BEA_HONEY_FIRST_TRIGGER_MS = 7000;
+const BEA_HONEY_TRIGGER_INTERVAL_MS = 10000;
 const BEA_HONEY_WAVE_DURATION_MS = 3000;
 const BEA_HONEY_SLOW_MULTIPLIER = 0.7;
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
@@ -899,7 +900,8 @@ export default function OfflineTrainingGame() {
     let animationId: number;
     let lastTime = performance.now();
     const nowStart = lastTime;
-    let honeySafeElapsedMs = 0;
+    let trainingElapsedMs = 0;
+    let nextHoneyTriggerMs = BEA_HONEY_FIRST_TRIGGER_MS;
     let honeyWaveElapsedMs = 0;
     let honeyWaveRemainingMs = 0;
     let honeySlowRemainingMs = 0;
@@ -998,20 +1000,19 @@ export default function OfflineTrainingGame() {
 
         const velocity = playerVelocityRef.current;
         if (isBeaMode) {
+          trainingElapsedMs += dtMs;
           if (honeyWaveRemainingMs > 0) {
             honeyWaveRemainingMs = Math.max(0, honeyWaveRemainingMs - dtMs);
             honeyWaveElapsedMs = Math.min(BEA_HONEY_WAVE_DURATION_MS, honeyWaveElapsedMs + dtMs);
-          } else {
-            honeySafeElapsedMs += dtMs;
-            if (honeySafeElapsedMs >= BEA_HONEY_SAFE_TRIGGER_MS) {
-              honeySafeElapsedMs = 0;
-              honeyWaveElapsedMs = 0;
-              honeyWaveRemainingMs = BEA_HONEY_WAVE_DURATION_MS;
-              const honeyDx = player.x - ENEMY_X;
-              const honeyDy = player.y - ENEMY_Y;
-              if (honeyDx * honeyDx + honeyDy * honeyDy <= ENEMY_RANGE * ENEMY_RANGE) {
-                honeySlowRemainingMs = BEA_HONEY_WAVE_DURATION_MS;
-              }
+          }
+          if (trainingElapsedMs >= nextHoneyTriggerMs) {
+            honeyWaveElapsedMs = 0;
+            honeyWaveRemainingMs = BEA_HONEY_WAVE_DURATION_MS;
+            nextHoneyTriggerMs += BEA_HONEY_TRIGGER_INTERVAL_MS;
+            const honeyDx = player.x - ENEMY_X;
+            const honeyDy = player.y - ENEMY_Y;
+            if (honeyDx * honeyDx + honeyDy * honeyDy <= ENEMY_RANGE * ENEMY_RANGE) {
+              honeySlowRemainingMs = BEA_HONEY_WAVE_DURATION_MS;
             }
           }
           honeySlowRemainingMs = Math.max(0, honeySlowRemainingMs - dtMs);
@@ -1228,7 +1229,6 @@ export default function OfflineTrainingGame() {
             } else if (b.texture === "beaEnhanced") {
               beaEnhancedShotsRef.current = 0;
             }
-            if (isBeaMode) honeySafeElapsedMs = 0;
             spawnHitParticles(player.x, player.y);
             hitCountRef.current += 1;
             setHitCount(hitCountRef.current);
@@ -1300,38 +1300,6 @@ export default function OfflineTrainingGame() {
       ctx.lineTo(bottomLeftX, projectY(MAP_HEIGHT));
       ctx.closePath();
       ctx.fill();
-
-      // 贝亚蜂蜜海：仅高于地图底色，后续网格、射程圈、角色和子弹都会覆盖它。
-      if (isBeaMode && honeyWaveRemainingMs > 0) {
-        const waveProgress = honeyWaveElapsedMs / BEA_HONEY_WAVE_DURATION_MS;
-        const traceHoneyCircle = (radius: number) => {
-          ctx.beginPath();
-          for (let i = 0; i <= 96; i++) {
-            const angle = i / 96 * Math.PI * 2;
-            const worldX = ENEMY_X + Math.cos(angle) * radius;
-            const worldY = ENEMY_Y + Math.sin(angle) * radius;
-            const px = projectX(worldX, worldY);
-            const py = projectY(worldY);
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-          }
-          ctx.closePath();
-        };
-
-        ctx.save();
-        traceHoneyCircle(ENEMY_RANGE);
-        ctx.fillStyle = "rgba(255, 193, 7, 0.075)";
-        ctx.fill();
-        for (let ring = 0; ring < 5; ring++) {
-          const phase = (waveProgress * 3 + ring / 5) % 1;
-          const radius = ENEMY_RANGE * (0.08 + phase * 0.92);
-          traceHoneyCircle(radius);
-          ctx.strokeStyle = `rgba(255, 213, 79, ${0.28 * (1 - phase)})`;
-          ctx.lineWidth = 1.5 + (1 - phase) * 2;
-          ctx.stroke();
-        }
-        ctx.restore();
-      }
 
       // 绘制网格
       ctx.strokeStyle = "#243044";
@@ -1479,6 +1447,40 @@ export default function OfflineTrainingGame() {
         bottomLeftX + 8,
         projectY(MAP_HEIGHT) - 8,
       );
+
+      // 贝亚蜂蜜海置于 Canvas 最顶层，覆盖地图、网格、角色、子弹及粒子。
+      if (isBeaMode && honeyWaveRemainingMs > 0) {
+        const waveProgress = honeyWaveElapsedMs / BEA_HONEY_WAVE_DURATION_MS;
+        const traceHoneyCircle = (radius: number) => {
+          ctx.beginPath();
+          for (let i = 0; i <= 96; i++) {
+            const angle = i / 96 * Math.PI * 2;
+            const worldX = ENEMY_X + Math.cos(angle) * radius;
+            const worldY = ENEMY_Y + Math.sin(angle) * radius;
+            const px = projectX(worldX, worldY);
+            const py = projectY(worldY);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+        };
+
+        ctx.save();
+        traceHoneyCircle(ENEMY_RANGE);
+        ctx.fillStyle = "rgba(255, 179, 0, 0.18)";
+        ctx.fill();
+        ctx.shadowColor = "rgba(255, 193, 7, 0.9)";
+        ctx.shadowBlur = 10;
+        for (let ring = 0; ring < 5; ring++) {
+          const phase = (waveProgress * 3 + ring / 5) % 1;
+          const radius = ENEMY_RANGE * (0.08 + phase * 0.92);
+          traceHoneyCircle(radius);
+          ctx.strokeStyle = `rgba(255, 224, 130, ${0.65 * (1 - phase)})`;
+          ctx.lineWidth = 2.5 + (1 - phase) * 3;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
 
       animationId = requestAnimationFrame(gameLoop);
     };
