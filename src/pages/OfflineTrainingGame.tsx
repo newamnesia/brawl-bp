@@ -1451,6 +1451,10 @@ export default function OfflineTrainingGame() {
       // 贝亚蜂蜜海置于 Canvas 最顶层，覆盖地图、网格、角色、子弹及粒子。
       if (isBeaMode && honeyWaveRemainingMs > 0) {
         const waveProgress = honeyWaveElapsedMs / BEA_HONEY_WAVE_DURATION_MS;
+        const fadeDurationMs = 300;
+        const fadeIn = Math.min(1, honeyWaveElapsedMs / fadeDurationMs);
+        const fadeOut = Math.min(1, honeyWaveRemainingMs / fadeDurationMs);
+        const honeyLayerAlpha = Math.min(fadeIn, fadeOut);
         const traceHoneyCircle = (radius: number, wobble = 0) => {
           ctx.beginPath();
           for (let i = 0; i <= 96; i++) {
@@ -1472,6 +1476,7 @@ export default function OfflineTrainingGame() {
         };
 
         ctx.save();
+        ctx.globalAlpha = honeyLayerAlpha;
         traceHoneyCircle(ENEMY_RANGE);
         const seaPulse = 0.16 + Math.sin(waveProgress * Math.PI * 3) * 0.025;
         ctx.fillStyle = `rgba(255, 179, 0, ${seaPulse})`;
