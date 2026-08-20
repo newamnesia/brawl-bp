@@ -1451,12 +1451,18 @@ export default function OfflineTrainingGame() {
       // 贝亚蜂蜜海置于 Canvas 最顶层，覆盖地图、网格、角色、子弹及粒子。
       if (isBeaMode && honeyWaveRemainingMs > 0) {
         const waveProgress = honeyWaveElapsedMs / BEA_HONEY_WAVE_DURATION_MS;
-        const traceHoneyCircle = (radius: number) => {
+        const traceHoneyCircle = (radius: number, wobble = 0) => {
           ctx.beginPath();
           for (let i = 0; i <= 96; i++) {
             const angle = i / 96 * Math.PI * 2;
-            const worldX = ENEMY_X + Math.cos(angle) * radius;
-            const worldY = ENEMY_Y + Math.sin(angle) * radius;
+            // 多组低频形变缓慢滑动，使圆环边缘像粘稠蜂蜜而非规则水波。
+            const stickyOffset = wobble * (
+              Math.sin(angle * 3 + waveProgress * Math.PI * 1.2) * 0.65 +
+              Math.sin(angle * 7 - waveProgress * Math.PI * 0.7) * 0.35
+            );
+            const stickyRadius = radius * (1 + stickyOffset);
+            const worldX = ENEMY_X + Math.cos(angle) * stickyRadius;
+            const worldY = ENEMY_Y + Math.sin(angle) * stickyRadius;
             const px = projectX(worldX, worldY);
             const py = projectY(worldY);
             if (i === 0) ctx.moveTo(px, py);
@@ -1471,12 +1477,19 @@ export default function OfflineTrainingGame() {
         ctx.fill();
         ctx.shadowColor = "rgba(255, 193, 7, 0.9)";
         ctx.shadowBlur = 10;
-        for (let ring = 0; ring < 5; ring++) {
-          const phase = (waveProgress * 3 + ring / 5) % 1;
-          const radius = ENEMY_RANGE * (0.08 + phase * 0.92);
-          traceHoneyCircle(radius);
-          ctx.strokeStyle = `rgba(255, 224, 130, ${0.65 * (1 - phase)})`;
-          ctx.lineWidth = 2.5 + (1 - phase) * 3;
+        for (let ring = 0; ring < 4; ring++) {
+          // 原先 3 次完整扩散/动画，现降至 1.5 次；smoothstep 让传递带粘滞启停感。
+          const phase = (waveProgress * 1.5 + ring / 4) % 1;
+          const viscousPhase = phase * phase * (3 - 2 * phase);
+          const radius = ENEMY_RANGE * (0.08 + viscousPhase * 0.92);
+          traceHoneyCircle(radius, 0.012 + (1 - phase) * 0.012);
+          // 宽而暗的拖尾托住较亮的内缘，表现蜂蜜厚度。
+          ctx.strokeStyle = `rgba(255, 160, 0, ${0.28 * (1 - phase)})`;
+          ctx.lineWidth = 7 + (1 - phase) * 5;
+          ctx.stroke();
+          traceHoneyCircle(radius, 0.012 + (1 - phase) * 0.012);
+          ctx.strokeStyle = `rgba(255, 224, 130, ${0.62 * (1 - phase)})`;
+          ctx.lineWidth = 2.2 + (1 - phase) * 2.8;
           ctx.stroke();
         }
         ctx.restore();
