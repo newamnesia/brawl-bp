@@ -56,6 +56,13 @@ const BULLET_TEXTURES = {
   high: "/assets/projectiles/bullet-17-5-v3.png?v=4",
 } as const;
 
+function projectileDamage(texture: keyof typeof BULLET_TEXTURES, traveled: number): number {
+  if (texture === "beaNormal") return BEA_NORMAL_DAMAGE;
+  if (texture === "beaEnhanced") return BEA_ENHANCED_DAMAGE;
+  return PIPER_MIN_DAMAGE
+    + (PIPER_MAX_DAMAGE - PIPER_MIN_DAMAGE) * Math.min(1, traveled / BULLET_MAX_DIST);
+}
+
 type Bullet = {
   x: number;          // 子弹中心 x
   y: number;          // 子弹中心 y
@@ -772,6 +779,7 @@ export default function OfflineTrainingGame() {
     direction: 1 as 1 | -1,
     switchTimer: AIMING_DIRECTION_SWITCH_SECONDS,
   });
+  const aimingTargetHealthRef = useRef(PLAYER_MAX_HEALTH);
 
   const [, forceUpdate] = useState(0);
   const [hitCount, setHitCount] = useState(0);
@@ -943,6 +951,7 @@ export default function OfflineTrainingGame() {
       direction: 1,
       switchTimer: AIMING_DIRECTION_SWITCH_SECONDS,
     };
+    aimingTargetHealthRef.current = PLAYER_MAX_HEALTH;
     playerVelocityRef.current = { x: 0, y: 0 };
     magazineAmmoRef.current = magazineCapacity;
     magazineReloadTimerRef.current = magazineReloadSeconds;
@@ -1295,8 +1304,19 @@ export default function OfflineTrainingGame() {
               spawnHitParticles(collisionTarget.x, collisionTarget.y);
               hitCountRef.current += 1;
               setHitCount(hitCountRef.current);
-              pausedRef.current = true;
-              setRoundResult("victory");
+              if (b.texture === "beaNormal") {
+                beaEnhancedShotsRef.current = 2;
+              } else if (b.texture === "beaEnhanced") {
+                beaEnhancedShotsRef.current = 0;
+              }
+              aimingTargetHealthRef.current = Math.max(
+                0,
+                aimingTargetHealthRef.current - projectileDamage(b.texture, b.traveled),
+              );
+              if (aimingTargetHealthRef.current <= 0) {
+                pausedRef.current = true;
+                setRoundResult("victory");
+              }
               continue;
             }
             if (b.texture === "beaNormal") {
@@ -1308,11 +1328,7 @@ export default function OfflineTrainingGame() {
             hitCountRef.current += 1;
             setHitCount(hitCountRef.current);
             if (isSurvivalMode) {
-              const damage = b.texture === "beaNormal"
-                ? BEA_NORMAL_DAMAGE
-                : b.texture === "beaEnhanced"
-                  ? BEA_ENHANCED_DAMAGE
-                  : PIPER_MIN_DAMAGE + (PIPER_MAX_DAMAGE - PIPER_MIN_DAMAGE) * Math.min(1, b.traveled / BULLET_MAX_DIST);
+              const damage = projectileDamage(b.texture, b.traveled);
               healthRef.current = Math.max(0, healthRef.current - damage);
               secondsSinceDamageRef.current = 0;
               setHealth(Math.round(healthRef.current));
@@ -1416,7 +1432,7 @@ export default function OfflineTrainingGame() {
       ctx.stroke();
 
       const renderedEnemy = isAimingMode ? aimingTargetRef.current : { x: ENEMY_X, y: ENEMY_Y };
-      // 普通模式显示射程圈；预判模式显示目标所在的上半圆弧。
+      // 两种训练都显示 10 格子弹攻击范围，不展示目标的移动轨迹。
       const enemyCenterPx = projectX(renderedEnemy.x, renderedEnemy.y);
       const enemyCenterPy = projectY(renderedEnemy.y);
       const enemyRadiusPx = ENEMY_RADIUS * scale * widthFactorAt(renderedEnemy.y);
@@ -1427,16 +1443,16 @@ export default function OfflineTrainingGame() {
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
       for (let i = 0; i <= 72; i++) {
-        const angle = isAimingMode ? -Math.PI + (i / 72) * Math.PI : (i / 72) * Math.PI * 2;
+        const angle = (i / 72) * Math.PI * 2;
         const circleCenterX = isAimingMode ? player.x : ENEMY_X;
         const circleCenterY = isAimingMode ? player.y : ENEMY_Y;
-        const circleRadius = isAimingMode ? AIMING_TARGET_RADIUS : ENEMY_RANGE;
+        const circleRadius = isAimingMode ? BULLET_MAX_DIST : ENEMY_RANGE;
         const worldX = circleCenterX + Math.cos(angle) * circleRadius;
         const worldY = circleCenterY + Math.sin(angle) * circleRadius;
         if (i === 0) ctx.moveTo(projectX(worldX, worldY), projectY(worldY));
         else ctx.lineTo(projectX(worldX, worldY), projectY(worldY));
       }
-      if (!isAimingMode) ctx.closePath();
+      ctx.closePath();
       ctx.stroke();
       ctx.restore();
 
@@ -1453,6 +1469,26 @@ export default function OfflineTrainingGame() {
       ctx.beginPath();
       ctx.ellipse(enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
+
+      if (isAimingMode) {
+        const barWidth = Math.min(110, Math.max(48, scale * 2.2));
+        const barHeight = 8;
+        const barX = enemyCenterPx - barWidth / 2;
+        const barY = projectY(renderedEnemy.y - 0.85) - barHeight;
+        const healthRatio = Math.max(0, aimingTargetHealthRef.current / PLAYER_MAX_HEALTH);
+        ctx.fillStyle = "rgba(8, 12, 18, 0.82)";
+        ctx.fillRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
+        ctx.fillStyle = "#43a047";
+        ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
+        ctx.strokeStyle = "rgba(255,255,255,0.72)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(barX, barY, barWidth, barHeight);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "700 10px 'Nunito', system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(`${Math.ceil(aimingTargetHealthRef.current)} / ${PLAYER_MAX_HEALTH}`, enemyCenterPx, barY - 4);
+        ctx.textAlign = "start";
+      }
 
       // 绘制玩家（圆）
       const playerCenterPx = projectX(player.x, player.y);
@@ -1744,6 +1780,7 @@ export default function OfflineTrainingGame() {
     const directionLength = Math.hypot(aim.knobX, aim.knobY);
     if (!pausedRef.current && directionLength > 8 && magazineAmmoRef.current > 0) {
       const player = playerRef.current;
+      const isEnhancedBeaShot = isBeaMode && beaEnhancedShotsRef.current > 0;
       bulletsRef.current.push({
         x: player.x,
         y: player.y,
@@ -1752,9 +1789,10 @@ export default function OfflineTrainingGame() {
         traveled: 0,
         id: bulletIdRef.current++,
         radius: isBeaMode ? 0.325 : 0.25,
-        texture: isBeaMode ? "beaNormal" : "high",
+        texture: isBeaMode ? (isEnhancedBeaShot ? "beaEnhanced" : "beaNormal") : "high",
         owner: "player",
       });
+      if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
       magazineAmmoRef.current -= 1;
       setMagazineAmmo(magazineAmmoRef.current);
     }
@@ -1977,7 +2015,7 @@ export default function OfflineTrainingGame() {
               {roundResult === "victory" ? "预判命中，训练胜利！" : "本轮结束"}
             </div>
             <div className="training-game-over-time">
-              {roundResult === "victory" ? "成功命中移动目标" : `生存时间 ${survivalTime.toFixed(1)} 秒`}
+              {roundResult === "victory" ? "成功击败移动目标" : `生存时间 ${survivalTime.toFixed(1)} 秒`}
             </div>
             <button
               className="btn-primary"

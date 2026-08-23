@@ -152,7 +152,7 @@ export default function OfflineTraining() {
 
         {trainingMode === "aiming" && (
           <div className="tutorial-box" style={{ marginTop: "1rem" }}>
-            拖动右下角攻击摇杆瞄准，松手发射；命中移动目标一次即可获胜。
+            拖动右下角攻击摇杆瞄准，松手发射；击败 6000 生命的移动目标即可获胜。
           </div>
         )}
 
