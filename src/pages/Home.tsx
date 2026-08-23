@@ -90,14 +90,6 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      <button
-        className="home-updates-button"
-        onClick={() => setShowUpdateNotices(true)}
-        title="查看所有更新公告"
-      >
-        📢 更新公告
-      </button>
-
       <h1 className="page-title">荒野乱斗在线BP模拟</h1>
       <div className="tutorial-box tutorial-highlight">
         <p className="tutorial-intro">⚠️ 任何操作前请先输入你的 ID（昵称）</p>
@@ -219,6 +211,14 @@ export default function Home() {
         onClick={() => navigate("/offline-training")}
       >
         离线走位训练
+      </button>
+
+      <button
+        className="home-updates-button"
+        onClick={() => setShowUpdateNotices(true)}
+        title="查看所有更新公告"
+      >
+        📢 更新公告
       </button>
 
       <div className="credits-box">

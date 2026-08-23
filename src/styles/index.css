@@ -166,27 +166,15 @@ body {
 .training-update-item ul { margin-top: 0.55rem; padding-left: 1.15rem; color: #c9d4df; line-height: 1.65; font-size: 0.9rem; }
 
 .home-updates-button {
-  position: fixed;
-  top: max(0.75rem, env(safe-area-inset-top));
-  right: max(0.75rem, env(safe-area-inset-right));
-  z-index: 12;
-  padding: 0.55rem 0.85rem;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
   border: 1px solid rgba(255, 193, 7, 0.5);
   border-radius: 10px;
-  background: rgba(27, 31, 38, 0.9);
+  background: rgba(255, 193, 7, 0.1);
   color: #ffd54f;
-  font-size: 0.86rem;
+  font-size: 0.9rem;
   font-weight: 800;
-  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.3);
-}
-
-@media (max-width: 600px) {
-  .home-updates-button {
-    top: max(0.4rem, env(safe-area-inset-top));
-    right: max(0.4rem, env(safe-area-inset-right));
-    padding: 0.4rem 0.55rem;
-    font-size: 0.72rem;
-  }
 }
 
 #root {
