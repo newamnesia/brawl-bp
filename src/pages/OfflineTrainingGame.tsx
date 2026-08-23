@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 type ControlMode = "joystick" | "keyboard";
-type TrainingMode = "practice" | "survival";
+type TrainingMode = "practice" | "survival" | "aiming";
 
 // 地图常量
 const MAP_WIDTH = 21;  // 列数（横向单位）
@@ -22,6 +22,8 @@ const ENEMY_X = 10.5;
 const ENEMY_Y = 9.5;
 const ENEMY_RADIUS = 0.5;
 const ENEMY_RANGE = 10;       // 射程半径
+const AIMING_TARGET_RADIUS = 9;
+const AIMING_DIRECTION_SWITCH_SECONDS = 2;
 const MAGAZINE_CAPACITY = 3;
 const MAGAZINE_RELOAD_SECONDS = 1.5;
 // 普通射击平均间隔 1.9s，慢于单发恢复时间 1.5s。
@@ -63,6 +65,7 @@ type Bullet = {
   id: number;         // 唯一 ID，用于视野首次进入检测
   radius: number;
   texture: keyof typeof BULLET_TEXTURES;
+  owner: "enemy" | "player";
 };
 
 type HitParticle = {
@@ -705,8 +708,12 @@ export default function OfflineTrainingGame() {
   const [searchParams] = useSearchParams();
   const mode = (searchParams.get("mode") as ControlMode) || "keyboard";
   const speedTier = searchParams.get("speedTier") || "mid";
-  const trainingMode: TrainingMode = searchParams.get("trainingMode") === "survival" ? "survival" : "practice";
+  const requestedTrainingMode = searchParams.get("trainingMode");
+  const trainingMode: TrainingMode = requestedTrainingMode === "survival"
+    ? "survival"
+    : requestedTrainingMode === "aiming" ? "aiming" : "practice";
   const isSurvivalMode = trainingMode === "survival";
+  const isAimingMode = trainingMode === "aiming";
 
   // 从 URL 读取子弹速度（最小 0.01，非法时回退到当前档位，而不是固定低速）。
   const rawSpeed = parseFloat(searchParams.get("bulletSpeed") ?? "");
@@ -748,12 +755,29 @@ export default function OfflineTrainingGame() {
     maxRadius: 60,
     rawMagnitude: 0, // 玩家真实按出的归一化距离（0~1），1=推到摇杆边界
   });
+  const aimJoystickRef = useRef({
+    active: false,
+    touchId: null as number | null,
+    baseX: 0,
+    baseY: 0,
+    knobX: 0,
+    knobY: 0,
+    maxRadius: 60,
+    rawMagnitude: 0,
+  });
+  const aimingTargetRef = useRef({
+    x: ENEMY_X,
+    y: ENEMY_Y - AIMING_TARGET_RADIUS,
+    angle: -Math.PI / 2,
+    direction: 1 as 1 | -1,
+    switchTimer: AIMING_DIRECTION_SWITCH_SECONDS,
+  });
 
   const [, forceUpdate] = useState(0);
   const [hitCount, setHitCount] = useState(0);
   const [health, setHealth] = useState(PLAYER_MAX_HEALTH);
   const [survivalTime, setSurvivalTime] = useState(0);
-  const [roundResult, setRoundResult] = useState<"defeat" | null>(null);
+  const [roundResult, setRoundResult] = useState<"victory" | "defeat" | null>(null);
   const [restartNonce, setRestartNonce] = useState(0);
   const [magazineAmmo, setMagazineAmmo] = useState(magazineCapacity);
   const [magazineReloadProgress, setMagazineReloadProgress] = useState(0);
@@ -909,7 +933,16 @@ export default function OfflineTrainingGame() {
 
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
-    playerRef.current = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
+    playerRef.current = isAimingMode
+      ? { x: ENEMY_X, y: ENEMY_Y }
+      : { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
+    aimingTargetRef.current = {
+      x: ENEMY_X,
+      y: ENEMY_Y - AIMING_TARGET_RADIUS,
+      angle: -Math.PI / 2,
+      direction: 1,
+      switchTimer: AIMING_DIRECTION_SWITCH_SECONDS,
+    };
     playerVelocityRef.current = { x: 0, y: 0 };
     magazineAmmoRef.current = magazineCapacity;
     magazineReloadTimerRef.current = magazineReloadSeconds;
@@ -1000,7 +1033,7 @@ export default function OfflineTrainingGame() {
         const prof = profilerRef.current!;
 
         const velocity = playerVelocityRef.current;
-        if (isBeaMode) {
+        if (isBeaMode && !isAimingMode) {
           trainingElapsedMs += dtMs;
           if (honeyWaveRemainingMs > 0) {
             honeyWaveRemainingMs = Math.max(0, honeyWaveRemainingMs - dtMs);
@@ -1018,11 +1051,11 @@ export default function OfflineTrainingGame() {
           }
           honeySlowRemainingMs = Math.max(0, honeySlowRemainingMs - dtMs);
         }
-        const movementSpeed = isBeaMode && honeySlowRemainingMs > 0
+        const movementSpeed = isBeaMode && !isAimingMode && honeySlowRemainingMs > 0
           ? MOVE_SPEED * BEA_HONEY_SLOW_MULTIPLIER
           : MOVE_SPEED;
-        const targetVelX = input.x * movementSpeed;
-        const targetVelY = input.y * movementSpeed;
+        const targetVelX = isAimingMode ? 0 : input.x * movementSpeed;
+        const targetVelY = isAimingMode ? 0 : input.y * movementSpeed;
         const deltaVelX = targetVelX - velocity.x;
         const deltaVelY = targetVelY - velocity.y;
         const deltaVel = Math.hypot(deltaVelX, deltaVelY);
@@ -1048,6 +1081,25 @@ export default function OfflineTrainingGame() {
         if (clampedY !== player.y) velocity.y = 0;
         player.x = clampedX;
         player.y = clampedY;
+
+        if (isAimingMode) {
+          const target = aimingTargetRef.current;
+          target.switchTimer -= dt;
+          if (target.switchTimer <= 0) {
+            target.direction = target.direction === 1 ? -1 : 1;
+            target.switchTimer += AIMING_DIRECTION_SWITCH_SECONDS;
+          }
+          target.angle += target.direction * (MOVE_SPEED / AIMING_TARGET_RADIUS) * dt;
+          if (target.angle > 0) {
+            target.angle = 0;
+            target.direction = -1;
+          } else if (target.angle < -Math.PI) {
+            target.angle = -Math.PI;
+            target.direction = 1;
+          }
+          target.x = player.x + Math.cos(target.angle) * AIMING_TARGET_RADIUS;
+          target.y = player.y + Math.sin(target.angle) * AIMING_TARGET_RADIUS;
+        }
 
         // === Profiler 采样：rawMag & engaged 按模式区分 ===
         let rawMag = -1;
@@ -1108,8 +1160,8 @@ export default function OfflineTrainingGame() {
           magazineReloadTimerRef.current = currentReloadSeconds;
         }
 
-        fireTimerRef.current -= dt;
-        if (fireTimerRef.current <= 0) {
+        if (!isAimingMode) fireTimerRef.current -= dt;
+        if (!isAimingMode && fireTimerRef.current <= 0) {
           const dx = player.x - ENEMY_X;
           const dy = player.y - ENEMY_Y;
           // 射程判定：用玩家当前位置
@@ -1147,6 +1199,7 @@ export default function OfflineTrainingGame() {
               id: shotId,
               radius: isBeaMode ? 0.325 : 0.25,
               texture: projectileTexture,
+              owner: "enemy",
             });
             if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
             magazineAmmoRef.current -= 1;
@@ -1192,6 +1245,8 @@ export default function OfflineTrainingGame() {
 
         for (let i = bullets.length - 1; i >= 0; i--) {
           const b = bullets[i];
+          const previousX = b.x;
+          const previousY = b.y;
           const stepX = b.vx * dt;
           const stepY = b.vy * dt;
           b.x += stepX;
@@ -1219,14 +1274,31 @@ export default function OfflineTrainingGame() {
             continue;
           }
 
-          // 子弹圆 vs 玩家圆 相交检测
-          const ddx = player.x - b.x;
-          const ddy = player.y - b.y;
-          const rSum = PLAYER_RADIUS + b.radius;
+          // 子弹运动线段 vs 目标圆，避免高速子弹单帧穿透。
+          const collisionTarget = b.owner === "player" ? aimingTargetRef.current : player;
+          const segmentX = b.x - previousX;
+          const segmentY = b.y - previousY;
+          const segmentLength2 = segmentX * segmentX + segmentY * segmentY;
+          const targetProjection = segmentLength2 > 0
+            ? Math.max(0, Math.min(1, ((collisionTarget.x - previousX) * segmentX + (collisionTarget.y - previousY) * segmentY) / segmentLength2))
+            : 0;
+          const closestX = previousX + segmentX * targetProjection;
+          const closestY = previousY + segmentY * targetProjection;
+          const ddx = collisionTarget.x - closestX;
+          const ddy = collisionTarget.y - closestY;
+          const rSum = (b.owner === "player" ? ENEMY_RADIUS : PLAYER_RADIUS) + b.radius;
           const rSum2 = rSum * rSum;
           if (ddx * ddx + ddy * ddy <= rSum2) {
             bullets.splice(i, 1);
             profileBulletRemoved(prof, b.id);
+            if (b.owner === "player") {
+              spawnHitParticles(collisionTarget.x, collisionTarget.y);
+              hitCountRef.current += 1;
+              setHitCount(hitCountRef.current);
+              pausedRef.current = true;
+              setRoundResult("victory");
+              continue;
+            }
             if (b.texture === "beaNormal") {
               beaEnhancedShotsRef.current = 2;
             } else if (b.texture === "beaEnhanced") {
@@ -1343,10 +1415,11 @@ export default function OfflineTrainingGame() {
       ctx.closePath();
       ctx.stroke();
 
-      // 绘制敌人射程圈（淡红色虚线提示）
-      const enemyCenterPx = projectX(ENEMY_X, ENEMY_Y);
-      const enemyCenterPy = projectY(ENEMY_Y);
-      const enemyRadiusPx = ENEMY_RADIUS * scale * widthFactorAt(ENEMY_Y);
+      const renderedEnemy = isAimingMode ? aimingTargetRef.current : { x: ENEMY_X, y: ENEMY_Y };
+      // 普通模式显示射程圈；预判模式显示目标所在的上半圆弧。
+      const enemyCenterPx = projectX(renderedEnemy.x, renderedEnemy.y);
+      const enemyCenterPy = projectY(renderedEnemy.y);
+      const enemyRadiusPx = ENEMY_RADIUS * scale * widthFactorAt(renderedEnemy.y);
       const enemyRadiusPy = ENEMY_RADIUS * scaleY;
       ctx.save();
       ctx.strokeStyle = "rgba(255, 82, 82, 0.25)";
@@ -1354,13 +1427,16 @@ export default function OfflineTrainingGame() {
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
       for (let i = 0; i <= 72; i++) {
-        const angle = i / 72 * Math.PI * 2;
-        const worldX = ENEMY_X + Math.cos(angle) * ENEMY_RANGE;
-        const worldY = ENEMY_Y + Math.sin(angle) * ENEMY_RANGE;
+        const angle = isAimingMode ? -Math.PI + (i / 72) * Math.PI : (i / 72) * Math.PI * 2;
+        const circleCenterX = isAimingMode ? player.x : ENEMY_X;
+        const circleCenterY = isAimingMode ? player.y : ENEMY_Y;
+        const circleRadius = isAimingMode ? AIMING_TARGET_RADIUS : ENEMY_RANGE;
+        const worldX = circleCenterX + Math.cos(angle) * circleRadius;
+        const worldY = circleCenterY + Math.sin(angle) * circleRadius;
         if (i === 0) ctx.moveTo(projectX(worldX, worldY), projectY(worldY));
         else ctx.lineTo(projectX(worldX, worldY), projectY(worldY));
       }
-      ctx.closePath();
+      if (!isAimingMode) ctx.closePath();
       ctx.stroke();
       ctx.restore();
 
@@ -1396,6 +1472,24 @@ export default function OfflineTrainingGame() {
       ctx.beginPath();
       ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
+
+      if (isAimingMode && aimJoystickRef.current.active) {
+        const aim = aimJoystickRef.current;
+        const aimLength = Math.hypot(aim.knobX, aim.knobY);
+        if (aimLength > 8) {
+          const aimEndX = player.x + (aim.knobX / aimLength) * BULLET_MAX_DIST;
+          const aimEndY = player.y + (aim.knobY / aimLength) * BULLET_MAX_DIST;
+          ctx.save();
+          ctx.strokeStyle = "rgba(255, 213, 79, 0.72)";
+          ctx.lineWidth = 2;
+          ctx.setLineDash([7, 6]);
+          ctx.beginPath();
+          ctx.moveTo(playerCenterPx, playerCenterPy);
+          ctx.lineTo(projectX(aimEndX, aimEndY), projectY(aimEndY));
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
 
       // 绘制子弹贴图；贴图跟随弹道方向旋转，碰撞仍使用实例自身的物理半径。
       for (const b of bulletsRef.current) {
@@ -1452,7 +1546,7 @@ export default function OfflineTrainingGame() {
       );
 
       // 贝亚蜂蜜海置于 Canvas 最顶层，覆盖地图、网格、角色、子弹及粒子。
-      if (isBeaMode && honeyWaveRemainingMs > 0) {
+      if (isBeaMode && !isAimingMode && honeyWaveRemainingMs > 0) {
         const waveProgress = honeyWaveElapsedMs / BEA_HONEY_WAVE_DURATION_MS;
         const fadeDurationMs = 300;
         const fadeIn = Math.min(1, honeyWaveElapsedMs / fadeDurationMs);
@@ -1541,7 +1635,7 @@ export default function OfflineTrainingGame() {
       beaEnhancedShotsRef.current = 0;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, bulletSpeed, isSurvivalMode, restartNonce]);
+  }, [mode, bulletSpeed, isSurvivalMode, isAimingMode, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1608,7 +1702,72 @@ export default function OfflineTrainingGame() {
     forceUpdate((n) => n + 1);
   };
 
+  const handleAimPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isAimingMode || pausedRef.current) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const aim = aimJoystickRef.current;
+    aim.active = true;
+    aim.touchId = e.pointerId;
+    aim.baseX = e.clientX - rect.left;
+    aim.baseY = e.clientY - rect.top;
+    aim.knobX = 0;
+    aim.knobY = 0;
+    aim.rawMagnitude = 0;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    forceUpdate((n) => n + 1);
+  };
+
+  const handleAimPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const aim = aimJoystickRef.current;
+    if (!isAimingMode || !aim.active || aim.touchId !== e.pointerId) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    let dx = e.clientX - rect.left - aim.baseX;
+    let dy = e.clientY - rect.top - aim.baseY;
+    let distance = Math.hypot(dx, dy);
+    if (distance > aim.maxRadius) {
+      dx = (dx / distance) * aim.maxRadius;
+      dy = (dy / distance) * aim.maxRadius;
+      distance = aim.maxRadius;
+    }
+    aim.knobX = dx;
+    aim.knobY = dy;
+    aim.rawMagnitude = distance / aim.maxRadius;
+    forceUpdate((n) => n + 1);
+  };
+
+  const handleAimPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const aim = aimJoystickRef.current;
+    if (!isAimingMode || aim.touchId !== e.pointerId) return;
+    e.preventDefault();
+    const directionLength = Math.hypot(aim.knobX, aim.knobY);
+    if (!pausedRef.current && directionLength > 8 && magazineAmmoRef.current > 0) {
+      const player = playerRef.current;
+      bulletsRef.current.push({
+        x: player.x,
+        y: player.y,
+        vx: (aim.knobX / directionLength) * bulletSpeed,
+        vy: (aim.knobY / directionLength) * bulletSpeed,
+        traveled: 0,
+        id: bulletIdRef.current++,
+        radius: isBeaMode ? 0.325 : 0.25,
+        texture: isBeaMode ? "beaNormal" : "high",
+        owner: "player",
+      });
+      magazineAmmoRef.current -= 1;
+      setMagazineAmmo(magazineAmmoRef.current);
+    }
+    aim.active = false;
+    aim.touchId = null;
+    aim.knobX = 0;
+    aim.knobY = 0;
+    aim.rawMagnitude = 0;
+    forceUpdate((n) => n + 1);
+  };
+
   const js = joystickRef.current;
+  const aimJs = aimJoystickRef.current;
 
   const speedTierLabel =
     speedTier === "high" ? "佩佩" : "贝亚";
@@ -1675,7 +1834,7 @@ export default function OfflineTrainingGame() {
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              受击次数: {hitCount}
+              {isAimingMode ? "命中次数" : "受击次数"}: {hitCount}
             </div>
             <div
               style={{
@@ -1688,7 +1847,7 @@ export default function OfflineTrainingGame() {
                 fontSize: "0.82rem",
               }}
             >
-              敌方角色: {speedTierLabel}
+              {isAimingMode ? "玩家角色" : "敌方角色"}: {speedTierLabel}
             </div>
             <div
               aria-label={`敌方弹匣 ${magazineAmmo}/${magazineCapacity}`}
@@ -1705,7 +1864,7 @@ export default function OfflineTrainingGame() {
                 fontSize: "0.82rem",
               }}
             >
-              <span>敌方弹匣</span>
+              <span>{isAimingMode ? "玩家弹匣" : "敌方弹匣"}</span>
               <span style={{ display: "flex", gap: "0.25rem" }}>
                 {Array.from({ length: magazineCapacity }, (_, index) => (
                   <span
@@ -1738,7 +1897,7 @@ export default function OfflineTrainingGame() {
 
         <div className="training-hud-actions" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <div className="training-control-label" style={{ fontSize: "0.8rem", color: "#8899aa", whiteSpace: "nowrap" }}>
-            操作方式: {mode === "joystick" ? "触控摇杆" : "键盘 WASD"}
+            操作方式: {isAimingMode ? "右侧攻击摇杆" : mode === "joystick" ? "触控摇杆" : "键盘 WASD"}
           </div>
           <button
             onClick={toggleFullscreen}
@@ -1814,9 +1973,11 @@ export default function OfflineTrainingGame() {
       {roundResult && (
         <div className="training-game-over">
           <div className="training-game-over-card">
-            <div className="training-game-over-title">本轮结束</div>
+            <div className={`training-game-over-title ${roundResult === "victory" ? "victory" : ""}`}>
+              {roundResult === "victory" ? "预判命中，训练胜利！" : "本轮结束"}
+            </div>
             <div className="training-game-over-time">
-              生存时间 {survivalTime.toFixed(1)} 秒
+              {roundResult === "victory" ? "成功命中移动目标" : `生存时间 ${survivalTime.toFixed(1)} 秒`}
             </div>
             <button
               className="btn-primary"
@@ -1834,7 +1995,7 @@ export default function OfflineTrainingGame() {
       )}
 
       {/* 摇杆区 */}
-      {mode === "joystick" && (
+      {mode === "joystick" && !isAimingMode && (
         <div
           className="training-joystick-zone"
           onPointerDown={handlePointerDown}
@@ -1899,8 +2060,37 @@ export default function OfflineTrainingGame() {
         </div>
       )}
 
+      {isAimingMode && (
+        <div
+          className="training-aim-joystick-zone"
+          onPointerDown={handleAimPointerDown}
+          onPointerMove={handleAimPointerMove}
+          onPointerUp={handleAimPointerUp}
+          onPointerCancel={handleAimPointerUp}
+        >
+          <div
+            className="training-aim-joystick"
+            style={{
+              left: aimJs.active ? aimJs.baseX - 70 : "auto",
+              right: aimJs.active ? "auto" : "clamp(1rem, 15%, 4rem)",
+              top: aimJs.active ? aimJs.baseY - 70 : "auto",
+              bottom: aimJs.active ? "auto" : "clamp(1rem, 15%, 4rem)",
+            }}
+          >
+            <div className="training-aim-joystick-ring" />
+            <div
+              className="training-aim-joystick-knob"
+              style={{
+                left: 70 + aimJs.knobX - 28,
+                top: 70 + aimJs.knobY - 28,
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* 键盘操作提示 */}
-      {mode === "keyboard" && (
+      {mode === "keyboard" && !isAimingMode && (
         <div
           className="training-pause-backdrop"
           style={{

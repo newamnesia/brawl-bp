@@ -3,7 +3,7 @@ import { useState } from "react";
 
 type ControlMode = "joystick" | "keyboard";
 type SpeedTier = "mid" | "high";
-type TrainingMode = "practice" | "survival";
+type TrainingMode = "practice" | "survival" | "aiming";
 
 const SPEED_TIERS: Record<SpeedTier, { label: string; value: number }> = {
   mid: { label: "贝亚", value: 14 },
@@ -29,10 +29,11 @@ export default function OfflineTraining() {
   const [showUpdateNotices, setShowUpdateNotices] = useState(false);
 
   const handleStart = () => {
-    if (!selectedMode) return;
+    if (!selectedMode && trainingMode !== "aiming") return;
     const speedVal = SPEED_TIERS[selectedSpeed].value;
+    const controlMode = trainingMode === "aiming" ? "joystick" : selectedMode;
     navigate(
-      `/offline-training/game?mode=${selectedMode}&speedTier=${selectedSpeed}&bulletSpeed=${speedVal.toFixed(2)}&trainingMode=${trainingMode}`,
+      `/offline-training/game?mode=${controlMode}&speedTier=${selectedSpeed}&bulletSpeed=${speedVal.toFixed(2)}&trainingMode=${trainingMode}`,
     );
   };
 
@@ -81,6 +82,15 @@ export default function OfflineTraining() {
               <div style={{ fontWeight: 800 }}>生存模式</div>
               <div style={{ marginTop: "0.2rem", fontSize: "0.78rem", color: "var(--muted)", fontWeight: 400 }}>6000 生命，记录生存时间</div>
             </button>
+            <button
+              type="button"
+              className={trainingMode === "aiming" ? "active" : ""}
+              onClick={() => setTrainingMode("aiming")}
+              style={{ flex: 1, padding: "0.85rem 0.5rem", textAlign: "center" }}
+            >
+              <div style={{ fontWeight: 800 }}>射击预判训练</div>
+              <div style={{ marginTop: "0.2rem", fontSize: "0.78rem", color: "var(--muted)", fontWeight: 400 }}>固定位置，预判移动目标</div>
+            </button>
           </div>
         </div>
 
@@ -106,6 +116,7 @@ export default function OfflineTraining() {
           </div>
         </div>
 
+        {trainingMode !== "aiming" && <>
         <div className="form-group">
           <label>选择操作方式</label>
         </div>
@@ -137,10 +148,17 @@ export default function OfflineTraining() {
             </div>
           </button>
         </div>
+        </>}
+
+        {trainingMode === "aiming" && (
+          <div className="tutorial-box" style={{ marginTop: "1rem" }}>
+            拖动右下角攻击摇杆瞄准，松手发射；命中移动目标一次即可获胜。
+          </div>
+        )}
 
         <button
           className="btn-primary"
-          disabled={!selectedMode}
+          disabled={!selectedMode && trainingMode !== "aiming"}
           onClick={handleStart}
           style={{ marginTop: "1rem" }}
         >

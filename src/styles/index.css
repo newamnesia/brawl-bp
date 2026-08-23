@@ -165,6 +165,44 @@ body {
 .training-update-item h3 { margin-top: 0.25rem; color: #f5f7fa; font-size: 1.05rem; }
 .training-update-item ul { margin-top: 0.55rem; padding-left: 1.15rem; color: #c9d4df; line-height: 1.65; font-size: 0.9rem; }
 
+.training-aim-joystick-zone {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  width: 50%;
+  height: 45%;
+  touch-action: none;
+}
+
+.training-aim-joystick {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  border: 3px solid rgba(255, 193, 7, 0.38);
+  border-radius: 50%;
+  background: rgba(45, 38, 20, 0.72);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+.training-aim-joystick-ring {
+  position: absolute;
+  inset: 10px;
+  border: 1px dashed rgba(255, 213, 79, 0.3);
+  border-radius: 50%;
+}
+
+.training-aim-joystick-knob {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  border: 3px solid #ffe082;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffc107, #ff9800);
+  box-shadow: 0 0 20px rgba(255, 193, 7, 0.45), inset 0 2px 4px rgba(255,255,255,0.25);
+}
+
 .offline-training-heading {
   position: relative;
   margin-bottom: 1rem;
