@@ -10,11 +10,23 @@ const SPEED_TIERS: Record<SpeedTier, { label: string; value: number }> = {
   high: { label: "佩佩", value: 17.5 },
 };
 
+const UPDATE_NOTICES = [
+  {
+    date: "2026-08-23",
+    title: "生存训练改为无限挑战",
+    details: [
+      "移除生存模式 60 秒训练上限，不再因达到固定时间而结束对局。",
+      "随着生存时间增加，敌方子弹飞行速度、装弹速度和射击频率会持续提高。",
+    ],
+  },
+] as const;
+
 export default function OfflineTraining() {
   const navigate = useNavigate();
   const [selectedMode, setSelectedMode] = useState<ControlMode | null>(null);
   const [selectedSpeed, setSelectedSpeed] = useState<SpeedTier>("mid");
   const [trainingMode, setTrainingMode] = useState<TrainingMode>("practice");
+  const [showUpdateNotices, setShowUpdateNotices] = useState(false);
 
   const handleStart = () => {
     if (!selectedMode) return;
@@ -26,8 +38,17 @@ export default function OfflineTraining() {
 
   return (
     <div className="app-shell">
-      <h1 className="page-title">离线走位训练</h1>
-      <p className="page-subtitle">选择操作方式开始训练</p>
+      <div className="offline-training-heading">
+        <h1 className="page-title">离线走位训练</h1>
+        <p className="page-subtitle">选择操作方式开始训练</p>
+        <button
+          className="offline-training-updates-button"
+          onClick={() => setShowUpdateNotices(true)}
+          title="查看所有更新公告"
+        >
+          📢 更新公告
+        </button>
+      </div>
 
       <div className="tutorial-box">
         <p className="tutorial-intro">使用教程</p>
@@ -144,6 +165,34 @@ export default function OfflineTraining() {
           <li>视野：横向固定 <strong>31.2</strong> 格，地图居中，以约 <strong>67°</strong> 地面夹角呈现轻度上窄下宽透视</li>
         </ul>
       </div>
+
+      {showUpdateNotices && (
+        <div
+          className="training-updates-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="updates-title"
+          onClick={() => setShowUpdateNotices(false)}
+        >
+          <div className="training-updates-card" onClick={(event) => event.stopPropagation()}>
+            <div className="training-updates-header">
+              <h2 id="updates-title">更新公告</h2>
+              <button onClick={() => setShowUpdateNotices(false)} aria-label="关闭更新公告">×</button>
+            </div>
+            <div className="training-updates-list">
+              {UPDATE_NOTICES.map((notice) => (
+                <article key={`${notice.date}-${notice.title}`} className="training-update-item">
+                  <time>{notice.date}</time>
+                  <h3>{notice.title}</h3>
+                  <ul>
+                    {notice.details.map((detail) => <li key={detail}>{detail}</li>)}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -165,16 +165,32 @@ body {
 .training-update-item h3 { margin-top: 0.25rem; color: #f5f7fa; font-size: 1.05rem; }
 .training-update-item ul { margin-top: 0.55rem; padding-left: 1.15rem; color: #c9d4df; line-height: 1.65; font-size: 0.9rem; }
 
-.home-updates-button {
-  width: 100%;
-  margin-top: 0.75rem;
-  padding: 0.65rem 0.85rem;
+.offline-training-heading {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.offline-training-heading .page-subtitle {
+  margin-bottom: 0;
+}
+
+.offline-training-updates-button {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 0.48rem 0.75rem;
   border: 1px solid rgba(255, 193, 7, 0.5);
   border-radius: 10px;
   background: rgba(255, 193, 7, 0.1);
   color: #ffd54f;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 800;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .offline-training-heading { padding-bottom: 2.5rem; }
+  .offline-training-updates-button { bottom: 0; }
 }
 
 #root {

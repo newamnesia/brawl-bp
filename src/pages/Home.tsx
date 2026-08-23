@@ -3,17 +3,6 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { getSocket } from "../lib/socket";
 import type { LobbyRoom } from "../../shared/types";
 
-const UPDATE_NOTICES = [
-  {
-    date: "2026-08-23",
-    title: "生存训练改为无限挑战",
-    details: [
-      "移除生存模式 60 秒训练上限，不再因达到固定时间而结束对局。",
-      "随着生存时间增加，敌方子弹飞行速度、装弹速度和射击频率会持续提高。",
-    ],
-  },
-] as const;
-
 export default function Home() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -22,7 +11,6 @@ export default function Home() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [lobby, setLobby] = useState<LobbyRoom[]>([]);
-  const [showUpdateNotices, setShowUpdateNotices] = useState(false);
 
   const socket = getSocket();
 
@@ -213,14 +201,6 @@ export default function Home() {
         离线走位训练
       </button>
 
-      <button
-        className="home-updates-button"
-        onClick={() => setShowUpdateNotices(true)}
-        title="查看所有更新公告"
-      >
-        📢 更新公告
-      </button>
-
       <div className="credits-box">
         <p className="credits-title">创作声明</p>
         <p className="credits-text">
@@ -234,33 +214,6 @@ export default function Home() {
         </p>
       </div>
 
-      {showUpdateNotices && (
-        <div
-          className="training-updates-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="updates-title"
-          onClick={() => setShowUpdateNotices(false)}
-        >
-          <div className="training-updates-card" onClick={(event) => event.stopPropagation()}>
-            <div className="training-updates-header">
-              <h2 id="updates-title">更新公告</h2>
-              <button onClick={() => setShowUpdateNotices(false)} aria-label="关闭更新公告">×</button>
-            </div>
-            <div className="training-updates-list">
-              {UPDATE_NOTICES.map((notice) => (
-                <article key={`${notice.date}-${notice.title}`} className="training-update-item">
-                  <time>{notice.date}</time>
-                  <h3>{notice.title}</h3>
-                  <ul>
-                    {notice.details.map((detail) => <li key={detail}>{detail}</li>)}
-                  </ul>
-                </article>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
