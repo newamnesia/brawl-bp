@@ -54,17 +54,6 @@ const BULLET_TEXTURES = {
   high: "/assets/projectiles/bullet-17-5-v3.png?v=4",
 } as const;
 
-const UPDATE_NOTICES = [
-  {
-    date: "2026-08-23",
-    title: "生存训练改为无限挑战",
-    details: [
-      "移除生存模式 60 秒训练上限，不再因达到固定时间而结束对局。",
-      "随着生存时间增加，敌方子弹飞行速度、装弹速度和射击频率会持续提高。",
-    ],
-  },
-] as const;
-
 type Bullet = {
   x: number;          // 子弹中心 x
   y: number;          // 子弹中心 y
@@ -765,7 +754,6 @@ export default function OfflineTrainingGame() {
   const [health, setHealth] = useState(PLAYER_MAX_HEALTH);
   const [survivalTime, setSurvivalTime] = useState(0);
   const [roundResult, setRoundResult] = useState<"defeat" | null>(null);
-  const [showUpdateNotices, setShowUpdateNotices] = useState(false);
   const [restartNonce, setRestartNonce] = useState(0);
   const [magazineAmmo, setMagazineAmmo] = useState(magazineCapacity);
   const [magazineReloadProgress, setMagazineReloadProgress] = useState(0);
@@ -773,7 +761,6 @@ export default function OfflineTrainingGame() {
   // 暂停状态
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
-  const wasPausedBeforeUpdatesRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   // 暂停时的三大样本快照（传给面板绘图）
   const [pauseSnapshot, setPauseSnapshot] = useState<{
@@ -800,17 +787,6 @@ export default function OfflineTrainingGame() {
 
   const togglePause = () => {
     setPaused((v) => !v);
-  };
-
-  const openUpdateNotices = () => {
-    wasPausedBeforeUpdatesRef.current = pausedRef.current;
-    setPaused(true);
-    setShowUpdateNotices(true);
-  };
-
-  const closeUpdateNotices = () => {
-    setShowUpdateNotices(false);
-    if (!wasPausedBeforeUpdatesRef.current) setPaused(false);
   };
 
   useEffect(() => {
@@ -1761,23 +1737,6 @@ export default function OfflineTrainingGame() {
         </div>
 
         <div className="training-hud-actions" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <button
-            onClick={openUpdateNotices}
-            title="查看所有更新公告"
-            style={{
-              background: "rgba(255, 193, 7, 0.14)",
-              color: "#ffd54f",
-              border: "1px solid rgba(255, 193, 7, 0.5)",
-              padding: "0.4rem 0.8rem",
-              borderRadius: "8px",
-              fontWeight: 800,
-              fontSize: "0.85rem",
-              pointerEvents: "auto",
-              whiteSpace: "nowrap",
-            }}
-          >
-            📢 更新公告
-          </button>
           <div className="training-control-label" style={{ fontSize: "0.8rem", color: "#8899aa", whiteSpace: "nowrap" }}>
             操作方式: {mode === "joystick" ? "触控摇杆" : "键盘 WASD"}
           </div>
@@ -1851,34 +1810,6 @@ export default function OfflineTrainingGame() {
           </button>
         </div>
       </div>
-
-      {showUpdateNotices && (
-        <div
-          className="training-updates-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="training-updates-title"
-          onClick={closeUpdateNotices}
-        >
-          <div className="training-updates-card" onClick={(event) => event.stopPropagation()}>
-            <div className="training-updates-header">
-              <h2 id="training-updates-title">更新公告</h2>
-              <button onClick={closeUpdateNotices} aria-label="关闭更新公告">×</button>
-            </div>
-            <div className="training-updates-list">
-              {UPDATE_NOTICES.map((notice) => (
-                <article key={`${notice.date}-${notice.title}`} className="training-update-item">
-                  <time>{notice.date}</time>
-                  <h3>{notice.title}</h3>
-                  <ul>
-                    {notice.details.map((detail) => <li key={detail}>{detail}</li>)}
-                  </ul>
-                </article>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {roundResult && (
         <div className="training-game-over">
