@@ -118,6 +118,53 @@ body {
 .training-game-over-card .btn-primary,
 .training-game-over-card .btn-secondary { width: 100%; margin-top: 0.5rem; }
 
+.training-updates-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(5, 8, 12, 0.72);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  pointer-events: auto;
+}
+
+.training-updates-card {
+  width: min(560px, 100%);
+  max-height: min(78dvh, 680px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 213, 79, 0.28);
+  border-radius: 18px;
+  background: rgba(23, 33, 49, 0.96);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.55);
+}
+
+.training-updates-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.training-updates-header h2 { font-size: 1.25rem; color: #ffd54f; }
+.training-updates-header button {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+  font-size: 1.4rem;
+}
+
+.training-updates-list { max-height: calc(min(78dvh, 680px) - 67px); overflow-y: auto; padding: 1rem 1.1rem 1.2rem; }
+.training-update-item + .training-update-item { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.09); }
+.training-update-item time { color: #8899aa; font-size: 0.76rem; font-weight: 700; }
+.training-update-item h3 { margin-top: 0.25rem; color: #f5f7fa; font-size: 1.05rem; }
+.training-update-item ul { margin-top: 0.55rem; padding-left: 1.15rem; color: #c9d4df; line-height: 1.65; font-size: 0.9rem; }
+
 #root {
   min-height: 100vh;
   min-height: 100dvh;

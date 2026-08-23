@@ -45,13 +45,25 @@ const BEA_NORMAL_DAMAGE = 1600;
 const BEA_ENHANCED_DAMAGE = 4400;
 const PIPER_MIN_DAMAGE = 720;
 const PIPER_MAX_DAMAGE = 3600;
-const TRAINING_TIME_LIMIT_SECONDS = 60;
+const DIFFICULTY_GROWTH_PER_SECOND = 0.005; // 每存活 1 秒提高 0.5%
+const MAX_DIFFICULTY_MULTIPLIER = 2.5;
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_TEXTURES = {
   beaNormal: "/assets/projectiles/bea-normal-v3.png",
   beaEnhanced: "/assets/projectiles/bea-enhanced-v3.png",
   high: "/assets/projectiles/bullet-17-5-v3.png?v=4",
 } as const;
+
+const UPDATE_NOTICES = [
+  {
+    date: "2026-08-23",
+    title: "生存训练改为无限挑战",
+    details: [
+      "移除生存模式 60 秒训练上限，不再因达到固定时间而结束对局。",
+      "随着生存时间增加，敌方子弹飞行速度、装弹速度和射击频率会持续提高。",
+    ],
+  },
+] as const;
 
 type Bullet = {
   x: number;          // 子弹中心 x
@@ -752,7 +764,8 @@ export default function OfflineTrainingGame() {
   const [hitCount, setHitCount] = useState(0);
   const [health, setHealth] = useState(PLAYER_MAX_HEALTH);
   const [survivalTime, setSurvivalTime] = useState(0);
-  const [roundResult, setRoundResult] = useState<"victory" | "defeat" | null>(null);
+  const [roundResult, setRoundResult] = useState<"defeat" | null>(null);
+  const [showUpdateNotices, setShowUpdateNotices] = useState(false);
   const [restartNonce, setRestartNonce] = useState(0);
   const [magazineAmmo, setMagazineAmmo] = useState(magazineCapacity);
   const [magazineReloadProgress, setMagazineReloadProgress] = useState(0);
@@ -760,6 +773,7 @@ export default function OfflineTrainingGame() {
   // 暂停状态
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
+  const wasPausedBeforeUpdatesRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   // 暂停时的三大样本快照（传给面板绘图）
   const [pauseSnapshot, setPauseSnapshot] = useState<{
@@ -786,6 +800,17 @@ export default function OfflineTrainingGame() {
 
   const togglePause = () => {
     setPaused((v) => !v);
+  };
+
+  const openUpdateNotices = () => {
+    wasPausedBeforeUpdatesRef.current = pausedRef.current;
+    setPaused(true);
+    setShowUpdateNotices(true);
+  };
+
+  const closeUpdateNotices = () => {
+    setShowUpdateNotices(false);
+    if (!wasPausedBeforeUpdatesRef.current) setPaused(false);
   };
 
   useEffect(() => {
@@ -1067,7 +1092,7 @@ export default function OfflineTrainingGame() {
           const rangeDx = player.x - ENEMY_X;
           const rangeDy = player.y - ENEMY_Y;
           const inAttackRange = rangeDx * rangeDx + rangeDy * rangeDy <= ENEMY_RANGE * ENEMY_RANGE;
-          if (inAttackRange) survivalTimeRef.current = Math.min(TRAINING_TIME_LIMIT_SECONDS, survivalTimeRef.current + dt);
+          if (inAttackRange) survivalTimeRef.current += dt;
           else survivalTimeRef.current = 0;
 
           secondsSinceDamageRef.current += dt;
@@ -1079,14 +1104,15 @@ export default function OfflineTrainingGame() {
             setSurvivalTime(survivalTimeRef.current);
             lastSurvivalUiUpdateRef.current = now;
           }
-          if (survivalTimeRef.current >= TRAINING_TIME_LIMIT_SECONDS) {
-            setSurvivalTime(TRAINING_TIME_LIMIT_SECONDS);
-            pausedRef.current = true;
-            setRoundResult("victory");
-            animationId = requestAnimationFrame(gameLoop);
-            return;
-          }
         }
+
+        const difficultyMultiplier = isSurvivalMode
+          ? Math.min(MAX_DIFFICULTY_MULTIPLIER, 1 + survivalTimeRef.current * DIFFICULTY_GROWTH_PER_SECOND)
+          : 1;
+        const currentReloadSeconds = magazineReloadSeconds / difficultyMultiplier;
+        const currentFireIntervalMin = fireIntervalMin / difficultyMultiplier;
+        const currentFireIntervalMax = fireIntervalMax / difficultyMultiplier;
+        const currentBulletSpeed = bulletSpeed * difficultyMultiplier;
 
         // ======== 弹匣恢复 + 随机开火（含最多一次双发追射） ========
         if (magazineAmmoRef.current < magazineCapacity) {
@@ -1094,16 +1120,16 @@ export default function OfflineTrainingGame() {
           if (magazineReloadTimerRef.current <= 0) {
             magazineAmmoRef.current += 1;
             setMagazineAmmo(magazineAmmoRef.current);
-            magazineReloadTimerRef.current += magazineReloadSeconds;
+            magazineReloadTimerRef.current += currentReloadSeconds;
             if (magazineAmmoRef.current >= magazineCapacity) setMagazineReloadProgress(0);
           }
           if (now - lastMagazineUiUpdateRef.current >= 33) {
-            const reloadProgress = 1 - magazineReloadTimerRef.current / magazineReloadSeconds;
+            const reloadProgress = 1 - magazineReloadTimerRef.current / currentReloadSeconds;
             setMagazineReloadProgress(Math.max(0, Math.min(1, reloadProgress)));
             lastMagazineUiUpdateRef.current = now;
           }
         } else {
-          magazineReloadTimerRef.current = magazineReloadSeconds;
+          magazineReloadTimerRef.current = currentReloadSeconds;
         }
 
         fireTimerRef.current -= dt;
@@ -1123,7 +1149,7 @@ export default function OfflineTrainingGame() {
               speed: curSpeed,
               enemyX: ENEMY_X,
               enemyY: ENEMY_Y,
-              bulletSpeed,
+              bulletSpeed: currentBulletSpeed,
               shotId,
               now,
               p: prof,
@@ -1139,8 +1165,8 @@ export default function OfflineTrainingGame() {
             bulletsRef.current.push({
               x: ENEMY_X,
               y: ENEMY_Y,
-              vx: (ax / da) * bulletSpeed,
-              vy: (ay / da) * bulletSpeed,
+              vx: (ax / da) * currentBulletSpeed,
+              vy: (ay / da) * currentBulletSpeed,
               traveled: 0,
               id: shotId,
               radius: isBeaMode ? 0.325 : 0.25,
@@ -1152,17 +1178,17 @@ export default function OfflineTrainingGame() {
 
             if (burstFollowupRef.current) {
               burstFollowupRef.current = false;
-              fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
+              fireTimerRef.current = currentFireIntervalMin + Math.random() * (currentFireIntervalMax - currentFireIntervalMin);
             } else if (!isBeaMode && ammoBeforeShot >= 2 && Math.random() < BURST_PROBABILITY) {
               burstFollowupRef.current = true;
-              fireTimerRef.current = BURST_INTERVAL_SECONDS;
+              fireTimerRef.current = BURST_INTERVAL_SECONDS / difficultyMultiplier;
             } else {
-              fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
+              fireTimerRef.current = currentFireIntervalMin + Math.random() * (currentFireIntervalMax - currentFireIntervalMin);
             }
           } else {
             // 无弹或玩家不在射程时也重新抽取等待，避免补弹瞬间固定开火。
             burstFollowupRef.current = false;
-            fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
+            fireTimerRef.current = currentFireIntervalMin + Math.random() * (currentFireIntervalMax - currentFireIntervalMin);
           }
         }
 
@@ -1203,7 +1229,8 @@ export default function OfflineTrainingGame() {
               b.y >= viewMapTop && b.y <= viewMapBottom
             ) {
               bulletEnteredVision.add(b.id);
-              const remainingLifeMs = ((BULLET_MAX_DIST - b.traveled) / bulletSpeed) * 1000;
+              const projectileSpeed = Math.hypot(b.vx, b.vy) || bulletSpeed;
+              const remainingLifeMs = ((BULLET_MAX_DIST - b.traveled) / projectileSpeed) * 1000;
               const baselineAngle = curSpeed >= INPUT_DEADZONE_MAG ? Math.atan2(input.y, input.x) : null;
               profileBulletEnterVision(prof, now, b.id, remainingLifeMs, baselineAngle);
             }
@@ -1626,7 +1653,7 @@ export default function OfflineTrainingGame() {
 
       {isSurvivalMode && (
         <div className="training-survival-status" aria-live="polite">
-          <div className="training-survival-time">{survivalTime.toFixed(1)} / {TRAINING_TIME_LIMIT_SECONDS}s</div>
+          <div className="training-survival-time">{survivalTime.toFixed(1)}s</div>
           <>
             <div className="training-health-bar" aria-label={`生命值 ${health}/${PLAYER_MAX_HEALTH}`}>
               <span style={{ width: `${Math.max(0, health / PLAYER_MAX_HEALTH) * 100}%` }} />
@@ -1734,6 +1761,23 @@ export default function OfflineTrainingGame() {
         </div>
 
         <div className="training-hud-actions" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <button
+            onClick={openUpdateNotices}
+            title="查看所有更新公告"
+            style={{
+              background: "rgba(255, 193, 7, 0.14)",
+              color: "#ffd54f",
+              border: "1px solid rgba(255, 193, 7, 0.5)",
+              padding: "0.4rem 0.8rem",
+              borderRadius: "8px",
+              fontWeight: 800,
+              fontSize: "0.85rem",
+              pointerEvents: "auto",
+              whiteSpace: "nowrap",
+            }}
+          >
+            📢 更新公告
+          </button>
           <div className="training-control-label" style={{ fontSize: "0.8rem", color: "#8899aa", whiteSpace: "nowrap" }}>
             操作方式: {mode === "joystick" ? "触控摇杆" : "键盘 WASD"}
           </div>
@@ -1808,14 +1852,40 @@ export default function OfflineTrainingGame() {
         </div>
       </div>
 
+      {showUpdateNotices && (
+        <div
+          className="training-updates-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="training-updates-title"
+          onClick={closeUpdateNotices}
+        >
+          <div className="training-updates-card" onClick={(event) => event.stopPropagation()}>
+            <div className="training-updates-header">
+              <h2 id="training-updates-title">更新公告</h2>
+              <button onClick={closeUpdateNotices} aria-label="关闭更新公告">×</button>
+            </div>
+            <div className="training-updates-list">
+              {UPDATE_NOTICES.map((notice) => (
+                <article key={`${notice.date}-${notice.title}`} className="training-update-item">
+                  <time>{notice.date}</time>
+                  <h3>{notice.title}</h3>
+                  <ul>
+                    {notice.details.map((detail) => <li key={detail}>{detail}</li>)}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {roundResult && (
         <div className="training-game-over">
           <div className="training-game-over-card">
-            <div className={`training-game-over-title ${roundResult === "victory" ? "victory" : ""}`}>
-              {roundResult === "victory" ? "训练胜利！" : "本轮结束"}
-            </div>
+            <div className="training-game-over-title">本轮结束</div>
             <div className="training-game-over-time">
-              {roundResult === "victory" ? "你在攻击范围内坚持了 60 秒" : `生存时间 ${survivalTime.toFixed(1)} 秒`}
+              生存时间 {survivalTime.toFixed(1)} 秒
             </div>
             <button
               className="btn-primary"
