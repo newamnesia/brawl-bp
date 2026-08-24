@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
+type AimReactionTier = "diamond" | "legendary" | "master";
 type TrainingSnapshot = {
   stickMag: number[];
   reactionMs: number[];
@@ -59,8 +60,16 @@ const ENEMY_X = 10.5;
 const ENEMY_Y = 9.5;
 const ENEMY_RADIUS = 0.5;
 const ENEMY_RANGE = 10;       // 射程半径
-const AIMING_TARGET_RADIUS = 9;
-const AIMING_DIRECTION_SWITCH_SECONDS = 2;
+const AIMING_MIN_DISTANCE = 8;
+const AIMING_MAX_DISTANCE = 10;
+const AIMING_FRONT_ANGLE = -Math.PI / 2;
+const AIMING_SECTOR_HALF_ANGLE = Math.PI / 4;
+const AIMING_AI_TURN_RATE = 10;
+const AIMING_REACTION_SECONDS: Record<AimReactionTier, number> = {
+  diamond: 0.5,
+  legendary: 0.38,
+  master: 0.29,
+};
 const MAGAZINE_CAPACITY = 3;
 const MAGAZINE_RELOAD_SECONDS = 1.5;
 // 普通射击平均间隔 1.9s，慢于单发恢复时间 1.5s。
@@ -758,6 +767,11 @@ export default function OfflineTrainingGame() {
     : requestedTrainingMode === "aiming" ? "aiming" : "practice";
   const isSurvivalMode = trainingMode === "survival";
   const isAimingMode = trainingMode === "aiming";
+  const requestedReactionTier = searchParams.get("reactionTier");
+  const reactionTier: AimReactionTier = requestedReactionTier === "legendary" || requestedReactionTier === "master"
+    ? requestedReactionTier
+    : "diamond";
+  const aimingReactionSeconds = AIMING_REACTION_SECONDS[reactionTier];
 
   // 从 URL 读取子弹速度（最小 0.01，非法时回退到当前档位，而不是固定低速）。
   const rawSpeed = parseFloat(searchParams.get("bulletSpeed") ?? "");
@@ -811,10 +825,17 @@ export default function OfflineTrainingGame() {
   });
   const aimingTargetRef = useRef({
     x: ENEMY_X,
-    y: ENEMY_Y - AIMING_TARGET_RADIUS,
+    y: ENEMY_Y - 9,
     angle: -Math.PI / 2,
     direction: 1 as 1 | -1,
-    switchTimer: AIMING_DIRECTION_SWITCH_SECONDS,
+    switchTimer: 0.7,
+  });
+  const aimingTargetAiRef = useRef({
+    heading: 0,
+    desiredHeading: 0,
+    changeTimer: 0.7,
+    dodgeLockTimer: 0,
+    reactedBulletIds: new Set<number>(),
   });
   const aimingTargetHealthRef = useRef(PLAYER_MAX_HEALTH);
   const aimingTargetSecondsSinceDamageRef = useRef(0);
@@ -890,6 +911,8 @@ export default function OfflineTrainingGame() {
             speedTier,
             character: speedTier === "high" ? "佩佩" : "贝亚",
             bulletSpeed,
+            reactionTier,
+            reactionSeconds: aimingReactionSeconds,
             result: roundResult ?? "ended",
           },
         } : {
@@ -1052,10 +1075,17 @@ export default function OfflineTrainingGame() {
       : { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
     aimingTargetRef.current = {
       x: ENEMY_X,
-      y: ENEMY_Y - AIMING_TARGET_RADIUS,
+      y: ENEMY_Y - 9,
       angle: -Math.PI / 2,
       direction: 1,
-      switchTimer: AIMING_DIRECTION_SWITCH_SECONDS,
+      switchTimer: 0.7,
+    };
+    aimingTargetAiRef.current = {
+      heading: 0,
+      desiredHeading: 0,
+      changeTimer: 0.7,
+      dodgeLockTimer: 0,
+      reactedBulletIds: new Set<number>(),
     };
     aimingTargetHealthRef.current = PLAYER_MAX_HEALTH;
     aimingTargetSecondsSinceDamageRef.current = 0;
@@ -1209,21 +1239,65 @@ export default function OfflineTrainingGame() {
 
         if (isAimingMode) {
           const target = aimingTargetRef.current;
-          target.switchTimer -= dt;
-          if (target.switchTimer <= 0) {
-            target.direction = target.direction === 1 ? -1 : 1;
-            target.switchTimer += AIMING_DIRECTION_SWITCH_SECONDS;
+          const ai = aimingTargetAiRef.current;
+          ai.changeTimer -= dt;
+          ai.dodgeLockTimer = Math.max(0, ai.dodgeLockTimer - dt);
+
+          // 子弹飞行达到当前段位反应时间后，选择与弹道成 90°~150° 的随机躲避方向。
+          const threat = bulletsRef.current
+            .filter((bullet) => bullet.owner === "player" && !ai.reactedBulletIds.has(bullet.id))
+            .filter((bullet) => bullet.traveled / Math.max(0.01, Math.hypot(bullet.vx, bullet.vy)) >= aimingReactionSeconds)
+            .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0];
+          if (threat) {
+            const bulletHeading = Math.atan2(threat.vy, threat.vx);
+            const evadeOffset = (Math.PI / 2 + Math.random() * Math.PI / 3) * (Math.random() < 0.5 ? -1 : 1);
+            ai.desiredHeading = bulletHeading + evadeOffset;
+            ai.dodgeLockTimer = 0.28;
+            ai.reactedBulletIds.add(threat.id);
+          } else if (ai.changeTimer <= 0 && ai.dodgeLockTimer <= 0) {
+            ai.desiredHeading = Math.random() * Math.PI * 2 - Math.PI;
+            ai.changeTimer = 0.3 + Math.random() * 0.7;
           }
-          target.angle += target.direction * (MOVE_SPEED / AIMING_TARGET_RADIUS) * dt;
-          if (target.angle > 0) {
-            target.angle = 0;
-            target.direction = -1;
-          } else if (target.angle < -Math.PI) {
-            target.angle = -Math.PI;
-            target.direction = 1;
+
+          // 模拟手指拖动摇杆：航向以有限角速度平滑转向，不瞬间跳变。
+          const headingDelta = Math.atan2(
+            Math.sin(ai.desiredHeading - ai.heading),
+            Math.cos(ai.desiredHeading - ai.heading),
+          );
+          const headingStep = Math.max(-AIMING_AI_TURN_RATE * dt, Math.min(AIMING_AI_TURN_RATE * dt, headingDelta));
+          ai.heading += headingStep;
+
+          let nextX = target.x + Math.cos(ai.heading) * MOVE_SPEED * dt;
+          let nextY = target.y + Math.sin(ai.heading) * MOVE_SPEED * dt;
+          const relativeX = nextX - player.x;
+          const relativeY = nextY - player.y;
+          const rawDistance = Math.hypot(relativeX, relativeY) || 9;
+          const rawAngle = Math.atan2(relativeY, relativeX);
+          const sectorOffset = Math.max(
+            -AIMING_SECTOR_HALF_ANGLE,
+            Math.min(AIMING_SECTOR_HALF_ANGLE, Math.atan2(Math.sin(rawAngle - AIMING_FRONT_ANGLE), Math.cos(rawAngle - AIMING_FRONT_ANGLE))),
+          );
+          const constrainedDistance = Math.max(AIMING_MIN_DISTANCE, Math.min(AIMING_MAX_DISTANCE, rawDistance));
+          const constrainedAngle = AIMING_FRONT_ANGLE + sectorOffset;
+          nextX = player.x + Math.cos(constrainedAngle) * constrainedDistance;
+          nextY = player.y + Math.sin(constrainedAngle) * constrainedDistance;
+          nextX = Math.max(ENEMY_RADIUS, Math.min(MAP_WIDTH - ENEMY_RADIUS, nextX));
+          nextY = Math.max(ENEMY_RADIUS, Math.min(MAP_HEIGHT - ENEMY_RADIUS, nextY));
+
+          // 靠近扇区或距离边界时提前把目标方向拉回活动区中心，下一帧仍平滑转向。
+          const touchedBoundary = Math.abs(sectorOffset) >= AIMING_SECTOR_HALF_ANGLE - 0.025
+            || rawDistance <= AIMING_MIN_DISTANCE + 0.04
+            || rawDistance >= AIMING_MAX_DISTANCE - 0.04;
+          if (touchedBoundary && ai.dodgeLockTimer <= 0) {
+            const centerX = player.x + Math.cos(AIMING_FRONT_ANGLE) * 9;
+            const centerY = player.y + Math.sin(AIMING_FRONT_ANGLE) * 9;
+            ai.desiredHeading = Math.atan2(centerY - target.y, centerX - target.x) + (Math.random() - 0.5) * 0.35;
           }
-          target.x = player.x + Math.cos(target.angle) * AIMING_TARGET_RADIUS;
-          target.y = player.y + Math.sin(target.angle) * AIMING_TARGET_RADIUS;
+
+          target.x = nextX;
+          target.y = nextY;
+          target.angle = Math.atan2(target.y - player.y, target.x - player.x);
+          target.direction = Math.sin(ai.heading - target.angle) >= 0 ? 1 : -1;
         }
 
         // === Profiler 采样：rawMag & engaged 按模式区分 ===
@@ -1846,7 +1920,7 @@ export default function OfflineTrainingGame() {
 
       // 方向箭头统一置于所有 Canvas 内容的最终前景层，避免被子弹、粒子或蜂蜜海覆盖。
       const enemyDirection = isAimingMode
-        ? aimingTargetRef.current.angle + aimingTargetRef.current.direction * Math.PI / 2
+        ? aimingTargetAiRef.current.heading
         : enemyDirectionRef.current;
       drawDirectionArrow(
         renderedEnemy.x, renderedEnemy.y, enemyCenterPx, enemyCenterPy,
@@ -1879,7 +1953,7 @@ export default function OfflineTrainingGame() {
       beaEnhancedShotsRef.current = 0;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, bulletSpeed, isSurvivalMode, isAimingMode, restartNonce]);
+  }, [mode, bulletSpeed, isSurvivalMode, isAimingMode, aimingReactionSeconds, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {

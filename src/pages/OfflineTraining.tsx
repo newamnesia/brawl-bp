@@ -4,10 +4,16 @@ import { useState } from "react";
 type ControlMode = "joystick" | "keyboard";
 type SpeedTier = "mid" | "high";
 type TrainingMode = "practice" | "survival" | "aiming";
+type AimReactionTier = "diamond" | "legendary" | "master";
 
 const SPEED_TIERS: Record<SpeedTier, { label: string; value: number }> = {
   mid: { label: "贝亚", value: 14 },
   high: { label: "佩佩", value: 17.5 },
+};
+const AIM_REACTION_TIERS: Record<AimReactionTier, { label: string; seconds: number }> = {
+  diamond: { label: "钻石", seconds: 0.5 },
+  legendary: { label: "传奇", seconds: 0.38 },
+  master: { label: "大师", seconds: 0.29 },
 };
 
 const UPDATE_NOTICES = [
@@ -26,6 +32,7 @@ export default function OfflineTraining() {
   const [selectedMode, setSelectedMode] = useState<ControlMode | null>(null);
   const [selectedSpeed, setSelectedSpeed] = useState<SpeedTier>("mid");
   const [trainingMode, setTrainingMode] = useState<TrainingMode>("practice");
+  const [aimReactionTier, setAimReactionTier] = useState<AimReactionTier>("diamond");
   const [showUpdateNotices, setShowUpdateNotices] = useState(false);
 
   const handleStart = () => {
@@ -33,7 +40,7 @@ export default function OfflineTraining() {
     const speedVal = SPEED_TIERS[selectedSpeed].value;
     const controlMode = trainingMode === "aiming" ? "joystick" : selectedMode;
     navigate(
-      `/offline-training/game?mode=${controlMode}&speedTier=${selectedSpeed}&bulletSpeed=${speedVal.toFixed(2)}&trainingMode=${trainingMode}`,
+      `/offline-training/game?mode=${controlMode}&speedTier=${selectedSpeed}&bulletSpeed=${speedVal.toFixed(2)}&trainingMode=${trainingMode}&reactionTier=${aimReactionTier}`,
     );
   };
 
@@ -151,9 +158,25 @@ export default function OfflineTraining() {
         </>}
 
         {trainingMode === "aiming" && (
-          <div className="tutorial-box" style={{ marginTop: "1rem" }}>
-            拖动右下角攻击摇杆瞄准，松手发射；击败 6000 生命的移动目标即可获胜。
-          </div>
+          <>
+            <div className="form-group" style={{ marginTop: "1rem" }}>
+              <label>人机反应速度</label>
+              <div className="toggle-group">
+                {(Object.keys(AIM_REACTION_TIERS) as AimReactionTier[]).map((tier) => {
+                  const cfg = AIM_REACTION_TIERS[tier];
+                  return (
+                    <button key={tier} type="button" className={aimReactionTier === tier ? "active" : ""} onClick={() => setAimReactionTier(tier)} style={{ flex: 1, padding: "0.75rem 0.4rem" }}>
+                      <div style={{ fontWeight: 800 }}>{cfg.label}</div>
+                      <div style={{ marginTop: "0.18rem", color: "var(--muted)", fontSize: "0.72rem" }}>{cfg.seconds.toFixed(2)}s</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="tutorial-box" style={{ marginTop: "1rem" }}>
+              拖动右下角攻击摇杆瞄准，松手发射；人机会在反应时间后尝试躲避，击败 6000 生命的目标即可获胜。
+            </div>
+          </>
         )}
 
         <button

@@ -86,7 +86,7 @@ function rebinReaction(target: number[], source: number[], sourceMax: number) {
 function normalizeConfiguration(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const source = value as Record<string, unknown>;
-  const allowedKeys = ["trainingMode", "controlMode", "speedTier", "character", "bulletSpeed", "result", "survivalTime"];
+  const allowedKeys = ["trainingMode", "controlMode", "speedTier", "character", "bulletSpeed", "reactionTier", "reactionSeconds", "result", "survivalTime"];
   const result: Record<string, string | number> = {};
   for (const key of allowedKeys) {
     const field = source[key];

@@ -335,6 +335,9 @@ function TrainingHistoryItem({ record, expanded, onToggle, onDelete }: {
   const survivalLabel = typeof config.survivalTime === "number" && config.trainingMode === "survival"
     ? ` · 生存 ${config.survivalTime.toFixed(1)} 秒`
     : "";
+  const reactionLabel = typeof config.reactionSeconds === "number"
+    ? ` · 人机反应 ${config.reactionSeconds.toFixed(2)} 秒`
+    : "";
   const uploadedAt = new Date(record.uploadedAt).toLocaleString("zh-CN", { hour12: false });
   return (
     <article className={`account-history-item ${expanded ? "expanded" : ""}`}>
@@ -342,7 +345,7 @@ function TrainingHistoryItem({ record, expanded, onToggle, onDelete }: {
         <time>{uploadedAt}</time>
         <div className="account-history-config">
           <strong>{modeLabel}</strong>
-          <span>{controlLabel} · {character} · {speedLabel} · {bulletSpeedLabel}{survivalLabel}</span>
+          <span>{controlLabel} · {character} · {speedLabel} · {bulletSpeedLabel}{reactionLabel}{survivalLabel}</span>
         </div>
         <button className="account-detail-button" onClick={(event) => { event.stopPropagation(); onToggle(); }}>{expanded ? "收起详情" : "查看详情"}</button>
         {onDelete && <button className="account-delete-button" onClick={(event) => { event.stopPropagation(); onDelete(); }}>删除</button>}
