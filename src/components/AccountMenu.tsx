@@ -30,6 +30,14 @@ type TrainingRecord = {
   totalSeconds?: number;
   supportsEmptyAmmoRatio?: boolean;
 };
+type AdminUser = {
+  username: string;
+  role: string;
+  createdAt: string;
+  movementUploads: number;
+  aimingUploads: number;
+  lastUpload: string | null;
+};
 
 export default function AccountMenu() {
   const [account, setAccount] = useState<Account | null>(null);
@@ -43,6 +51,13 @@ export default function AccountMenu() {
   const [statsError, setStatsError] = useState("");
   const [history, setHistory] = useState<TrainingRecord[]>([]);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [adminSelectedUser, setAdminSelectedUser] = useState<AdminUser | null>(null);
+  const [adminStats, setAdminStats] = useState<PersonalStats | null>(null);
+  const [adminHistory, setAdminHistory] = useState<TrainingRecord[]>([]);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminError, setAdminError] = useState("");
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -102,6 +117,41 @@ export default function AccountMenu() {
     }
   };
 
+  const openAdminPanel = async () => {
+    setAdminOpen(true);
+    setAdminLoading(true);
+    setAdminError("");
+    try {
+      const response = await fetch("/api/auth/admin/users");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "读取账号列表失败");
+      setAdminUsers(data.users ?? []);
+    } catch (adminLoadError) {
+      setAdminError(adminLoadError instanceof Error ? adminLoadError.message : "读取账号列表失败");
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  const viewAdminUser = async (user: AdminUser) => {
+    setAdminSelectedUser(user);
+    setAdminStats(null);
+    setAdminHistory([]);
+    setAdminLoading(true);
+    setAdminError("");
+    try {
+      const response = await fetch(`/api/auth/admin/users/${encodeURIComponent(user.username)}/training-data`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "读取账号数据失败");
+      setAdminStats({ ...data.modes, aiming: data.aiming });
+      setAdminHistory(data.history ?? []);
+    } catch (adminLoadError) {
+      setAdminError(adminLoadError instanceof Error ? adminLoadError.message : "读取账号数据失败");
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
   const login = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
@@ -132,6 +182,7 @@ export default function AccountMenu() {
       setStats(null);
       setHistory([]);
       setOpen(false);
+      setAdminOpen(false);
     } finally {
       setLoading(false);
     }
@@ -142,6 +193,38 @@ export default function AccountMenu() {
       <button className="account-trigger" onClick={() => setOpen(true)}>
         {account ? `已登录：${account.username}` : "账号登录"}
       </button>
+      {account?.role === "admin" && (
+        <button className="admin-sidebar-trigger" onClick={() => void openAdminPanel()}>管理员后台</button>
+      )}
+      {adminOpen && account?.role === "admin" && (
+        <div className="admin-panel-backdrop">
+          <section className="admin-panel" role="dialog" aria-modal="true" aria-label="管理员后台">
+            <header className="admin-panel-header">
+              <div><h2>管理员后台</h2><span>查看所有账号及训练数据</span></div>
+              <button aria-label="关闭" onClick={() => setAdminOpen(false)}>×</button>
+            </header>
+            <div className="admin-panel-layout">
+              <aside className="admin-user-list">
+                <h3>账号列表（{adminUsers.length}）</h3>
+                {adminUsers.map((user) => (
+                  <button key={user.username} className={adminSelectedUser?.username === user.username ? "active" : ""} onClick={() => void viewAdminUser(user)}>
+                    <strong>{user.username}</strong>
+                    <span>{user.role === "admin" ? "管理员" : "玩家"} · 数据 {user.movementUploads + user.aimingUploads} 局</span>
+                  </button>
+                ))}
+              </aside>
+              <main className="admin-user-data">
+                {adminLoading && <p className="account-role">正在读取数据…</p>}
+                {adminError && <p className="error-msg">{adminError}</p>}
+                {!adminSelectedUser && !adminLoading && <p className="account-no-data">请从左侧选择一个账号</p>}
+                {adminSelectedUser && adminStats && (
+                  <AdminUserData user={adminSelectedUser} stats={adminStats} history={adminHistory} />
+                )}
+              </main>
+            </div>
+          </section>
+        </div>
+      )}
       {open && (
         <div className="account-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
           <section className={`account-dialog ${account ? "account-dialog-profile" : ""}`} role="dialog" aria-modal="true" aria-labelledby="account-title">
@@ -204,11 +287,40 @@ export default function AccountMenu() {
   );
 }
 
+function AdminUserData({ user, stats, history }: { user: AdminUser; stats: PersonalStats; history: TrainingRecord[] }) {
+  const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
+  return (
+    <div className="admin-user-data-content">
+      <div className="admin-user-summary">
+        <div><h3>{user.username}</h3><span>{user.role === "admin" ? "管理员" : "玩家"}</span></div>
+        <span>注册于 {new Date(user.createdAt).toLocaleString("zh-CN", { hour12: false })}</span>
+      </div>
+      <div className="account-stats-modes">
+        <ModeStatsCard title="纯走位模式 · 键盘操纵" stats={stats.keyboard} controlMode="keyboard" />
+        <ModeStatsCard title="纯走位模式 · 摇杆操纵" stats={stats.joystick} controlMode="joystick" />
+        <AimingStatsCard stats={stats.aiming} />
+      </div>
+      <div className="account-history-header"><div><h3>上传记录</h3><span>共 {history.length} 条</span></div></div>
+      <div className="account-history-list">
+        {history.length === 0 && <p className="account-no-data">该账号暂无上传记录</p>}
+        {history.map((record) => (
+          <TrainingHistoryItem
+            key={record.id}
+            record={record}
+            expanded={expandedRecord === record.id}
+            onToggle={() => setExpandedRecord((current) => current === record.id ? null : record.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TrainingHistoryItem({ record, expanded, onToggle, onDelete }: {
   record: TrainingRecord;
   expanded: boolean;
   onToggle: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
 }) {
   const config = record.configuration ?? {};
   const modeLabel = record.kind === "aiming"
@@ -233,7 +345,7 @@ function TrainingHistoryItem({ record, expanded, onToggle, onDelete }: {
           <span>{controlLabel} · {character} · {speedLabel} · {bulletSpeedLabel}{survivalLabel}</span>
         </div>
         <button className="account-detail-button" onClick={(event) => { event.stopPropagation(); onToggle(); }}>{expanded ? "收起详情" : "查看详情"}</button>
-        <button className="account-delete-button" onClick={(event) => { event.stopPropagation(); onDelete(); }}>删除</button>
+        {onDelete && <button className="account-delete-button" onClick={(event) => { event.stopPropagation(); onDelete(); }}>删除</button>}
       </div>
       {expanded && <TrainingRecordDetails record={record} />}
     </article>

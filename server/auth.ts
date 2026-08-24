@@ -96,6 +96,79 @@ function normalizeConfiguration(value: unknown) {
   return result;
 }
 
+async function loadTrainingDataForUsername(username: string) {
+  if (!pool) throw new Error("Database unavailable");
+  const movementResult = await pool.query(
+    `SELECT id, control_mode, stick_bins, stick_count, stick_sum,
+            reaction_bins, reaction_count, reaction_sum, reaction_max,
+            turn_bins, turn_count, turn_sum, configuration, uploaded_at
+     FROM training_uploads WHERE username = $1`,
+    [username],
+  );
+  const makeMode = () => ({
+    uploads: 0,
+    stick: { bins: Array(DISTRIBUTION_BINS.stick).fill(0), count: 0, sum: 0 },
+    reaction: { bins: Array(DISTRIBUTION_BINS.reaction).fill(0), count: 0, sum: 0 },
+    turn: { bins: Array(DISTRIBUTION_BINS.turn).fill(0), count: 0, sum: 0 },
+  });
+  const modes: Record<"keyboard" | "joystick", ReturnType<typeof makeMode>> = {
+    keyboard: makeMode(), joystick: makeMode(),
+  };
+  for (const row of movementResult.rows) {
+    const mode = modes[row.control_mode as "keyboard" | "joystick"];
+    mode.uploads += 1;
+    addBins(mode.stick.bins, row.stick_bins);
+    rebinReaction(mode.reaction.bins, row.reaction_bins, Number(row.reaction_max));
+    addBins(mode.turn.bins, row.turn_bins);
+    mode.stick.count += row.stick_count; mode.stick.sum += Number(row.stick_sum);
+    mode.reaction.count += row.reaction_count; mode.reaction.sum += Number(row.reaction_sum);
+    mode.turn.count += row.turn_count; mode.turn.sum += Number(row.turn_sum);
+  }
+  const aimingResult = await pool.query(
+    `SELECT id, lead_bins, lead_count, lead_sum, lead_max, empty_ammo_seconds, total_seconds,
+            configuration, uploaded_at
+     FROM aiming_uploads WHERE username = $1`,
+    [username],
+  );
+  const aimingRows = aimingResult.rows;
+  const aggregateMaxTenths = Math.max(1, ...aimingRows.map((row) => Math.round(Number(row.lead_max) * 10)));
+  const aiming = {
+    uploads: aimingRows.length,
+    lead: { bins: Array(aggregateMaxTenths * 2 + 1).fill(0), count: 0, sum: 0, max: aggregateMaxTenths / 10 },
+    emptyAmmoSeconds: 0,
+    totalSeconds: 0,
+  };
+  for (const row of aimingRows) {
+    const rowMaxTenths = Math.round(Number(row.lead_max) * 10);
+    row.lead_bins.forEach((count: number, index: number) => {
+      aiming.lead.bins[index - rowMaxTenths + aggregateMaxTenths] += Number(count);
+    });
+    aiming.lead.count += row.lead_count;
+    aiming.lead.sum += Number(row.lead_sum);
+    if (row.configuration?.speedTier === "high" || row.configuration?.character === "佩佩") {
+      aiming.emptyAmmoSeconds += Number(row.empty_ammo_seconds);
+      aiming.totalSeconds += Number(row.total_seconds);
+    }
+  }
+  const movementHistory = movementResult.rows.map((row) => ({
+    id: `movement:${row.id}`, kind: "movement", uploadedAt: row.uploaded_at,
+    configuration: row.configuration, controlMode: row.control_mode,
+    stick: { bins: row.stick_bins, count: row.stick_count, sum: Number(row.stick_sum), min: 0, max: 1.05 },
+    reaction: { bins: row.reaction_bins, count: row.reaction_count, sum: Number(row.reaction_sum), min: 120, max: Number(row.reaction_max) },
+    turn: { bins: row.turn_bins, count: row.turn_count, sum: Number(row.turn_sum), min: 80, max: 4200 },
+  }));
+  const aimingHistory = aimingRows.map((row) => ({
+    id: `aiming:${row.id}`, kind: "aiming", uploadedAt: row.uploaded_at,
+    configuration: row.configuration,
+    lead: { bins: row.lead_bins, count: row.lead_count, sum: Number(row.lead_sum), min: -Number(row.lead_max), max: Number(row.lead_max) },
+    emptyAmmoSeconds: Number(row.empty_ammo_seconds), totalSeconds: Number(row.total_seconds),
+    supportsEmptyAmmoRatio: row.configuration?.speedTier === "high" || row.configuration?.character === "佩佩",
+  }));
+  const history = [...movementHistory, ...aimingHistory]
+    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+  return { modes, aiming, history };
+}
+
 export async function initializeAuthDatabase() {
   if (!pool) {
     console.warn("DATABASE_URL 未配置，账号登录功能暂不可用");
@@ -391,6 +464,59 @@ export function createAuthRouter(secureCookies: boolean) {
     } catch (error) {
       console.error("读取训练数据失败", error);
       return res.status(503).json({ error: "读取个人数据失败" });
+    }
+  });
+
+  router.get("/admin/users", async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "账号服务暂不可用" });
+    try {
+      const admin = await getSessionUser(req.headers.cookie);
+      if (!admin) return res.status(401).json({ error: "请先登录账号" });
+      if (admin.role !== "admin") return res.status(403).json({ error: "仅管理员可访问" });
+      const result = await pool.query(`
+        SELECT users.username, users.role, users.created_at,
+          COALESCE(movement.uploads, 0)::int AS movement_uploads,
+          COALESCE(aiming.uploads, 0)::int AS aiming_uploads,
+          GREATEST(movement.last_upload, aiming.last_upload) AS last_upload
+        FROM users
+        LEFT JOIN (
+          SELECT username, COUNT(*) AS uploads, MAX(uploaded_at) AS last_upload
+          FROM training_uploads GROUP BY username
+        ) movement ON movement.username = users.username
+        LEFT JOIN (
+          SELECT username, COUNT(*) AS uploads, MAX(uploaded_at) AS last_upload
+          FROM aiming_uploads GROUP BY username
+        ) aiming ON aiming.username = users.username
+        ORDER BY users.created_at ASC
+      `);
+      return res.json({ users: result.rows.map((row) => ({
+        username: row.username,
+        role: row.role,
+        createdAt: row.created_at,
+        movementUploads: row.movement_uploads,
+        aimingUploads: row.aiming_uploads,
+        lastUpload: row.last_upload,
+      })) });
+    } catch (error) {
+      console.error("读取账号列表失败", error);
+      return res.status(503).json({ error: "读取账号列表失败" });
+    }
+  });
+
+  router.get("/admin/users/:username/training-data", async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "账号服务暂不可用" });
+    try {
+      const admin = await getSessionUser(req.headers.cookie);
+      if (!admin) return res.status(401).json({ error: "请先登录账号" });
+      if (admin.role !== "admin") return res.status(403).json({ error: "仅管理员可访问" });
+      const username = req.params.username;
+      const userResult = await pool.query("SELECT username, role, created_at FROM users WHERE username = $1", [username]);
+      if (userResult.rowCount === 0) return res.status(404).json({ error: "账号不存在" });
+      const data = await loadTrainingDataForUsername(username);
+      return res.json({ user: userResult.rows[0], ...data });
+    } catch (error) {
+      console.error("读取账号训练数据失败", error);
+      return res.status(503).json({ error: "读取账号训练数据失败" });
     }
   });
 
