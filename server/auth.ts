@@ -360,8 +360,10 @@ export function createAuthRouter(secureCookies: boolean) {
         });
         aiming.lead.count += row.lead_count;
         aiming.lead.sum += Number(row.lead_sum);
-        aiming.emptyAmmoSeconds += Number(row.empty_ammo_seconds);
-        aiming.totalSeconds += Number(row.total_seconds);
+        if (row.configuration?.speedTier === "high" || row.configuration?.character === "佩佩") {
+          aiming.emptyAmmoSeconds += Number(row.empty_ammo_seconds);
+          aiming.totalSeconds += Number(row.total_seconds);
+        }
       }
       const movementHistory = result.rows.map((row) => ({
         id: `movement:${row.id}`,
@@ -381,6 +383,7 @@ export function createAuthRouter(secureCookies: boolean) {
         lead: { bins: row.lead_bins, count: row.lead_count, sum: Number(row.lead_sum), min: -Number(row.lead_max), max: Number(row.lead_max) },
         emptyAmmoSeconds: Number(row.empty_ammo_seconds),
         totalSeconds: Number(row.total_seconds),
+        supportsEmptyAmmoRatio: row.configuration?.speedTier === "high" || row.configuration?.character === "佩佩",
       }));
       const history = [...movementHistory, ...aimingHistory]
         .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());

@@ -28,6 +28,7 @@ type TrainingRecord = {
   lead?: RecordDistribution;
   emptyAmmoSeconds?: number;
   totalSeconds?: number;
+  supportsEmptyAmmoRatio?: boolean;
 };
 
 export default function AccountMenu() {
@@ -252,11 +253,13 @@ function TrainingRecordDetails({ record }: { record: TrainingRecord }) {
           color="#4fc3f7"
           decimals={1}
         />
-        <div className="account-ratio-summary">
-          <strong>本局零子弹状态时长占比</strong>
-          <span>{(emptyRatio * 100).toFixed(1)}%</span>
-          <small>零子弹 {(record.emptyAmmoSeconds ?? 0).toFixed(1)} 秒 / 训练 {(record.totalSeconds ?? 0).toFixed(1)} 秒</small>
-        </div>
+        {record.supportsEmptyAmmoRatio && (
+          <div className="account-ratio-summary">
+            <strong>本局零子弹状态时长占比</strong>
+            <span>{(emptyRatio * 100).toFixed(1)}%</span>
+            <small>零子弹 {(record.emptyAmmoSeconds ?? 0).toFixed(1)} 秒 / 训练 {(record.totalSeconds ?? 0).toFixed(1)} 秒</small>
+          </div>
+        )}
       </div>
     );
   }
@@ -295,11 +298,13 @@ function AimingStatsCard({ stats }: { stats: AimingStats }) {
             color="#4fc3f7"
             decimals={1}
           />
-          <div className="account-ratio-summary">
-            <strong>零子弹状态时长占比</strong>
-            <span>{(emptyRatio * 100).toFixed(1)}%</span>
-            <small>累计零子弹时间 ÷ 累计训练时间</small>
-          </div>
+          {stats.totalSeconds > 0 && (
+            <div className="account-ratio-summary">
+              <strong>佩佩 · 零子弹状态时长占比</strong>
+              <span>{(emptyRatio * 100).toFixed(1)}%</span>
+              <small>仅汇总佩佩记录</small>
+            </div>
+          )}
         </div>
       )}
     </section>

@@ -882,8 +882,8 @@ export default function OfflineTrainingGame() {
         body: JSON.stringify(isAimingMode ? {
           roundId: roundIdRef.current,
           lead: aimingLead,
-          emptyAmmoSeconds: aimingEmptyAmmoSecondsRef.current,
-          totalSeconds: aimingElapsedSecondsRef.current,
+          emptyAmmoSeconds: speedTier === "high" ? aimingEmptyAmmoSecondsRef.current : 0,
+          totalSeconds: speedTier === "high" ? aimingElapsedSecondsRef.current : 0,
           configuration: {
             trainingMode: "aiming",
             controlMode: "joystick",
@@ -1256,7 +1256,7 @@ export default function OfflineTrainingGame() {
 
         if (isAimingMode) {
           aimingElapsedSecondsRef.current += dt;
-          if (magazineAmmoRef.current < 1) aimingEmptyAmmoSecondsRef.current += dt;
+          if (speedTier === "high" && magazineAmmoRef.current < 1) aimingEmptyAmmoSecondsRef.current += dt;
           aimingTargetSecondsSinceDamageRef.current += dt;
           if (
             aimingTargetSecondsSinceDamageRef.current >= HEALTH_REGEN_DELAY_SECONDS
@@ -2186,6 +2186,7 @@ export default function OfflineTrainingGame() {
               mode={mode}
               reactionWindowMaxMs={reactionWindowMaxMs}
               aimingMaxLeadDeg={aimingMaxLeadDeg}
+              showEmptyAmmoRatio={speedTier === "high"}
             />
             <button
               className="btn-secondary"
@@ -2432,6 +2433,7 @@ export default function OfflineTrainingGame() {
               mode={mode}
               reactionWindowMaxMs={reactionWindowMaxMs}
               aimingMaxLeadDeg={aimingMaxLeadDeg}
+              showEmptyAmmoRatio={speedTier === "high"}
             />
           </div>
         </div>
@@ -2441,12 +2443,13 @@ export default function OfflineTrainingGame() {
 }
 
 // ======= 自绘分布图（Canvas 区间频率曲线） =======
-function TrainingStatsGrid({ snapshot, aiming, mode, reactionWindowMaxMs, aimingMaxLeadDeg }: {
+function TrainingStatsGrid({ snapshot, aiming, mode, reactionWindowMaxMs, aimingMaxLeadDeg, showEmptyAmmoRatio }: {
   snapshot: TrainingSnapshot;
   aiming: boolean;
   mode: ControlMode;
   reactionWindowMaxMs: number;
   aimingMaxLeadDeg: number;
+  showEmptyAmmoRatio: boolean;
 }) {
   if (aiming) {
     return (
@@ -2463,12 +2466,14 @@ function TrainingStatsGrid({ snapshot, aiming, mode, reactionWindowMaxMs, aiming
           unitLabel="°"
           decimals={1}
         />
-        <div className="training-ratio-card">
-          <div className="training-ratio-title">数据2 · 零子弹状态时长占比</div>
-          <div className="training-ratio-value">{(snapshot.emptyAmmoRatio * 100).toFixed(1)}%</div>
-          <div className="training-ratio-track"><span style={{ width: `${Math.min(100, snapshot.emptyAmmoRatio * 100)}%` }} /></div>
-          <div className="training-ratio-note">玩家持有子弹量小于 1 的时间 ÷ 本局有效训练时间</div>
-        </div>
+        {showEmptyAmmoRatio && (
+          <div className="training-ratio-card">
+            <div className="training-ratio-title">数据2 · 零子弹状态时长占比</div>
+            <div className="training-ratio-value">{(snapshot.emptyAmmoRatio * 100).toFixed(1)}%</div>
+            <div className="training-ratio-track"><span style={{ width: `${Math.min(100, snapshot.emptyAmmoRatio * 100)}%` }} /></div>
+            <div className="training-ratio-note">仅佩佩：玩家持有子弹量小于 1 的时间 ÷ 本局有效训练时间</div>
+          </div>
+        )}
       </div>
     );
   }
