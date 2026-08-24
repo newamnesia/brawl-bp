@@ -971,6 +971,8 @@ export default function OfflineTrainingGame() {
   const secondsSinceDamageRef = useRef(0);
   const survivalTimeRef = useRef(0);
   const lastSurvivalUiUpdateRef = useRef(0);
+  const playerDirectionRef = useRef(-Math.PI / 2);
+  const enemyDirectionRef = useRef(Math.PI / 2);
 
   // Profiler（每局新建）
   const profilerRef = useRef<Prof | null>(null);
@@ -1079,6 +1081,8 @@ export default function OfflineTrainingGame() {
     aimingLeadAnglesRef.current = [];
     aimingElapsedSecondsRef.current = 0;
     aimingEmptyAmmoSecondsRef.current = 0;
+    playerDirectionRef.current = -Math.PI / 2;
+    enemyDirectionRef.current = Math.PI / 2;
 
     const projectileImages: Record<keyof typeof BULLET_TEXTURES, HTMLImageElement> = {
       beaNormal: new Image(),
@@ -1190,6 +1194,7 @@ export default function OfflineTrainingGame() {
         const velX = velocity.x;
         const velY = velocity.y;
         const curSpeed = Math.hypot(velX, velY);
+        if (!isAimingMode && curSpeed > 0.05) playerDirectionRef.current = Math.atan2(velY, velX);
 
         player.x += velX * dt;
         player.y += velY * dt;
@@ -1336,6 +1341,7 @@ export default function OfflineTrainingGame() {
               texture: projectileTexture,
               owner: "enemy",
             });
+            enemyDirectionRef.current = pred.aimAngle;
             if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
             magazineAmmoRef.current -= 1;
             setMagazineAmmo(magazineAmmoRef.current);
@@ -1564,6 +1570,52 @@ export default function OfflineTrainingGame() {
       const enemyCenterPy = projectY(renderedEnemy.y);
       const enemyRadiusPx = ENEMY_RADIUS * scale * widthFactorAt(renderedEnemy.y);
       const enemyRadiusPy = ENEMY_RADIUS * scaleY;
+      const drawDirectionArrow = (
+        worldX: number,
+        worldY: number,
+        centerX: number,
+        centerY: number,
+        radiusX: number,
+        radiusY: number,
+        angle: number,
+        fill: string,
+        stroke: string,
+      ) => {
+        const probeX = projectX(worldX + Math.cos(angle), worldY + Math.sin(angle));
+        const probeY = projectY(worldY + Math.sin(angle));
+        const screenDx = probeX - centerX;
+        const screenDy = probeY - centerY;
+        const screenLength = Math.hypot(screenDx, screenDy) || 1;
+        const nx = screenDx / screenLength;
+        const ny = screenDy / screenLength;
+        const boundary = 1 / Math.sqrt((nx * nx) / (radiusX * radiusX) + (ny * ny) / (radiusY * radiusY));
+        const arrowLength = Math.max(17, Math.min(34, scale * 0.82));
+        const halfWidth = Math.max(3, Math.min(5.5, scale * 0.13));
+        const startX = centerX + nx * (boundary + 2);
+        const startY = centerY + ny * (boundary + 2);
+        const sideX = -ny;
+        const sideY = nx;
+        const neckX = startX + nx * arrowLength * 0.58;
+        const neckY = startY + ny * arrowLength * 0.58;
+        const tipX = startX + nx * arrowLength;
+        const tipY = startY + ny * arrowLength;
+        ctx.save();
+        ctx.fillStyle = fill;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(startX + sideX * halfWidth, startY + sideY * halfWidth);
+        ctx.lineTo(neckX + sideX * halfWidth, neckY + sideY * halfWidth);
+        ctx.lineTo(neckX + sideX * halfWidth * 1.75, neckY + sideY * halfWidth * 1.75);
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(neckX - sideX * halfWidth * 1.75, neckY - sideY * halfWidth * 1.75);
+        ctx.lineTo(neckX - sideX * halfWidth, neckY - sideY * halfWidth);
+        ctx.lineTo(startX - sideX * halfWidth, startY - sideY * halfWidth);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      };
       ctx.save();
       ctx.strokeStyle = "rgba(255, 82, 82, 0.25)";
       ctx.lineWidth = 1;
@@ -1596,6 +1648,14 @@ export default function OfflineTrainingGame() {
       ctx.beginPath();
       ctx.ellipse(enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
+      const enemyDirection = isAimingMode
+        ? aimingTargetRef.current.angle + aimingTargetRef.current.direction * Math.PI / 2
+        : enemyDirectionRef.current;
+      drawDirectionArrow(
+        renderedEnemy.x, renderedEnemy.y, enemyCenterPx, enemyCenterPy,
+        enemyRadiusPx, enemyRadiusPy, enemyDirection,
+        "rgba(255, 82, 82, 0.72)", "rgba(255, 205, 210, 0.9)",
+      );
 
       if (isAimingMode) {
         const barWidth = Math.min(110, Math.max(48, scale * 2.2));
@@ -1635,6 +1695,11 @@ export default function OfflineTrainingGame() {
       ctx.beginPath();
       ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
+      drawDirectionArrow(
+        player.x, player.y, playerCenterPx, playerCenterPy,
+        playerRadiusPx, playerRadiusPy, playerDirectionRef.current,
+        "rgba(79, 195, 247, 0.72)", "rgba(225, 245, 254, 0.92)",
+      );
 
       if (isAimingMode && aimJoystickRef.current.active) {
         const aim = aimJoystickRef.current;
@@ -1897,6 +1962,7 @@ export default function OfflineTrainingGame() {
     aim.knobX = dx;
     aim.knobY = dy;
     aim.rawMagnitude = distance / aim.maxRadius;
+    if (distance > 8) playerDirectionRef.current = Math.atan2(dy, dx);
     forceUpdate((n) => n + 1);
   };
 
