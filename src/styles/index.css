@@ -131,6 +131,52 @@ body {
   pointer-events: auto;
 }
 
+.account-menu {
+  position: fixed;
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: max(0.75rem, env(safe-area-inset-right));
+  z-index: 50;
+}
+
+.account-trigger {
+  padding: 0.58rem 0.85rem;
+  border: 1px solid rgba(255, 201, 51, 0.45);
+  background: rgba(26, 35, 50, 0.92);
+  color: var(--accent);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.account-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(4, 8, 13, 0.76);
+  backdrop-filter: blur(5px);
+}
+
+.account-dialog {
+  position: relative;
+  width: min(390px, 100%);
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+.account-dialog h2 { margin-bottom: 0.45rem; color: var(--accent); }
+.account-hint, .account-role { margin-bottom: 1.25rem; color: var(--muted); font-size: 0.9rem; }
+.account-current { margin: 1.2rem 0 0.35rem; }
+.account-close { position: absolute; top: 0.65rem; right: 0.75rem; width: 34px; height: 34px; background: transparent; color: var(--muted); font-size: 1.6rem; }
+.account-submit { width: 100%; margin-top: 0.75rem; }
+
+@media (max-width: 640px) {
+  .account-trigger { padding: 0.45rem 0.65rem; font-size: 0.8rem; }
+}
+
 .training-updates-card {
   width: min(560px, 100%);
   max-height: min(78dvh, 680px);
