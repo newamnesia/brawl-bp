@@ -884,6 +884,14 @@ export default function OfflineTrainingGame() {
           lead: aimingLead,
           emptyAmmoSeconds: aimingEmptyAmmoSecondsRef.current,
           totalSeconds: aimingElapsedSecondsRef.current,
+          configuration: {
+            trainingMode: "aiming",
+            controlMode: "joystick",
+            speedTier,
+            character: speedTier === "high" ? "佩佩" : "贝亚",
+            bulletSpeed,
+            result: roundResult ?? "ended",
+          },
         } : {
           roundId: roundIdRef.current,
           controlMode: mode,
@@ -893,6 +901,15 @@ export default function OfflineTrainingGame() {
             max: reactionWindowMaxMs,
           },
           turn: summarizeDistribution(profiler.samplesTurnIntervalMs, 80, 4200, 24),
+          configuration: {
+            trainingMode,
+            controlMode: mode,
+            speedTier,
+            character: speedTier === "high" ? "佩佩" : "贝亚",
+            bulletSpeed,
+            result: roundResult ?? "ended",
+            survivalTime: isSurvivalMode ? survivalTimeRef.current : 0,
+          },
         }),
       });
       const data = await response.json();

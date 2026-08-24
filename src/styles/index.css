@@ -194,6 +194,25 @@ body {
 .account-ratio-summary strong { font-size: 0.8rem; }
 .account-ratio-summary span { margin: 0.7rem 0 0.35rem; color: var(--green); font-size: 2rem; font-weight: 900; }
 .account-ratio-summary small { color: var(--muted); font-size: 0.68rem; }
+.account-history-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.4rem 0 0.65rem; padding-top: 1.1rem; border-top: 1px solid var(--border); }
+.account-history-header > div { display: flex; align-items: baseline; gap: 0.6rem; }
+.account-history-header h3 { font-size: 1.05rem; }
+.account-history-header span { color: var(--muted); font-size: 0.75rem; }
+.account-danger-button, .account-delete-button { border: 1px solid rgba(255,82,82,0.42); background: rgba(255,82,82,0.1); color: #ff8a80; }
+.account-danger-button { padding: 0.45rem 0.7rem; font-size: 0.76rem; }
+.account-history-list { display: grid; gap: 0.55rem; }
+.account-history-item { overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: rgba(10,16,24,0.38); }
+.account-history-item.expanded { border-color: rgba(79,195,247,0.36); }
+.account-history-row { display: grid; grid-template-columns: minmax(130px, 0.8fr) minmax(220px, 2fr) auto auto; align-items: center; gap: 0.75rem; padding: 0.7rem 0.8rem; cursor: pointer; }
+.account-history-row:hover { background: rgba(255,255,255,0.035); }
+.account-history-row time { color: var(--muted); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+.account-history-config { display: flex; flex-direction: column; gap: 0.2rem; }
+.account-history-config strong { font-size: 0.83rem; }
+.account-history-config span { color: var(--muted); font-size: 0.7rem; }
+.account-detail-button, .account-delete-button { padding: 0.38rem 0.58rem; font-size: 0.7rem; white-space: nowrap; }
+.account-detail-button { border: 1px solid rgba(79,195,247,0.35); background: rgba(79,195,247,0.09); color: #81d4fa; }
+.account-history-details { display: grid; gap: 0.75rem; padding: 0.8rem; border-top: 1px solid var(--border); background: rgba(0,0,0,0.12); }
+.account-record-distributions { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .account-distributions { display: grid; gap: 0.75rem; }
 .account-distribution { padding: 0.7rem; border-radius: 10px; background: rgba(255,255,255,0.035); }
 .account-distribution-title, .account-distribution-meta { display: flex; justify-content: space-between; gap: 0.5rem; }
@@ -210,6 +229,8 @@ body {
   .account-trigger { padding: 0.45rem 0.65rem; font-size: 0.8rem; }
   .account-stats-modes { grid-template-columns: 1fr; }
   .account-aiming-distributions { grid-template-columns: 1fr; }
+  .account-history-row { grid-template-columns: 1fr auto auto; }
+  .account-history-row time { grid-column: 1 / -1; }
   .training-aiming-stats-grid { grid-template-columns: 1fr; }
 }
 

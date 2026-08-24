@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 
 const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD_HASH = "e0d3f7142b97813d6ef45dba445dca25:f3250c4d6140749a0495fc9e4fc92245ec5dccd0095462f85e17cf6da1604acaeb696c1dfb86c49dbf8120f5804726a90a41dedcc292717e5f64ca06ac7d5154";
@@ -83,6 +83,19 @@ function rebinReaction(target: number[], source: number[], sourceMax: number) {
   });
 }
 
+function normalizeConfiguration(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const source = value as Record<string, unknown>;
+  const allowedKeys = ["trainingMode", "controlMode", "speedTier", "character", "bulletSpeed", "result", "survivalTime"];
+  const result: Record<string, string | number> = {};
+  for (const key of allowedKeys) {
+    const field = source[key];
+    if (typeof field === "string" && field.length <= 40) result[key] = field;
+    else if (typeof field === "number" && Number.isFinite(field)) result[key] = field;
+  }
+  return result;
+}
+
 export async function initializeAuthDatabase() {
   if (!pool) {
     console.warn("DATABASE_URL 未配置，账号登录功能暂不可用");
@@ -117,6 +130,7 @@ export async function initializeAuthDatabase() {
       turn_bins INTEGER[] NOT NULL,
       turn_count INTEGER NOT NULL,
       turn_sum DOUBLE PRECISION NOT NULL,
+      configuration JSONB NOT NULL DEFAULT '{}'::jsonb,
       uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (username, round_id)
     );
@@ -131,10 +145,13 @@ export async function initializeAuthDatabase() {
       lead_max DOUBLE PRECISION NOT NULL,
       empty_ammo_seconds DOUBLE PRECISION NOT NULL,
       total_seconds DOUBLE PRECISION NOT NULL,
+      configuration JSONB NOT NULL DEFAULT '{}'::jsonb,
       uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (username, round_id)
     );
     CREATE INDEX IF NOT EXISTS aiming_uploads_username_idx ON aiming_uploads(username);
+    ALTER TABLE training_uploads ADD COLUMN IF NOT EXISTS configuration JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE aiming_uploads ADD COLUMN IF NOT EXISTS configuration JSONB NOT NULL DEFAULT '{}'::jsonb;
   `);
   await pool.query(
     `INSERT INTO users (username, password_hash, role)
@@ -215,7 +232,7 @@ export function createAuthRouter(secureCookies: boolean) {
     try {
       const user = await getSessionUser(req.headers.cookie);
       if (!user) return res.status(401).json({ error: "请先登录账号" });
-      const { roundId, controlMode, stick, reaction, turn } = req.body ?? {};
+      const { roundId, controlMode, stick, reaction, turn, configuration } = req.body ?? {};
       const validSummary = (value: any, binCount: number) => value
         && validBins(value.bins, binCount)
         && Number.isInteger(value.count) && value.count >= 0 && value.count <= 100_000
@@ -239,13 +256,13 @@ export function createAuthRouter(secureCookies: boolean) {
           username, round_id, control_mode,
           stick_bins, stick_count, stick_sum,
           reaction_bins, reaction_count, reaction_sum, reaction_max,
-          turn_bins, turn_count, turn_sum
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          turn_bins, turn_count, turn_sum, configuration
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
         ON CONFLICT (username, round_id) DO NOTHING
         RETURNING id`,
         [user.username, roundId, controlMode, stick.bins, stick.count, stick.sum,
           reaction.bins, reaction.count, reaction.sum, reaction.max,
-          turn.bins, turn.count, turn.sum],
+          turn.bins, turn.count, turn.sum, normalizeConfiguration(configuration)],
       );
       if (result.rowCount === 0) return res.status(409).json({ error: "本局数据已经上传" });
       return res.json({ ok: true });
@@ -260,7 +277,7 @@ export function createAuthRouter(secureCookies: boolean) {
     try {
       const user = await getSessionUser(req.headers.cookie);
       if (!user) return res.status(401).json({ error: "请先登录账号" });
-      const { roundId, lead, emptyAmmoSeconds, totalSeconds } = req.body ?? {};
+      const { roundId, lead, emptyAmmoSeconds, totalSeconds, configuration } = req.body ?? {};
       const maxTenths = Number.isFinite(lead?.max) ? Math.round(lead.max * 10) : 0;
       if (
         typeof roundId !== "string" || roundId.length < 8 || roundId.length > 80
@@ -277,10 +294,10 @@ export function createAuthRouter(secureCookies: boolean) {
       const result = await pool.query(
         `INSERT INTO aiming_uploads (
           username, round_id, lead_bins, lead_count, lead_sum, lead_max,
-          empty_ammo_seconds, total_seconds
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          empty_ammo_seconds, total_seconds, configuration
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
         ON CONFLICT (username, round_id) DO NOTHING RETURNING id`,
-        [user.username, roundId, lead.bins, lead.count, lead.sum, lead.max, emptyAmmoSeconds, totalSeconds],
+        [user.username, roundId, lead.bins, lead.count, lead.sum, lead.max, emptyAmmoSeconds, totalSeconds, normalizeConfiguration(configuration)],
       );
       if (result.rowCount === 0) return res.status(409).json({ error: "本局数据已经上传" });
       return res.json({ ok: true });
@@ -296,9 +313,9 @@ export function createAuthRouter(secureCookies: boolean) {
       const user = await getSessionUser(req.headers.cookie);
       if (!user) return res.status(401).json({ error: "请先登录账号" });
       const result = await pool.query(
-        `SELECT control_mode, stick_bins, stick_count, stick_sum,
+        `SELECT id, control_mode, stick_bins, stick_count, stick_sum,
                 reaction_bins, reaction_count, reaction_sum, reaction_max,
-                turn_bins, turn_count, turn_sum
+                turn_bins, turn_count, turn_sum, configuration, uploaded_at
          FROM training_uploads WHERE username = $1`,
         [user.username],
       );
@@ -322,7 +339,8 @@ export function createAuthRouter(secureCookies: boolean) {
         mode.turn.count += row.turn_count; mode.turn.sum += Number(row.turn_sum);
       }
       const aimingResult = await pool.query(
-        `SELECT lead_bins, lead_count, lead_sum, lead_max, empty_ammo_seconds, total_seconds
+        `SELECT id, lead_bins, lead_count, lead_sum, lead_max, empty_ammo_seconds, total_seconds,
+                configuration, uploaded_at
          FROM aiming_uploads WHERE username = $1`,
         [user.username],
       );
@@ -345,10 +363,69 @@ export function createAuthRouter(secureCookies: boolean) {
         aiming.emptyAmmoSeconds += Number(row.empty_ammo_seconds);
         aiming.totalSeconds += Number(row.total_seconds);
       }
-      return res.json({ modes, aiming });
+      const movementHistory = result.rows.map((row) => ({
+        id: `movement:${row.id}`,
+        kind: "movement",
+        uploadedAt: row.uploaded_at,
+        configuration: row.configuration,
+        controlMode: row.control_mode,
+        stick: { bins: row.stick_bins, count: row.stick_count, sum: Number(row.stick_sum), min: 0, max: 1.05 },
+        reaction: { bins: row.reaction_bins, count: row.reaction_count, sum: Number(row.reaction_sum), min: 120, max: Number(row.reaction_max) },
+        turn: { bins: row.turn_bins, count: row.turn_count, sum: Number(row.turn_sum), min: 80, max: 4200 },
+      }));
+      const aimingHistory = aimingRows.map((row) => ({
+        id: `aiming:${row.id}`,
+        kind: "aiming",
+        uploadedAt: row.uploaded_at,
+        configuration: row.configuration,
+        lead: { bins: row.lead_bins, count: row.lead_count, sum: Number(row.lead_sum), min: -Number(row.lead_max), max: Number(row.lead_max) },
+        emptyAmmoSeconds: Number(row.empty_ammo_seconds),
+        totalSeconds: Number(row.total_seconds),
+      }));
+      const history = [...movementHistory, ...aimingHistory]
+        .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+      return res.json({ modes, aiming, history });
     } catch (error) {
       console.error("读取训练数据失败", error);
       return res.status(503).json({ error: "读取个人数据失败" });
+    }
+  });
+
+  router.delete("/training-data", async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "账号服务暂不可用" });
+    let client: PoolClient | null = null;
+    try {
+      const user = await getSessionUser(req.headers.cookie);
+      if (!user) return res.status(401).json({ error: "请先登录账号" });
+      client = await pool.connect();
+      await client.query("BEGIN");
+      await client.query("DELETE FROM training_uploads WHERE username = $1", [user.username]);
+      await client.query("DELETE FROM aiming_uploads WHERE username = $1", [user.username]);
+      await client.query("COMMIT");
+      return res.json({ ok: true });
+    } catch (error) {
+      await client?.query("ROLLBACK").catch(() => undefined);
+      console.error("清空训练数据失败", error);
+      return res.status(503).json({ error: "清空数据失败" });
+    } finally {
+      client?.release();
+    }
+  });
+
+  router.delete("/training-data/:recordId", async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "账号服务暂不可用" });
+    try {
+      const user = await getSessionUser(req.headers.cookie);
+      if (!user) return res.status(401).json({ error: "请先登录账号" });
+      const match = /^(movement|aiming):(\d+)$/.exec(req.params.recordId);
+      if (!match) return res.status(400).json({ error: "记录编号无效" });
+      const table = match[1] === "movement" ? "training_uploads" : "aiming_uploads";
+      const result = await pool.query(`DELETE FROM ${table} WHERE id = $1 AND username = $2`, [match[2], user.username]);
+      if (result.rowCount === 0) return res.status(404).json({ error: "记录不存在" });
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error("删除训练记录失败", error);
+      return res.status(503).json({ error: "删除记录失败" });
     }
   });
 
