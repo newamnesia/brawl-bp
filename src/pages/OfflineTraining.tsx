@@ -11,9 +11,9 @@ const SPEED_TIERS: Record<SpeedTier, { label: string; value: number }> = {
   high: { label: "佩佩", value: 17.5 },
 };
 const AIM_REACTION_TIERS: Record<AimReactionTier, { label: string; seconds: number }> = {
-  diamond: { label: "钻石", seconds: 0.5 },
-  legendary: { label: "传奇", seconds: 0.38 },
-  master: { label: "大师", seconds: 0.29 },
+  diamond: { label: "钻石", seconds: 0.4 },
+  legendary: { label: "传奇", seconds: 0.28 },
+  master: { label: "大师", seconds: 0.19 },
 };
 
 const UPDATE_NOTICES = [

@@ -66,9 +66,9 @@ const AIMING_FRONT_ANGLE = -Math.PI / 2;
 const AIMING_SECTOR_HALF_ANGLE = Math.PI / 4;
 const AIMING_AI_TURN_RATE = 10;
 const AIMING_REACTION_SECONDS: Record<AimReactionTier, number> = {
-  diamond: 0.5,
-  legendary: 0.38,
-  master: 0.29,
+  diamond: 0.4,
+  legendary: 0.28,
+  master: 0.19,
 };
 const MAGAZINE_CAPACITY = 3;
 const MAGAZINE_RELOAD_SECONDS = 1.5;
