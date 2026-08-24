@@ -1,6 +1,14 @@
 import { FormEvent, useEffect, useState } from "react";
 
 type Account = { username: string; role: string };
+type DistributionTotal = { bins: number[]; count: number; sum: number };
+type ModeStats = {
+  uploads: number;
+  stick: DistributionTotal;
+  reaction: DistributionTotal;
+  turn: DistributionTotal;
+};
+type PersonalStats = { keyboard: ModeStats; joystick: ModeStats };
 
 export default function AccountMenu() {
   const [account, setAccount] = useState<Account | null>(null);
@@ -9,6 +17,9 @@ export default function AccountMenu() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState<PersonalStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState("");
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -16,6 +27,20 @@ export default function AccountMenu() {
       .then((data) => setAccount(data.user ?? null))
       .catch(() => setAccount(null));
   }, []);
+
+  useEffect(() => {
+    if (!open || !account) return;
+    setStatsLoading(true);
+    setStatsError("");
+    fetch("/api/auth/training-data")
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "读取个人数据失败");
+        setStats(data.modes);
+      })
+      .catch((loadError) => setStatsError(loadError instanceof Error ? loadError.message : "读取个人数据失败"))
+      .finally(() => setStatsLoading(false));
+  }, [open, account]);
 
   const login = async (event: FormEvent) => {
     event.preventDefault();
@@ -44,6 +69,7 @@ export default function AccountMenu() {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       setAccount(null);
+      setStats(null);
       setOpen(false);
     } finally {
       setLoading(false);
@@ -57,13 +83,20 @@ export default function AccountMenu() {
       </button>
       {open && (
         <div className="account-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
-          <section className="account-dialog" role="dialog" aria-modal="true" aria-labelledby="account-title">
+          <section className={`account-dialog ${account ? "account-dialog-profile" : ""}`} role="dialog" aria-modal="true" aria-labelledby="account-title">
             <button className="account-close" aria-label="关闭" onClick={() => setOpen(false)}>×</button>
             {account ? (
               <>
-                <h2 id="account-title">账号信息</h2>
-                <p className="account-current">当前账号：<strong>{account.username}</strong></p>
-                <p className="account-role">身份：{account.role === "admin" ? "管理员" : "玩家"}</p>
+                <h2 id="account-title">个人数据</h2>
+                <p className="account-current">当前账号：<strong>{account.username}</strong> · {account.role === "admin" ? "管理员" : "玩家"}</p>
+                {statsLoading && <p className="account-role">正在读取累计数据…</p>}
+                {statsError && <p className="error-msg">{statsError}</p>}
+                {stats && (
+                  <div className="account-stats-modes">
+                    <ModeStatsCard title="键盘操纵" stats={stats.keyboard} controlMode="keyboard" />
+                    <ModeStatsCard title="摇杆操纵" stats={stats.joystick} controlMode="joystick" />
+                  </div>
+                )}
                 <button className="btn-secondary account-submit" disabled={loading} onClick={logout}>退出登录</button>
               </>
             ) : (
@@ -87,6 +120,60 @@ export default function AccountMenu() {
           </section>
         </div>
       )}
+    </div>
+  );
+}
+
+function ModeStatsCard({ title, stats, controlMode }: { title: string; stats: ModeStats; controlMode: "keyboard" | "joystick" }) {
+  return (
+    <section className="account-stats-card">
+      <div className="account-stats-heading">
+        <h3>{title}</h3>
+        <span>已上传 {stats.uploads} 局</span>
+      </div>
+      {stats.uploads === 0 ? (
+        <p className="account-no-data">暂无已上传数据</p>
+      ) : (
+        <div className="account-distributions">
+          <DistributionBars
+            title={controlMode === "joystick" ? "摇杆触控点分布" : "方向键操作幅度分布"}
+            data={stats.stick}
+            rangeLabel="0–1.05"
+            unit=""
+            color="#4fc3f7"
+          />
+          <DistributionBars title="反应时间分布" data={stats.reaction} rangeLabel="120–2000 ms" unit=" ms" color="#ffb74d" />
+          <DistributionBars title="变向时间分布" data={stats.turn} rangeLabel="80–4200 ms" unit=" ms" color="#ba68c8" />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DistributionBars({ title, data, rangeLabel, unit, color }: {
+  title: string;
+  data: DistributionTotal;
+  rangeLabel: string;
+  unit: string;
+  color: string;
+}) {
+  const peak = Math.max(1, ...data.bins);
+  const mean = data.count > 0 ? data.sum / data.count : 0;
+  return (
+    <div className="account-distribution">
+      <div className="account-distribution-title">
+        <strong>{title}</strong>
+        <span>{rangeLabel}</span>
+      </div>
+      <div className="account-distribution-bars" aria-label={`${title}，共 ${data.count} 个样本`}>
+        {data.bins.map((count, index) => (
+          <i key={index} title={`${count} 个样本`} style={{ height: `${Math.max(count > 0 ? 5 : 1, count / peak * 100)}%`, background: color }} />
+        ))}
+      </div>
+      <div className="account-distribution-meta">
+        <span>样本数 {data.count}</span>
+        {data.count > 0 && <span>均值 {mean.toFixed(unit ? 0 : 2)}{unit}</span>}
+      </div>
     </div>
   );
 }

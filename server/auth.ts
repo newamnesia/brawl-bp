@@ -6,6 +6,7 @@ const ADMIN_USERNAME = "admin";
 const ADMIN_PASSWORD_HASH = "e0d3f7142b97813d6ef45dba445dca25:f3250c4d6140749a0495fc9e4fc92245ec5dccd0095462f85e17cf6da1604acaeb696c1dfb86c49dbf8120f5804726a90a41dedcc292717e5f64ca06ac7d5154";
 const SESSION_COOKIE = "brawl_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const DISTRIBUTION_BINS = { stick: 22, reaction: 24, turn: 24 } as const;
 
 type LoginAttempt = { count: number; resetAt: number };
 const loginAttempts = new Map<string, LoginAttempt>();
@@ -48,6 +49,40 @@ function sessionCookie(token: string, secure: boolean, maxAge = SESSION_MAX_AGE_
   ].filter(Boolean).join("; ");
 }
 
+async function getSessionUser(cookieHeader: string | undefined) {
+  if (!pool) return null;
+  const token = readCookie(cookieHeader, SESSION_COOKIE);
+  if (!token) return null;
+  const result = await pool.query(
+    `SELECT users.username, users.role
+     FROM sessions JOIN users ON users.username = sessions.username
+     WHERE sessions.token_hash = $1 AND sessions.expires_at > NOW()`,
+    [tokenHash(token)],
+  );
+  return result.rows[0] ?? null;
+}
+
+function validBins(value: unknown, length: number) {
+  return Array.isArray(value)
+    && value.length === length
+    && value.every((count) => Number.isInteger(count) && count >= 0 && count <= 100_000);
+}
+
+function addBins(target: number[], source: number[]) {
+  source.forEach((count, index) => { target[index] += Number(count); });
+}
+
+function rebinReaction(target: number[], source: number[], sourceMax: number) {
+  const sourceMin = 120;
+  const targetMax = 2000;
+  const sourceWidth = (sourceMax - sourceMin) / source.length;
+  source.forEach((count, index) => {
+    const center = sourceMin + (index + 0.5) * sourceWidth;
+    const targetIndex = Math.max(0, Math.min(target.length - 1, Math.floor((center - sourceMin) / (targetMax - sourceMin) * target.length)));
+    target[targetIndex] += Number(count);
+  });
+}
+
 export async function initializeAuthDatabase() {
   if (!pool) {
     console.warn("DATABASE_URL 未配置，账号登录功能暂不可用");
@@ -67,6 +102,25 @@ export async function initializeAuthDatabase() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX IF NOT EXISTS sessions_expires_at_idx ON sessions(expires_at);
+    CREATE TABLE IF NOT EXISTS training_uploads (
+      id BIGSERIAL PRIMARY KEY,
+      username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+      round_id TEXT NOT NULL,
+      control_mode TEXT NOT NULL CHECK (control_mode IN ('keyboard', 'joystick')),
+      stick_bins INTEGER[] NOT NULL,
+      stick_count INTEGER NOT NULL,
+      stick_sum DOUBLE PRECISION NOT NULL,
+      reaction_bins INTEGER[] NOT NULL,
+      reaction_count INTEGER NOT NULL,
+      reaction_sum DOUBLE PRECISION NOT NULL,
+      reaction_max DOUBLE PRECISION NOT NULL,
+      turn_bins INTEGER[] NOT NULL,
+      turn_count INTEGER NOT NULL,
+      turn_sum DOUBLE PRECISION NOT NULL,
+      uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (username, round_id)
+    );
+    CREATE INDEX IF NOT EXISTS training_uploads_username_idx ON training_uploads(username);
   `);
   await pool.query(
     `INSERT INTO users (username, password_hash, role)
@@ -82,16 +136,9 @@ export function createAuthRouter(secureCookies: boolean) {
 
   router.get("/me", async (req, res) => {
     if (!pool) return res.status(503).json({ error: "账号服务暂不可用" });
-    const token = readCookie(req.headers.cookie, SESSION_COOKIE);
-    if (!token) return res.json({ user: null });
     try {
-      const result = await pool.query(
-        `SELECT users.username, users.role
-         FROM sessions JOIN users ON users.username = sessions.username
-         WHERE sessions.token_hash = $1 AND sessions.expires_at > NOW()`,
-        [tokenHash(token)],
-      );
-      return res.json({ user: result.rows[0] ?? null });
+      const user = await getSessionUser(req.headers.cookie);
+      return res.json({ user });
     } catch (error) {
       console.error("读取登录状态失败", error);
       return res.status(503).json({ error: "账号服务暂不可用" });
@@ -147,6 +194,89 @@ export function createAuthRouter(secureCookies: boolean) {
     }
     res.setHeader("Set-Cookie", sessionCookie("", secureCookies, 0));
     return res.json({ ok: true });
+  });
+
+  router.post("/training-data", async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "账号服务暂不可用" });
+    try {
+      const user = await getSessionUser(req.headers.cookie);
+      if (!user) return res.status(401).json({ error: "请先登录账号" });
+      const { roundId, controlMode, stick, reaction, turn } = req.body ?? {};
+      const validSummary = (value: any, binCount: number) => value
+        && validBins(value.bins, binCount)
+        && Number.isInteger(value.count) && value.count >= 0 && value.count <= 100_000
+        && Number.isFinite(value.sum) && value.sum >= 0;
+      if (
+        typeof roundId !== "string" || roundId.length < 8 || roundId.length > 80
+        || !["keyboard", "joystick"].includes(controlMode)
+        || !validSummary(stick, DISTRIBUTION_BINS.stick)
+        || !validSummary(reaction, DISTRIBUTION_BINS.reaction)
+        || !validSummary(turn, DISTRIBUTION_BINS.turn)
+        || !Number.isFinite(reaction.max) || reaction.max <= 120 || reaction.max > 2000
+      ) {
+        return res.status(400).json({ error: "训练数据格式无效" });
+      }
+      const binTotalsMatch = (summary: any) => summary.bins.reduce((sum: number, count: number) => sum + count, 0) === summary.count;
+      if (!binTotalsMatch(stick) || !binTotalsMatch(reaction) || !binTotalsMatch(turn)) {
+        return res.status(400).json({ error: "训练数据统计不一致" });
+      }
+      const result = await pool.query(
+        `INSERT INTO training_uploads (
+          username, round_id, control_mode,
+          stick_bins, stick_count, stick_sum,
+          reaction_bins, reaction_count, reaction_sum, reaction_max,
+          turn_bins, turn_count, turn_sum
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        ON CONFLICT (username, round_id) DO NOTHING
+        RETURNING id`,
+        [user.username, roundId, controlMode, stick.bins, stick.count, stick.sum,
+          reaction.bins, reaction.count, reaction.sum, reaction.max,
+          turn.bins, turn.count, turn.sum],
+      );
+      if (result.rowCount === 0) return res.status(409).json({ error: "本局数据已经上传" });
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error("上传训练数据失败", error);
+      return res.status(503).json({ error: "上传失败，请稍后重试" });
+    }
+  });
+
+  router.get("/training-data", async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "账号服务暂不可用" });
+    try {
+      const user = await getSessionUser(req.headers.cookie);
+      if (!user) return res.status(401).json({ error: "请先登录账号" });
+      const result = await pool.query(
+        `SELECT control_mode, stick_bins, stick_count, stick_sum,
+                reaction_bins, reaction_count, reaction_sum, reaction_max,
+                turn_bins, turn_count, turn_sum
+         FROM training_uploads WHERE username = $1`,
+        [user.username],
+      );
+      const makeMode = () => ({
+        uploads: 0,
+        stick: { bins: Array(DISTRIBUTION_BINS.stick).fill(0), count: 0, sum: 0 },
+        reaction: { bins: Array(DISTRIBUTION_BINS.reaction).fill(0), count: 0, sum: 0 },
+        turn: { bins: Array(DISTRIBUTION_BINS.turn).fill(0), count: 0, sum: 0 },
+      });
+      const modes: Record<"keyboard" | "joystick", ReturnType<typeof makeMode>> = {
+        keyboard: makeMode(), joystick: makeMode(),
+      };
+      for (const row of result.rows) {
+        const mode = modes[row.control_mode as "keyboard" | "joystick"];
+        mode.uploads += 1;
+        addBins(mode.stick.bins, row.stick_bins);
+        rebinReaction(mode.reaction.bins, row.reaction_bins, Number(row.reaction_max));
+        addBins(mode.turn.bins, row.turn_bins);
+        mode.stick.count += row.stick_count; mode.stick.sum += Number(row.stick_sum);
+        mode.reaction.count += row.reaction_count; mode.reaction.sum += Number(row.reaction_sum);
+        mode.turn.count += row.turn_count; mode.turn.sum += Number(row.turn_sum);
+      }
+      return res.json({ modes });
+    } catch (error) {
+      console.error("读取训练数据失败", error);
+      return res.status(503).json({ error: "读取个人数据失败" });
+    }
   });
 
   return router;

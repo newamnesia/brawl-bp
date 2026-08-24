@@ -4,6 +4,21 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
 
+function summarizeDistribution(samples: number[], xMin: number, xMax: number, binCount: number) {
+  const bins = Array<number>(binCount).fill(0);
+  let count = 0;
+  let sum = 0;
+  const binWidth = (xMax - xMin) / binCount;
+  for (const sample of samples) {
+    if (!Number.isFinite(sample) || sample < xMin || sample > xMax) continue;
+    const index = Math.max(0, Math.min(binCount - 1, Math.floor((sample - xMin) / binWidth)));
+    bins[index] += 1;
+    count += 1;
+    sum += sample;
+  }
+  return { bins, count, sum };
+}
+
 // 地图常量
 const MAP_WIDTH = 21;  // 列数（横向单位）
 const MAP_HEIGHT = 33; // 行数（纵向单位）
@@ -787,6 +802,9 @@ export default function OfflineTrainingGame() {
   const [health, setHealth] = useState(PLAYER_MAX_HEALTH);
   const [survivalTime, setSurvivalTime] = useState(0);
   const [roundResult, setRoundResult] = useState<"victory" | "defeat" | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
+  const [uploadMessage, setUploadMessage] = useState("");
+  const roundIdRef = useRef(crypto.randomUUID());
   const [restartNonce, setRestartNonce] = useState(0);
   const [magazineAmmo, setMagazineAmmo] = useState(magazineCapacity);
   const [magazineReloadProgress, setMagazineReloadProgress] = useState(0);
@@ -820,6 +838,36 @@ export default function OfflineTrainingGame() {
 
   const togglePause = () => {
     setPaused((v) => !v);
+  };
+
+  const uploadTrainingData = async () => {
+    const profiler = profilerRef.current;
+    if (!profiler || isAimingMode || uploadStatus === "uploading" || uploadStatus === "success") return;
+    setUploadStatus("uploading");
+    setUploadMessage("");
+    try {
+      const response = await fetch("/api/auth/training-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roundId: roundIdRef.current,
+          controlMode: mode,
+          stick: summarizeDistribution(profiler.samplesStickMag, 0, 1.05, 22),
+          reaction: {
+            ...summarizeDistribution(profiler.samplesReactionMs, 120, reactionWindowMaxMs, 24),
+            max: reactionWindowMaxMs,
+          },
+          turn: summarizeDistribution(profiler.samplesTurnIntervalMs, 80, 4200, 24),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "上传失败");
+      setUploadStatus("success");
+      setUploadMessage("本局数据已上传到当前账号");
+    } catch (error) {
+      setUploadStatus("error");
+      setUploadMessage(error instanceof Error ? error.message : "上传失败，请稍后重试");
+    }
   };
 
   useEffect(() => {
@@ -970,6 +1018,9 @@ export default function OfflineTrainingGame() {
     setSurvivalTime(0);
     setHitCount(0);
     setRoundResult(null);
+    setUploadStatus("idle");
+    setUploadMessage("");
+    roundIdRef.current = crypto.randomUUID();
 
     const projectileImages: Record<keyof typeof BULLET_TEXTURES, HTMLImageElement> = {
       beaNormal: new Image(),
@@ -2033,6 +2084,25 @@ export default function OfflineTrainingGame() {
             <div className="training-game-over-time">
               {roundResult === "victory" ? "成功击败移动目标" : `生存时间 ${survivalTime.toFixed(1)} 秒`}
             </div>
+            {!isAimingMode && (
+              <>
+                <button
+                  className="btn-secondary"
+                  disabled={uploadStatus === "uploading" || uploadStatus === "success"}
+                  onClick={uploadTrainingData}
+                >
+                  {uploadStatus === "uploading"
+                    ? "上传中…"
+                    : uploadStatus === "success" ? "✓ 已上传本局数据" : "确认上传到当前账号"}
+                </button>
+                {uploadMessage && (
+                  <p className={`training-upload-message ${uploadStatus === "success" ? "success" : ""}`}>
+                    {uploadMessage}
+                  </p>
+                )}
+              </>
+            )}
+            {isAimingMode && <p className="training-upload-message">射击预判模式不记录走位分布</p>}
             <button
               className="btn-primary"
               onClick={() => {
@@ -2260,11 +2330,13 @@ export default function OfflineTrainingGame() {
 
             <div className="training-chart-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem" }}>
               <DistChartCard
-                title="数据1 · 摇杆触控点分布"
-                subtitle="1.0 = 摇杆边界；排除松开 & 极小死区"
+                title={mode === "joystick" ? "数据1 · 摇杆触控点分布" : "数据1 · 方向键操作幅度分布"}
+                subtitle={mode === "joystick"
+                  ? "1.0 = 摇杆边界；排除松开 & 极小死区"
+                  : "方向键有效输入的归一化幅度；与摇杆数据分开统计"}
                 accent="#4fc3f7"
                 samples={pauseSnapshot.stickMag}
-                xLabel="摇杆到中心距离 (归一化)"
+                xLabel={mode === "joystick" ? "摇杆到中心距离 (归一化)" : "方向键输入幅度 (归一化)"}
                 xMin={0}
                 xMax={1.05}
                 bins={22}
