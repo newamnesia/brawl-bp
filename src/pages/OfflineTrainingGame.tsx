@@ -1589,39 +1589,44 @@ export default function OfflineTrainingGame() {
         const nx = screenDx / screenLength;
         const ny = screenDy / screenLength;
         const boundary = 1 / Math.sqrt((nx * nx) / (radiusX * radiusX) + (ny * ny) / (radiusY * radiusY));
-        const arrowLength = Math.max(24, Math.min(46, scale * 1.15));
-        const halfWidth = Math.max(4.5, Math.min(7.5, scale * 0.18));
-        const startX = centerX + nx * (boundary + 3);
-        const startY = centerY + ny * (boundary + 3);
+        // 宽 V 形箭冠：两端贴近人物圆圈，外尖角指向当前方向，内尖角形成轻盈的镂空感。
+        const arrowHeight = Math.max(15, Math.min(27, scale * 0.68));
+        const halfWidth = Math.max(12, Math.min(23, scale * 0.58));
+        const baseX = centerX + nx * (boundary + 3);
+        const baseY = centerY + ny * (boundary + 3);
         const sideX = -ny;
         const sideY = nx;
-        const neckX = startX + nx * arrowLength * 0.58;
-        const neckY = startY + ny * arrowLength * 0.58;
-        const tipX = startX + nx * arrowLength;
-        const tipY = startY + ny * arrowLength;
+        const leftX = baseX + sideX * halfWidth;
+        const leftY = baseY + sideY * halfWidth;
+        const rightX = baseX - sideX * halfWidth;
+        const rightY = baseY - sideY * halfWidth;
+        const tipX = baseX + nx * arrowHeight;
+        const tipY = baseY + ny * arrowHeight;
+        const innerX = baseX + nx * arrowHeight * 0.42;
+        const innerY = baseY + ny * arrowHeight * 0.42;
         ctx.save();
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = "source-over";
-        ctx.fillStyle = fill;
+        const gradient = ctx.createLinearGradient(baseX, baseY, tipX, tipY);
+        gradient.addColorStop(0, fill);
+        gradient.addColorStop(1, stroke);
+        ctx.fillStyle = gradient;
         ctx.strokeStyle = "rgba(5, 8, 12, 0.96)";
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 3.5;
         ctx.lineJoin = "round";
-        ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
-        ctx.shadowBlur = 5;
+        ctx.shadowColor = fill;
+        ctx.shadowBlur = 9;
         ctx.beginPath();
-        ctx.moveTo(startX + sideX * halfWidth, startY + sideY * halfWidth);
-        ctx.lineTo(neckX + sideX * halfWidth, neckY + sideY * halfWidth);
-        ctx.lineTo(neckX + sideX * halfWidth * 1.75, neckY + sideY * halfWidth * 1.75);
+        ctx.moveTo(leftX, leftY);
         ctx.lineTo(tipX, tipY);
-        ctx.lineTo(neckX - sideX * halfWidth * 1.75, neckY - sideY * halfWidth * 1.75);
-        ctx.lineTo(neckX - sideX * halfWidth, neckY - sideY * halfWidth);
-        ctx.lineTo(startX - sideX * halfWidth, startY - sideY * halfWidth);
+        ctx.lineTo(rightX, rightY);
+        ctx.lineTo(innerX, innerY);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
         ctx.shadowBlur = 0;
-        ctx.strokeStyle = stroke;
-        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.72)";
+        ctx.lineWidth = 1.15;
         ctx.stroke();
         ctx.restore();
       };
@@ -1846,12 +1851,12 @@ export default function OfflineTrainingGame() {
       drawDirectionArrow(
         renderedEnemy.x, renderedEnemy.y, enemyCenterPx, enemyCenterPy,
         enemyRadiusPx, enemyRadiusPy, enemyDirection,
-        "#ff1744", "#ffffff",
+        "#e53935", "#ff8a80",
       );
       drawDirectionArrow(
         player.x, player.y, playerCenterPx, playerCenterPy,
         playerRadiusPx, playerRadiusPy, playerDirectionRef.current,
-        "#00b0ff", "#ffffff",
+        "#039be5", "#80d8ff",
       );
 
       animationId = requestAnimationFrame(gameLoop);
