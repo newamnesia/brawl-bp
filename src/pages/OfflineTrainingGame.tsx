@@ -366,8 +366,8 @@ function profileStep(
   p.avgStickMagnitude = ema(p.avgStickMagnitude, rawMag >= 0 ? rawMag : mag, EMA_ALPHA_SLOW);
 
   // ===== 数据1 摇杆距离分布：排除"松开"和"极小圆（死区）" =====
-  if (isPhysicallyEngaged && mag >= INPUT_DEADZONE_MAG) {
-    const distanceSample = rawMag >= 0 ? rawMag : mag;
+  if (rawMag >= 0 && isPhysicallyEngaged && mag >= INPUT_DEADZONE_MAG) {
+    const distanceSample = rawMag;
     // 限制最大样本数，避免暴增内存
     if (p.samplesStickMag.length < 40000) p.samplesStickMag.push(distanceSample);
   }
@@ -887,7 +887,7 @@ export default function OfflineTrainingGame() {
         } : {
           roundId: roundIdRef.current,
           controlMode: mode,
-          stick: summarizeDistribution(profiler.samplesStickMag, 0, 1.05, 22),
+          stick: summarizeDistribution(mode === "joystick" ? profiler.samplesStickMag : [], 0, 1.05, 22),
           reaction: {
             ...summarizeDistribution(profiler.samplesReactionMs, 120, reactionWindowMaxMs, 24),
             max: reactionWindowMaxMs,
@@ -2457,21 +2457,21 @@ function TrainingStatsGrid({ snapshot, aiming, mode, reactionWindowMaxMs, aiming
   }
   return (
     <div className="training-chart-grid">
+      {mode === "joystick" && (
+        <DistChartCard
+          title="数据1 · 摇杆触控点分布"
+          subtitle="1.0 = 摇杆边界；排除松开 & 极小死区"
+          accent="#4fc3f7"
+          samples={snapshot.stickMag}
+          xLabel="摇杆到中心距离 (归一化)"
+          xMin={0}
+          xMax={1.05}
+          bins={22}
+          unitLabel=""
+        />
+      )}
       <DistChartCard
-        title={mode === "joystick" ? "数据1 · 摇杆触控点分布" : "数据1 · 方向键操作幅度分布"}
-        subtitle={mode === "joystick"
-          ? "1.0 = 摇杆边界；排除松开 & 极小死区"
-          : "方向键有效输入的归一化幅度；与摇杆数据分开统计"}
-        accent="#4fc3f7"
-        samples={snapshot.stickMag}
-        xLabel={mode === "joystick" ? "摇杆到中心距离 (归一化)" : "方向键输入幅度 (归一化)"}
-        xMin={0}
-        xMax={1.05}
-        bins={22}
-        unitLabel=""
-      />
-      <DistChartCard
-        title="数据2 · 反应时间分布"
+        title={`数据${mode === "joystick" ? 2 : 1} · 反应时间分布`}
         subtitle={`子弹进入视野 → 首次转向；当前档最大窗口 ${reactionWindowMaxMs.toFixed(0)} ms`}
         accent="#ffb74d"
         samples={snapshot.reactionMs}
@@ -2482,7 +2482,7 @@ function TrainingStatsGrid({ snapshot, aiming, mode, reactionWindowMaxMs, aiming
         unitLabel=" ms"
       />
       <DistChartCard
-        title="数据3 · 变向时间分布"
+        title={`数据${mode === "joystick" ? 3 : 2} · 变向时间分布`}
         subtitle="统计每两次转向间的时间间隔分布"
         accent="#ba68c8"
         samples={snapshot.turnIntervalMs}

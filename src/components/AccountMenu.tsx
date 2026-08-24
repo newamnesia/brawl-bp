@@ -99,8 +99,8 @@ export default function AccountMenu() {
                 {statsError && <p className="error-msg">{statsError}</p>}
                 {stats && (
                   <div className="account-stats-modes">
-                    <ModeStatsCard title="键盘操纵" stats={stats.keyboard} controlMode="keyboard" />
-                    <ModeStatsCard title="摇杆操纵" stats={stats.joystick} controlMode="joystick" />
+                    <ModeStatsCard title="纯走位模式 · 键盘操纵" stats={stats.keyboard} controlMode="keyboard" />
+                    <ModeStatsCard title="纯走位模式 · 摇杆操纵" stats={stats.joystick} controlMode="joystick" />
                     <AimingStatsCard stats={stats.aiming} />
                   </div>
                 )}
@@ -173,13 +173,15 @@ function ModeStatsCard({ title, stats, controlMode }: { title: string; stats: Mo
         <p className="account-no-data">暂无已上传数据</p>
       ) : (
         <div className="account-distributions">
-          <DistributionBars
-            title={controlMode === "joystick" ? "摇杆触控点分布" : "方向键操作幅度分布"}
-            data={stats.stick}
-            rangeLabel="0–1.05"
-            unit=""
-            color="#4fc3f7"
-          />
+          {controlMode === "joystick" && (
+            <DistributionBars
+              title="摇杆触控点分布"
+              data={stats.stick}
+              rangeLabel="0–1.05"
+              unit=""
+              color="#4fc3f7"
+            />
+          )}
           <DistributionBars title="反应时间分布" data={stats.reaction} rangeLabel="120–2000 ms" unit=" ms" color="#ffb74d" />
           <DistributionBars title="变向时间分布" data={stats.turn} rangeLabel="80–4200 ms" unit=" ms" color="#ba68c8" />
         </div>
