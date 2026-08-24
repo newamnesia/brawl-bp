@@ -3,6 +3,13 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
+type TrainingSnapshot = {
+  stickMag: number[];
+  reactionMs: number[];
+  turnIntervalMs: number[];
+  aimLeadDeg: number[];
+  emptyAmmoRatio: number;
+};
 
 function summarizeDistribution(samples: number[], xMin: number, xMax: number, binCount: number) {
   const bins = Array<number>(binCount).fill(0);
@@ -17,6 +24,21 @@ function summarizeDistribution(samples: number[], xMin: number, xMax: number, bi
     sum += sample;
   }
   return { bins, count, sum };
+}
+
+function summarizeAngleDistribution(samples: number[], maxDegrees: number) {
+  const maxTenths = Math.max(1, Math.floor(maxDegrees * 10));
+  const bins = Array<number>(maxTenths * 2 + 1).fill(0);
+  let count = 0;
+  let sum = 0;
+  for (const sample of samples) {
+    const tenths = Math.round(sample * 10);
+    if (!Number.isFinite(sample) || Math.abs(tenths) > maxTenths) continue;
+    bins[tenths + maxTenths] += 1;
+    count += 1;
+    sum += tenths / 10;
+  }
+  return { bins, count, sum, max: maxTenths / 10 };
 }
 
 // 地图常量
@@ -801,7 +823,7 @@ export default function OfflineTrainingGame() {
   const [hitCount, setHitCount] = useState(0);
   const [health, setHealth] = useState(PLAYER_MAX_HEALTH);
   const [survivalTime, setSurvivalTime] = useState(0);
-  const [roundResult, setRoundResult] = useState<"victory" | "defeat" | null>(null);
+  const [roundResult, setRoundResult] = useState<"victory" | "defeat" | "ended" | null>(null);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
   const [uploadMessage, setUploadMessage] = useState("");
   const roundIdRef = useRef(crypto.randomUUID());
@@ -814,11 +836,7 @@ export default function OfflineTrainingGame() {
   const pausedRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   // 暂停时的三大样本快照（传给面板绘图）
-  const [pauseSnapshot, setPauseSnapshot] = useState<{
-    stickMag: number[];
-    reactionMs: number[];
-    turnIntervalMs: number[];
-  } | null>(null);
+  const [pauseSnapshot, setPauseSnapshot] = useState<TrainingSnapshot | null>(null);
 
   // 同步 paused state → ref（避免游戏循环读脏值）
   useEffect(() => {
@@ -830,6 +848,10 @@ export default function OfflineTrainingGame() {
         stickMag: prof.samplesStickMag,
         reactionMs: prof.samplesReactionMs,
         turnIntervalMs: prof.samplesTurnIntervalMs,
+        aimLeadDeg: aimingLeadAnglesRef.current,
+        emptyAmmoRatio: aimingElapsedSecondsRef.current > 0
+          ? aimingEmptyAmmoSecondsRef.current / aimingElapsedSecondsRef.current
+          : 0,
       });
     } else if (!paused) {
       setPauseSnapshot(null);
@@ -840,16 +862,29 @@ export default function OfflineTrainingGame() {
     setPaused((v) => !v);
   };
 
+  const endTraining = () => {
+    pausedRef.current = true;
+    setPaused(false);
+    setRoundResult("ended");
+  };
+
   const uploadTrainingData = async () => {
     const profiler = profilerRef.current;
-    if (!profiler || isAimingMode || uploadStatus === "uploading" || uploadStatus === "success") return;
+    if (!profiler || uploadStatus === "uploading" || uploadStatus === "success") return;
     setUploadStatus("uploading");
     setUploadMessage("");
     try {
-      const response = await fetch("/api/auth/training-data", {
+      const aimingMaxLeadDeg = Math.asin(Math.min(0.999, MOVE_SPEED / bulletSpeed)) * 180 / Math.PI;
+      const aimingLead = summarizeAngleDistribution(aimingLeadAnglesRef.current, aimingMaxLeadDeg);
+      const response = await fetch(isAimingMode ? "/api/auth/aiming-data" : "/api/auth/training-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: JSON.stringify(isAimingMode ? {
+          roundId: roundIdRef.current,
+          lead: aimingLead,
+          emptyAmmoSeconds: aimingEmptyAmmoSecondsRef.current,
+          totalSeconds: aimingElapsedSecondsRef.current,
+        } : {
           roundId: roundIdRef.current,
           controlMode: mode,
           stick: summarizeDistribution(profiler.samplesStickMag, 0, 1.05, 22),
@@ -922,6 +957,9 @@ export default function OfflineTrainingGame() {
 
   // Profiler（每局新建）
   const profilerRef = useRef<Prof | null>(null);
+  const aimingLeadAnglesRef = useRef<number[]>([]);
+  const aimingElapsedSecondsRef = useRef(0);
+  const aimingEmptyAmmoSecondsRef = useRef(0);
   // 上一帧玩家方向（度），用于每帧方向变化阈值 → 反应速度触发
 
   // 键盘监听
@@ -1021,6 +1059,9 @@ export default function OfflineTrainingGame() {
     setUploadStatus("idle");
     setUploadMessage("");
     roundIdRef.current = crypto.randomUUID();
+    aimingLeadAnglesRef.current = [];
+    aimingElapsedSecondsRef.current = 0;
+    aimingEmptyAmmoSecondsRef.current = 0;
 
     const projectileImages: Record<keyof typeof BULLET_TEXTURES, HTMLImageElement> = {
       beaNormal: new Image(),
@@ -1197,6 +1238,8 @@ export default function OfflineTrainingGame() {
         }
 
         if (isAimingMode) {
+          aimingElapsedSecondsRef.current += dt;
+          if (magazineAmmoRef.current < 1) aimingEmptyAmmoSecondsRef.current += dt;
           aimingTargetSecondsSinceDamageRef.current += dt;
           if (
             aimingTargetSecondsSinceDamageRef.current >= HEALTH_REGEN_DELAY_SECONDS
@@ -1847,6 +1890,14 @@ export default function OfflineTrainingGame() {
     const directionLength = Math.hypot(aim.knobX, aim.knobY);
     if (!pausedRef.current && directionLength > 8 && magazineAmmoRef.current > 0) {
       const player = playerRef.current;
+      const target = aimingTargetRef.current;
+      const shotAngle = Math.atan2(aim.knobY, aim.knobX);
+      const directAngle = Math.atan2(target.y - player.y, target.x - player.x);
+      const leadDegrees = Math.atan2(Math.sin(shotAngle - directAngle), Math.cos(shotAngle - directAngle)) * 180 / Math.PI;
+      const maxLeadDegrees = Math.asin(Math.min(0.999, MOVE_SPEED / bulletSpeed)) * 180 / Math.PI;
+      if (Math.abs(leadDegrees) <= maxLeadDegrees + 0.05 && aimingLeadAnglesRef.current.length < 10_000) {
+        aimingLeadAnglesRef.current.push(Math.round(leadDegrees * 10) / 10);
+      }
       const isEnhancedBeaShot = isBeaMode && beaEnhancedShotsRef.current > 0;
       bulletsRef.current.push({
         x: player.x,
@@ -1876,6 +1927,16 @@ export default function OfflineTrainingGame() {
 
   const speedTierLabel =
     speedTier === "high" ? "佩佩" : "贝亚";
+  const endSnapshot: TrainingSnapshot = {
+    stickMag: profilerRef.current?.samplesStickMag ?? [],
+    reactionMs: profilerRef.current?.samplesReactionMs ?? [],
+    turnIntervalMs: profilerRef.current?.samplesTurnIntervalMs ?? [],
+    aimLeadDeg: aimingLeadAnglesRef.current,
+    emptyAmmoRatio: aimingElapsedSecondsRef.current > 0
+      ? aimingEmptyAmmoSecondsRef.current / aimingElapsedSecondsRef.current
+      : 0,
+  };
+  const aimingMaxLeadDeg = Math.floor(Math.asin(Math.min(0.999, MOVE_SPEED / bulletSpeed)) * 180 / Math.PI * 10) / 10;
 
   return (
     <div
@@ -2042,6 +2103,22 @@ export default function OfflineTrainingGame() {
             {paused ? "▶ 继续" : "⏸ 暂停"}
           </button>
           <button
+            onClick={endTraining}
+            style={{
+              background: "rgba(255, 152, 0, 0.13)",
+              color: "#ffcc80",
+              border: "1px solid rgba(255, 152, 0, 0.45)",
+              padding: "0.4rem 0.8rem",
+              borderRadius: "8px",
+              fontWeight: 800,
+              fontSize: "0.85rem",
+              pointerEvents: "auto",
+              whiteSpace: "nowrap",
+            }}
+          >
+            结束本局
+          </button>
+          <button
             onClick={() => navigate("/offline-training")}
             style={{
               background: "var(--surface2)",
@@ -2077,32 +2154,36 @@ export default function OfflineTrainingGame() {
 
       {roundResult && (
         <div className="training-game-over">
-          <div className="training-game-over-card">
+          <div className="training-game-over-card training-game-over-card-wide">
             <div className={`training-game-over-title ${roundResult === "victory" ? "victory" : ""}`}>
               {roundResult === "victory" ? "预判命中，训练胜利！" : "本轮结束"}
             </div>
             <div className="training-game-over-time">
-              {roundResult === "victory" ? "成功击败移动目标" : `生存时间 ${survivalTime.toFixed(1)} 秒`}
+              {roundResult === "victory"
+                ? "成功击败移动目标"
+                : isSurvivalMode ? `生存时间 ${survivalTime.toFixed(1)} 秒` : "训练已主动结束"}
             </div>
-            {!isAimingMode && (
-              <>
-                <button
-                  className="btn-secondary"
-                  disabled={uploadStatus === "uploading" || uploadStatus === "success"}
-                  onClick={uploadTrainingData}
-                >
-                  {uploadStatus === "uploading"
-                    ? "上传中…"
-                    : uploadStatus === "success" ? "✓ 已上传本局数据" : "确认上传到当前账号"}
-                </button>
-                {uploadMessage && (
-                  <p className={`training-upload-message ${uploadStatus === "success" ? "success" : ""}`}>
-                    {uploadMessage}
-                  </p>
-                )}
-              </>
+            <TrainingStatsGrid
+              snapshot={endSnapshot}
+              aiming={isAimingMode}
+              mode={mode}
+              reactionWindowMaxMs={reactionWindowMaxMs}
+              aimingMaxLeadDeg={aimingMaxLeadDeg}
+            />
+            <button
+              className="btn-secondary"
+              disabled={uploadStatus === "uploading" || uploadStatus === "success"}
+              onClick={uploadTrainingData}
+            >
+              {uploadStatus === "uploading"
+                ? "上传中…"
+                : uploadStatus === "success" ? "✓ 已上传本局数据" : "确认上传到当前账号"}
+            </button>
+            {uploadMessage && (
+              <p className={`training-upload-message ${uploadStatus === "success" ? "success" : ""}`}>
+                {uploadMessage}
+              </p>
             )}
-            {isAimingMode && <p className="training-upload-message">射击预判模式不记录走位分布</p>}
             <button
               className="btn-primary"
               onClick={() => {
@@ -2328,43 +2409,13 @@ export default function OfflineTrainingGame() {
               </div>
             </div>
 
-            <div className="training-chart-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem" }}>
-              <DistChartCard
-                title={mode === "joystick" ? "数据1 · 摇杆触控点分布" : "数据1 · 方向键操作幅度分布"}
-                subtitle={mode === "joystick"
-                  ? "1.0 = 摇杆边界；排除松开 & 极小死区"
-                  : "方向键有效输入的归一化幅度；与摇杆数据分开统计"}
-                accent="#4fc3f7"
-                samples={pauseSnapshot.stickMag}
-                xLabel={mode === "joystick" ? "摇杆到中心距离 (归一化)" : "方向键输入幅度 (归一化)"}
-                xMin={0}
-                xMax={1.05}
-                bins={22}
-                unitLabel=""
-              />
-              <DistChartCard
-                title="数据2 · 反应时间分布"
-                subtitle={`子弹进入视野 → 首次转向；当前档最大窗口 ${reactionWindowMaxMs.toFixed(0)} ms`}
-                accent="#ffb74d"
-                samples={pauseSnapshot.reactionMs}
-                xLabel="反应时间 (ms)"
-                xMin={120}
-                xMax={reactionWindowMaxMs}
-                bins={24}
-                unitLabel=" ms"
-              />
-              <DistChartCard
-                title="数据3 · 变相时间分布"
-                subtitle="统计每两次转向间的时间间隔分布"
-                accent="#ba68c8"
-                samples={pauseSnapshot.turnIntervalMs}
-                xLabel="时间间隔 (ms)"
-                xMin={80}
-                xMax={4200}
-                bins={24}
-                unitLabel=" ms"
-              />
-            </div>
+            <TrainingStatsGrid
+              snapshot={pauseSnapshot}
+              aiming={isAimingMode}
+              mode={mode}
+              reactionWindowMaxMs={reactionWindowMaxMs}
+              aimingMaxLeadDeg={aimingMaxLeadDeg}
+            />
           </div>
         </div>
       )}
@@ -2373,6 +2424,78 @@ export default function OfflineTrainingGame() {
 }
 
 // ======= 自绘分布图（Canvas 区间频率曲线） =======
+function TrainingStatsGrid({ snapshot, aiming, mode, reactionWindowMaxMs, aimingMaxLeadDeg }: {
+  snapshot: TrainingSnapshot;
+  aiming: boolean;
+  mode: ControlMode;
+  reactionWindowMaxMs: number;
+  aimingMaxLeadDeg: number;
+}) {
+  if (aiming) {
+    return (
+      <div className="training-chart-grid training-aiming-stats-grid">
+        <DistChartCard
+          title="数据1 · 预判偏角分布"
+          subtitle={`出射方向相对目标直线方向；有效区间 ±${aimingMaxLeadDeg.toFixed(1)}°，最小单位 0.1°`}
+          accent="#4fc3f7"
+          samples={snapshot.aimLeadDeg}
+          xLabel="预判偏角 (°)"
+          xMin={-aimingMaxLeadDeg}
+          xMax={aimingMaxLeadDeg}
+          bins={Math.max(2, Math.ceil(aimingMaxLeadDeg * 20))}
+          unitLabel="°"
+          decimals={1}
+        />
+        <div className="training-ratio-card">
+          <div className="training-ratio-title">数据2 · 零子弹状态时长占比</div>
+          <div className="training-ratio-value">{(snapshot.emptyAmmoRatio * 100).toFixed(1)}%</div>
+          <div className="training-ratio-track"><span style={{ width: `${Math.min(100, snapshot.emptyAmmoRatio * 100)}%` }} /></div>
+          <div className="training-ratio-note">玩家持有子弹量小于 1 的时间 ÷ 本局有效训练时间</div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="training-chart-grid">
+      <DistChartCard
+        title={mode === "joystick" ? "数据1 · 摇杆触控点分布" : "数据1 · 方向键操作幅度分布"}
+        subtitle={mode === "joystick"
+          ? "1.0 = 摇杆边界；排除松开 & 极小死区"
+          : "方向键有效输入的归一化幅度；与摇杆数据分开统计"}
+        accent="#4fc3f7"
+        samples={snapshot.stickMag}
+        xLabel={mode === "joystick" ? "摇杆到中心距离 (归一化)" : "方向键输入幅度 (归一化)"}
+        xMin={0}
+        xMax={1.05}
+        bins={22}
+        unitLabel=""
+      />
+      <DistChartCard
+        title="数据2 · 反应时间分布"
+        subtitle={`子弹进入视野 → 首次转向；当前档最大窗口 ${reactionWindowMaxMs.toFixed(0)} ms`}
+        accent="#ffb74d"
+        samples={snapshot.reactionMs}
+        xLabel="反应时间 (ms)"
+        xMin={120}
+        xMax={reactionWindowMaxMs}
+        bins={24}
+        unitLabel=" ms"
+      />
+      <DistChartCard
+        title="数据3 · 变向时间分布"
+        subtitle="统计每两次转向间的时间间隔分布"
+        accent="#ba68c8"
+        samples={snapshot.turnIntervalMs}
+        xLabel="时间间隔 (ms)"
+        xMin={80}
+        xMax={4200}
+        bins={24}
+        unitLabel=" ms"
+      />
+    </div>
+  );
+}
+
 type DistChartCardProps = {
   title: string;
   subtitle?: string;
@@ -2383,6 +2506,7 @@ type DistChartCardProps = {
   xMax: number;
   bins: number;
   unitLabel?: string;
+  decimals?: number;
 };
 
 function DistChartCard({
@@ -2395,6 +2519,7 @@ function DistChartCard({
   xMax,
   bins,
   unitLabel = "",
+  decimals = 0,
 }: DistChartCardProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -2451,8 +2576,8 @@ function DistChartCard({
       <canvas ref={canvasRef} style={{ width: "100%", display: "block" }} />
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", fontSize: "0.72rem", color: "#b0bec5" }}>
         <StatChip label="样本数" value={`${n}`} accent={accent} />
-        {!isNaN(mean) && <StatChip label="均值" value={`${mean.toFixed(0)}${unitLabel}`} />}
-        {!isNaN(p50) && <StatChip label="中位数" value={`${p50.toFixed(0)}${unitLabel}`} />}
+        {!isNaN(mean) && <StatChip label="均值" value={`${mean.toFixed(decimals)}${unitLabel}`} />}
+        {!isNaN(p50) && <StatChip label="中位数" value={`${p50.toFixed(decimals)}${unitLabel}`} />}
       </div>
     </div>
   );

@@ -8,7 +8,13 @@ type ModeStats = {
   reaction: DistributionTotal;
   turn: DistributionTotal;
 };
-type PersonalStats = { keyboard: ModeStats; joystick: ModeStats };
+type AimingStats = {
+  uploads: number;
+  lead: DistributionTotal & { max: number };
+  emptyAmmoSeconds: number;
+  totalSeconds: number;
+};
+type PersonalStats = { keyboard: ModeStats; joystick: ModeStats; aiming: AimingStats };
 
 export default function AccountMenu() {
   const [account, setAccount] = useState<Account | null>(null);
@@ -36,7 +42,7 @@ export default function AccountMenu() {
       .then(async (response) => {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "读取个人数据失败");
-        setStats(data.modes);
+        setStats({ ...data.modes, aiming: data.aiming });
       })
       .catch((loadError) => setStatsError(loadError instanceof Error ? loadError.message : "读取个人数据失败"))
       .finally(() => setStatsLoading(false));
@@ -95,6 +101,7 @@ export default function AccountMenu() {
                   <div className="account-stats-modes">
                     <ModeStatsCard title="键盘操纵" stats={stats.keyboard} controlMode="keyboard" />
                     <ModeStatsCard title="摇杆操纵" stats={stats.joystick} controlMode="joystick" />
+                    <AimingStatsCard stats={stats.aiming} />
                   </div>
                 )}
                 <button className="btn-secondary account-submit" disabled={loading} onClick={logout}>退出登录</button>
@@ -124,6 +131,37 @@ export default function AccountMenu() {
   );
 }
 
+function AimingStatsCard({ stats }: { stats: AimingStats }) {
+  const emptyRatio = stats.totalSeconds > 0 ? stats.emptyAmmoSeconds / stats.totalSeconds : 0;
+  return (
+    <section className="account-stats-card account-aiming-stats-card">
+      <div className="account-stats-heading">
+        <h3>射击预判训练</h3>
+        <span>已上传 {stats.uploads} 局</span>
+      </div>
+      {stats.uploads === 0 ? (
+        <p className="account-no-data">暂无已上传数据</p>
+      ) : (
+        <div className="account-distributions account-aiming-distributions">
+          <DistributionBars
+            title="预判偏角分布"
+            data={stats.lead}
+            rangeLabel={`±${stats.lead.max.toFixed(1)}° · 0.1°/格`}
+            unit="°"
+            color="#4fc3f7"
+            decimals={1}
+          />
+          <div className="account-ratio-summary">
+            <strong>零子弹状态时长占比</strong>
+            <span>{(emptyRatio * 100).toFixed(1)}%</span>
+            <small>累计零子弹时间 ÷ 累计训练时间</small>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ModeStatsCard({ title, stats, controlMode }: { title: string; stats: ModeStats; controlMode: "keyboard" | "joystick" }) {
   return (
     <section className="account-stats-card">
@@ -150,12 +188,13 @@ function ModeStatsCard({ title, stats, controlMode }: { title: string; stats: Mo
   );
 }
 
-function DistributionBars({ title, data, rangeLabel, unit, color }: {
+function DistributionBars({ title, data, rangeLabel, unit, color, decimals }: {
   title: string;
   data: DistributionTotal;
   rangeLabel: string;
   unit: string;
   color: string;
+  decimals?: number;
 }) {
   const peak = Math.max(1, ...data.bins);
   const mean = data.count > 0 ? data.sum / data.count : 0;
@@ -172,7 +211,7 @@ function DistributionBars({ title, data, rangeLabel, unit, color }: {
       </div>
       <div className="account-distribution-meta">
         <span>样本数 {data.count}</span>
-        {data.count > 0 && <span>均值 {mean.toFixed(unit ? 0 : 2)}{unit}</span>}
+        {data.count > 0 && <span>均值 {mean.toFixed(decimals ?? (unit ? 0 : 2))}{unit}</span>}
       </div>
     </div>
   );

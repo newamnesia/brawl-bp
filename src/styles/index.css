@@ -130,6 +130,15 @@ body {
   -webkit-backdrop-filter: blur(5px);
   pointer-events: auto;
 }
+.training-game-over-card-wide { width: min(1080px, 100%); max-height: 94dvh; overflow-y: auto; }
+.training-chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 0.25rem 0 1rem; text-align: left; }
+.training-aiming-stats-grid { grid-template-columns: minmax(300px, 2fr) minmax(240px, 1fr); }
+.training-ratio-card { display: flex; flex-direction: column; justify-content: center; padding: 1rem; border: 1px solid rgba(105, 240, 174, 0.22); border-radius: 14px; background: rgba(22, 32, 49, 0.85); text-align: center; }
+.training-ratio-title { color: #eaf3fb; font-size: 0.95rem; font-weight: 800; }
+.training-ratio-value { margin: 1rem 0 0.7rem; color: #69f0ae; font-size: 2.4rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+.training-ratio-track { height: 10px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,0.09); }
+.training-ratio-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #00c853, #69f0ae); }
+.training-ratio-note { margin-top: 0.65rem; color: #8899aa; font-size: 0.72rem; line-height: 1.5; }
 
 .account-menu {
   position: fixed;
@@ -179,6 +188,12 @@ body {
 .account-stats-heading h3 { color: var(--text); font-size: 1rem; }
 .account-stats-heading span { color: var(--muted); font-size: 0.78rem; }
 .account-no-data { padding: 2rem 0; color: var(--muted); text-align: center; }
+.account-aiming-stats-card { grid-column: 1 / -1; }
+.account-aiming-distributions { grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr); align-items: stretch; }
+.account-ratio-summary { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1rem; border-radius: 10px; background: rgba(105,240,174,0.055); text-align: center; }
+.account-ratio-summary strong { font-size: 0.8rem; }
+.account-ratio-summary span { margin: 0.7rem 0 0.35rem; color: var(--green); font-size: 2rem; font-weight: 900; }
+.account-ratio-summary small { color: var(--muted); font-size: 0.68rem; }
 .account-distributions { display: grid; gap: 0.75rem; }
 .account-distribution { padding: 0.7rem; border-radius: 10px; background: rgba(255,255,255,0.035); }
 .account-distribution-title, .account-distribution-meta { display: flex; justify-content: space-between; gap: 0.5rem; }
@@ -186,6 +201,7 @@ body {
 .account-distribution-title span, .account-distribution-meta { color: var(--muted); }
 .account-distribution-bars { display: flex; align-items: flex-end; gap: 2px; height: 72px; margin: 0.55rem 0 0.35rem; border-bottom: 1px solid rgba(255,255,255,0.12); }
 .account-distribution-bars i { flex: 1; min-width: 2px; border-radius: 2px 2px 0 0; opacity: 0.86; }
+.account-aiming-stats-card .account-distribution-bars { gap: 0; }
 .account-distribution-meta { font-size: 0.7rem; }
 .training-upload-message { margin: 0.6rem 0 0.2rem; color: #ffb4ab; font-size: 0.82rem; }
 .training-upload-message.success { color: var(--green); }
@@ -193,6 +209,8 @@ body {
 @media (max-width: 640px) {
   .account-trigger { padding: 0.45rem 0.65rem; font-size: 0.8rem; }
   .account-stats-modes { grid-template-columns: 1fr; }
+  .account-aiming-distributions { grid-template-columns: 1fr; }
+  .training-aiming-stats-grid { grid-template-columns: 1fr; }
 }
 
 .training-updates-card {

@@ -121,6 +121,20 @@ export async function initializeAuthDatabase() {
       UNIQUE (username, round_id)
     );
     CREATE INDEX IF NOT EXISTS training_uploads_username_idx ON training_uploads(username);
+    CREATE TABLE IF NOT EXISTS aiming_uploads (
+      id BIGSERIAL PRIMARY KEY,
+      username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+      round_id TEXT NOT NULL,
+      lead_bins INTEGER[] NOT NULL,
+      lead_count INTEGER NOT NULL,
+      lead_sum DOUBLE PRECISION NOT NULL,
+      lead_max DOUBLE PRECISION NOT NULL,
+      empty_ammo_seconds DOUBLE PRECISION NOT NULL,
+      total_seconds DOUBLE PRECISION NOT NULL,
+      uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (username, round_id)
+    );
+    CREATE INDEX IF NOT EXISTS aiming_uploads_username_idx ON aiming_uploads(username);
   `);
   await pool.query(
     `INSERT INTO users (username, password_hash, role)
@@ -241,6 +255,41 @@ export function createAuthRouter(secureCookies: boolean) {
     }
   });
 
+  router.post("/aiming-data", async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "账号服务暂不可用" });
+    try {
+      const user = await getSessionUser(req.headers.cookie);
+      if (!user) return res.status(401).json({ error: "请先登录账号" });
+      const { roundId, lead, emptyAmmoSeconds, totalSeconds } = req.body ?? {};
+      const maxTenths = Number.isFinite(lead?.max) ? Math.round(lead.max * 10) : 0;
+      if (
+        typeof roundId !== "string" || roundId.length < 8 || roundId.length > 80
+        || maxTenths < 1 || maxTenths > 900 || Math.abs(lead.max * 10 - maxTenths) > 0.001
+        || !validBins(lead.bins, maxTenths * 2 + 1)
+        || !Number.isInteger(lead.count) || lead.count < 0 || lead.count > 10_000
+        || !Number.isFinite(lead.sum) || Math.abs(lead.sum) > lead.count * lead.max
+        || lead.bins.reduce((sum: number, count: number) => sum + count, 0) !== lead.count
+        || !Number.isFinite(totalSeconds) || totalSeconds < 0 || totalSeconds > 86_400
+        || !Number.isFinite(emptyAmmoSeconds) || emptyAmmoSeconds < 0 || emptyAmmoSeconds > totalSeconds + 0.01
+      ) {
+        return res.status(400).json({ error: "射击统计数据格式无效" });
+      }
+      const result = await pool.query(
+        `INSERT INTO aiming_uploads (
+          username, round_id, lead_bins, lead_count, lead_sum, lead_max,
+          empty_ammo_seconds, total_seconds
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        ON CONFLICT (username, round_id) DO NOTHING RETURNING id`,
+        [user.username, roundId, lead.bins, lead.count, lead.sum, lead.max, emptyAmmoSeconds, totalSeconds],
+      );
+      if (result.rowCount === 0) return res.status(409).json({ error: "本局数据已经上传" });
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error("上传射击训练数据失败", error);
+      return res.status(503).json({ error: "上传失败，请稍后重试" });
+    }
+  });
+
   router.get("/training-data", async (req, res) => {
     if (!pool) return res.status(503).json({ error: "账号服务暂不可用" });
     try {
@@ -272,7 +321,31 @@ export function createAuthRouter(secureCookies: boolean) {
         mode.reaction.count += row.reaction_count; mode.reaction.sum += Number(row.reaction_sum);
         mode.turn.count += row.turn_count; mode.turn.sum += Number(row.turn_sum);
       }
-      return res.json({ modes });
+      const aimingResult = await pool.query(
+        `SELECT lead_bins, lead_count, lead_sum, lead_max, empty_ammo_seconds, total_seconds
+         FROM aiming_uploads WHERE username = $1`,
+        [user.username],
+      );
+      const aimingRows = aimingResult.rows;
+      const aggregateMaxTenths = Math.max(1, ...aimingRows.map((row) => Math.round(Number(row.lead_max) * 10)));
+      const aiming = {
+        uploads: aimingRows.length,
+        lead: { bins: Array(aggregateMaxTenths * 2 + 1).fill(0), count: 0, sum: 0, max: aggregateMaxTenths / 10 },
+        emptyAmmoSeconds: 0,
+        totalSeconds: 0,
+      };
+      for (const row of aimingRows) {
+        const rowMaxTenths = Math.round(Number(row.lead_max) * 10);
+        row.lead_bins.forEach((count: number, index: number) => {
+          const angleTenths = index - rowMaxTenths;
+          aiming.lead.bins[angleTenths + aggregateMaxTenths] += Number(count);
+        });
+        aiming.lead.count += row.lead_count;
+        aiming.lead.sum += Number(row.lead_sum);
+        aiming.emptyAmmoSeconds += Number(row.empty_ammo_seconds);
+        aiming.totalSeconds += Number(row.total_seconds);
+      }
+      return res.json({ modes, aiming });
     } catch (error) {
       console.error("读取训练数据失败", error);
       return res.status(503).json({ error: "读取个人数据失败" });
