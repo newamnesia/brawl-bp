@@ -780,6 +780,7 @@ export default function OfflineTrainingGame() {
     switchTimer: AIMING_DIRECTION_SWITCH_SECONDS,
   });
   const aimingTargetHealthRef = useRef(PLAYER_MAX_HEALTH);
+  const aimingTargetSecondsSinceDamageRef = useRef(0);
 
   const [, forceUpdate] = useState(0);
   const [hitCount, setHitCount] = useState(0);
@@ -952,6 +953,7 @@ export default function OfflineTrainingGame() {
       switchTimer: AIMING_DIRECTION_SWITCH_SECONDS,
     };
     aimingTargetHealthRef.current = PLAYER_MAX_HEALTH;
+    aimingTargetSecondsSinceDamageRef.current = 0;
     playerVelocityRef.current = { x: 0, y: 0 };
     magazineAmmoRef.current = magazineCapacity;
     magazineReloadTimerRef.current = magazineReloadSeconds;
@@ -1143,6 +1145,19 @@ export default function OfflineTrainingGame() {
           }
         }
 
+        if (isAimingMode) {
+          aimingTargetSecondsSinceDamageRef.current += dt;
+          if (
+            aimingTargetSecondsSinceDamageRef.current >= HEALTH_REGEN_DELAY_SECONDS
+            && aimingTargetHealthRef.current < PLAYER_MAX_HEALTH
+          ) {
+            aimingTargetHealthRef.current = Math.min(
+              PLAYER_MAX_HEALTH,
+              aimingTargetHealthRef.current + HEALTH_REGEN_PER_SECOND * dt,
+            );
+          }
+        }
+
         const difficultyMultiplier = isSurvivalMode
           ? Math.min(MAX_DIFFICULTY_MULTIPLIER, 1 + survivalTimeRef.current * DIFFICULTY_GROWTH_PER_SECOND)
           : 1;
@@ -1313,6 +1328,7 @@ export default function OfflineTrainingGame() {
                 0,
                 aimingTargetHealthRef.current - projectileDamage(b.texture, b.traveled),
               );
+              aimingTargetSecondsSinceDamageRef.current = 0;
               if (aimingTargetHealthRef.current <= 0) {
                 pausedRef.current = true;
                 setRoundResult("victory");
