@@ -1589,10 +1589,10 @@ export default function OfflineTrainingGame() {
         const nx = screenDx / screenLength;
         const ny = screenDy / screenLength;
         const boundary = 1 / Math.sqrt((nx * nx) / (radiusX * radiusX) + (ny * ny) / (radiusY * radiusY));
-        const arrowLength = Math.max(17, Math.min(34, scale * 0.82));
-        const halfWidth = Math.max(3, Math.min(5.5, scale * 0.13));
-        const startX = centerX + nx * (boundary + 2);
-        const startY = centerY + ny * (boundary + 2);
+        const arrowLength = Math.max(24, Math.min(46, scale * 1.15));
+        const halfWidth = Math.max(4.5, Math.min(7.5, scale * 0.18));
+        const startX = centerX + nx * (boundary + 3);
+        const startY = centerY + ny * (boundary + 3);
         const sideX = -ny;
         const sideY = nx;
         const neckX = startX + nx * arrowLength * 0.58;
@@ -1600,9 +1600,14 @@ export default function OfflineTrainingGame() {
         const tipX = startX + nx * arrowLength;
         const tipY = startY + ny * arrowLength;
         ctx.save();
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
         ctx.fillStyle = fill;
-        ctx.strokeStyle = stroke;
-        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = "rgba(5, 8, 12, 0.96)";
+        ctx.lineWidth = 4;
+        ctx.lineJoin = "round";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+        ctx.shadowBlur = 5;
         ctx.beginPath();
         ctx.moveTo(startX + sideX * halfWidth, startY + sideY * halfWidth);
         ctx.lineTo(neckX + sideX * halfWidth, neckY + sideY * halfWidth);
@@ -1613,6 +1618,10 @@ export default function OfflineTrainingGame() {
         ctx.lineTo(startX - sideX * halfWidth, startY - sideY * halfWidth);
         ctx.closePath();
         ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1.4;
         ctx.stroke();
         ctx.restore();
       };
@@ -1648,14 +1657,6 @@ export default function OfflineTrainingGame() {
       ctx.beginPath();
       ctx.ellipse(enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
-      const enemyDirection = isAimingMode
-        ? aimingTargetRef.current.angle + aimingTargetRef.current.direction * Math.PI / 2
-        : enemyDirectionRef.current;
-      drawDirectionArrow(
-        renderedEnemy.x, renderedEnemy.y, enemyCenterPx, enemyCenterPy,
-        enemyRadiusPx, enemyRadiusPy, enemyDirection,
-        "rgba(255, 82, 82, 0.72)", "rgba(255, 205, 210, 0.9)",
-      );
 
       if (isAimingMode) {
         const barWidth = Math.min(110, Math.max(48, scale * 2.2));
@@ -1695,11 +1696,6 @@ export default function OfflineTrainingGame() {
       ctx.beginPath();
       ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
-      drawDirectionArrow(
-        player.x, player.y, playerCenterPx, playerCenterPy,
-        playerRadiusPx, playerRadiusPy, playerDirectionRef.current,
-        "rgba(79, 195, 247, 0.72)", "rgba(225, 245, 254, 0.92)",
-      );
 
       if (isAimingMode && aimJoystickRef.current.active) {
         const aim = aimJoystickRef.current;
@@ -1842,6 +1838,21 @@ export default function OfflineTrainingGame() {
         }
         ctx.restore();
       }
+
+      // 方向箭头统一置于所有 Canvas 内容的最终前景层，避免被子弹、粒子或蜂蜜海覆盖。
+      const enemyDirection = isAimingMode
+        ? aimingTargetRef.current.angle + aimingTargetRef.current.direction * Math.PI / 2
+        : enemyDirectionRef.current;
+      drawDirectionArrow(
+        renderedEnemy.x, renderedEnemy.y, enemyCenterPx, enemyCenterPy,
+        enemyRadiusPx, enemyRadiusPy, enemyDirection,
+        "#ff1744", "#ffffff",
+      );
+      drawDirectionArrow(
+        player.x, player.y, playerCenterPx, playerCenterPy,
+        playerRadiusPx, playerRadiusPy, playerDirectionRef.current,
+        "#00b0ff", "#ffffff",
+      );
 
       animationId = requestAnimationFrame(gameLoop);
     };
