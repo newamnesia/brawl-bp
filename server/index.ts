@@ -29,7 +29,18 @@ app.get('/health', (_req, res) => {
 
 if (isProd) {
   app.set("trust proxy", 1);
-  app.use(express.static(distPath));
+  // Vite 产物和版本化图片可长期缓存；角色切换时无需重复下载未变化素材。
+  app.use("/assets", express.static(path.join(distPath, "assets"), {
+    maxAge: "1y",
+    immutable: true,
+  }));
+  // HTML 必须每次校验，避免发布后仍引用旧构建；其余根目录文件短缓存。
+  app.use(express.static(distPath, {
+    maxAge: "1h",
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".html")) res.setHeader("Cache-Control", "no-cache");
+    },
+  }));
   app.get("*", (_req, res) => {
     res.sendFile(path.join(distPath, "index.html"));
   });

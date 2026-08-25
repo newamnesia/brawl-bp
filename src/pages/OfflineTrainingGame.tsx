@@ -97,9 +97,9 @@ const DIFFICULTY_GROWTH_PER_SECOND = 0.005; // 每存活 1 秒提高 0.5%
 const MAX_DIFFICULTY_MULTIPLIER = 2.5;
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_TEXTURES = {
-  beaNormal: "/assets/projectiles/bea-normal-v3.png",
-  beaEnhanced: "/assets/projectiles/bea-enhanced-v3.png",
-  high: "/assets/projectiles/bullet-17-5-v3.png?v=4",
+  beaNormal: "/assets/projectiles/bea-normal-v4.png",
+  beaEnhanced: "/assets/projectiles/bea-enhanced-v4.png",
+  high: "/assets/projectiles/bullet-17-5-v4.png",
 } as const;
 
 function projectileDamage(texture: keyof typeof BULLET_TEXTURES, traveled: number): number {
@@ -1114,14 +1114,16 @@ export default function OfflineTrainingGame() {
     playerDirectionRef.current = -Math.PI / 2;
     enemyDirectionRef.current = Math.PI / 2;
 
-    const projectileImages: Record<keyof typeof BULLET_TEXTURES, HTMLImageElement> = {
-      beaNormal: new Image(),
-      beaEnhanced: new Image(),
-      high: new Image(),
-    };
-    projectileImages.beaNormal.src = BULLET_TEXTURES.beaNormal;
-    projectileImages.beaEnhanced.src = BULLET_TEXTURES.beaEnhanced;
-    projectileImages.high.src = BULLET_TEXTURES.high;
+    const projectileImages: Partial<Record<keyof typeof BULLET_TEXTURES, HTMLImageElement>> = {};
+    if (isBeaMode) {
+      projectileImages.beaNormal = new Image();
+      projectileImages.beaEnhanced = new Image();
+      projectileImages.beaNormal.src = BULLET_TEXTURES.beaNormal;
+      projectileImages.beaEnhanced.src = BULLET_TEXTURES.beaEnhanced;
+    } else {
+      projectileImages.high = new Image();
+      projectileImages.high.src = BULLET_TEXTURES.high;
+    }
     const hitParticles: HitParticle[] = [];
 
     const spawnHitParticles = (x: number, y: number) => {
@@ -1801,7 +1803,7 @@ export default function OfflineTrainingGame() {
         const radiusX = b.radius * scale * widthFactorAt(b.y);
         const radiusY = b.radius * scaleY;
         const image = projectileImages[b.texture];
-        if (image.complete && image.naturalWidth > 0) {
+        if (image?.complete && image.naturalWidth > 0) {
           const headingX = projectX(b.x + b.vx * 0.05, b.y + b.vy * 0.05);
           const headingY = projectY(b.y + b.vy * 0.05);
           const angle = Math.atan2(headingY - by, headingX - bx);
