@@ -1654,8 +1654,7 @@ export default function OfflineTrainingGame() {
         radiusX: number,
         radiusY: number,
         angle: number,
-        fill: string,
-        stroke: string,
+        color: string,
       ) => {
         const probeX = projectX(worldX + Math.cos(angle), worldY + Math.sin(angle));
         const probeY = projectY(worldY + Math.sin(angle));
@@ -1665,44 +1664,64 @@ export default function OfflineTrainingGame() {
         const nx = screenDx / screenLength;
         const ny = screenDy / screenLength;
         const boundary = 1 / Math.sqrt((nx * nx) / (radiusX * radiusX) + (ny * ny) / (radiusY * radiusY));
-        // 宽 V 形箭冠：两端贴近人物圆圈，外尖角指向当前方向，内尖角形成轻盈的镂空感。
-        const arrowHeight = Math.max(15, Math.min(27, scale * 0.68));
-        const halfWidth = Math.max(12, Math.min(23, scale * 0.58));
-        const baseX = centerX + nx * (boundary + 3);
-        const baseY = centerY + ny * (boundary + 3);
-        const sideX = -ny;
-        const sideY = nx;
-        const leftX = baseX + sideX * halfWidth;
-        const leftY = baseY + sideY * halfWidth;
-        const rightX = baseX - sideX * halfWidth;
-        const rightY = baseY - sideY * halfWidth;
-        const tipX = baseX + nx * arrowHeight;
-        const tipY = baseY + ny * arrowHeight;
-        const innerX = baseX + nx * arrowHeight * 0.42;
-        const innerY = baseY + ny * arrowHeight * 0.42;
+
+        // 从移动方向上的外点向判定椭圆作两条切线，并数值求解使屏幕上的箭尖内角严格为 170°。
+        const tangentGeometry = (distance: number) => {
+          const px = nx * distance;
+          const py = ny * distance;
+          const qx = px / radiusX;
+          const qy = py / radiusY;
+          const qLengthSq = qx * qx + qy * qy;
+          const root = Math.sqrt(Math.max(0, qLengthSq - 1));
+          const baseX = qx / qLengthSq;
+          const baseY = qy / qLengthSq;
+          const offsetX = -qy * root / qLengthSq;
+          const offsetY = qx * root / qLengthSq;
+          const tangent1X = (baseX + offsetX) * radiusX;
+          const tangent1Y = (baseY + offsetY) * radiusY;
+          const tangent2X = (baseX - offsetX) * radiusX;
+          const tangent2Y = (baseY - offsetY) * radiusY;
+          const vector1X = tangent1X - px;
+          const vector1Y = tangent1Y - py;
+          const vector2X = tangent2X - px;
+          const vector2Y = tangent2Y - py;
+          const cosine = Math.max(-1, Math.min(1,
+            (vector1X * vector2X + vector1Y * vector2Y)
+            / (Math.hypot(vector1X, vector1Y) * Math.hypot(vector2X, vector2Y) || 1),
+          ));
+          return { px, py, tangent1X, tangent1Y, tangent2X, tangent2Y, angle: Math.acos(cosine) };
+        };
+
+        const targetAngle = 170 * Math.PI / 180;
+        let nearDistance = boundary * (1 + 1e-7);
+        let farDistance = boundary * 1024;
+        for (let i = 0; i < 48; i++) {
+          const middleDistance = (nearDistance + farDistance) / 2;
+          if (tangentGeometry(middleDistance).angle > targetAngle) nearDistance = middleDistance;
+          else farDistance = middleDistance;
+        }
+        const arrow = tangentGeometry((nearDistance + farDistance) / 2);
+        const tipX = centerX + arrow.px;
+        const tipY = centerY + arrow.py;
+        const tangent1X = centerX + arrow.tangent1X;
+        const tangent1Y = centerY + arrow.tangent1Y;
+        const tangent2X = centerX + arrow.tangent2X;
+        const tangent2Y = centerY + arrow.tangent2Y;
+
         ctx.save();
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = "source-over";
-        const gradient = ctx.createLinearGradient(baseX, baseY, tipX, tipY);
-        gradient.addColorStop(0, fill);
-        gradient.addColorStop(1, stroke);
-        ctx.fillStyle = gradient;
         ctx.strokeStyle = "rgba(5, 8, 12, 0.96)";
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = 6;
+        ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        ctx.shadowColor = fill;
-        ctx.shadowBlur = 9;
         ctx.beginPath();
-        ctx.moveTo(leftX, leftY);
+        ctx.moveTo(tangent1X, tangent1Y);
         ctx.lineTo(tipX, tipY);
-        ctx.lineTo(rightX, rightY);
-        ctx.lineTo(innerX, innerY);
-        ctx.closePath();
-        ctx.fill();
+        ctx.lineTo(tangent2X, tangent2Y);
         ctx.stroke();
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.72)";
-        ctx.lineWidth = 1.15;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
         ctx.stroke();
         ctx.restore();
       };
@@ -1927,12 +1946,12 @@ export default function OfflineTrainingGame() {
       drawDirectionArrow(
         renderedEnemy.x, renderedEnemy.y, enemyCenterPx, enemyCenterPy,
         enemyRadiusPx, enemyRadiusPy, enemyDirection,
-        "#e53935", "#ff8a80",
+        "#ff5252",
       );
       drawDirectionArrow(
         player.x, player.y, playerCenterPx, playerCenterPy,
         playerRadiusPx, playerRadiusPy, playerDirectionRef.current,
-        "#039be5", "#80d8ff",
+        "#4fc3f7",
       );
 
       animationId = requestAnimationFrame(gameLoop);
