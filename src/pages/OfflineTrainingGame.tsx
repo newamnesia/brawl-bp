@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { summarizeAngleDistribution, summarizeDistribution } from "../features/training/statistics";
+import { AIM_REACTION_TIERS, type AimReactionTier } from "../features/training/config";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
-type AimReactionTier = "diamond" | "legendary" | "master";
 type AimingRule = "infinite" | "challenge";
 type TrainingSnapshot = {
   stickMag: number[];
@@ -40,11 +40,6 @@ const AIMING_MAX_DISTANCE = 10;
 const AIMING_FRONT_ANGLE = -Math.PI / 2;
 const AIMING_SECTOR_HALF_ANGLE = Math.PI / 4;
 const AIMING_AI_TURN_RATE = 10;
-const AIMING_REACTION_SECONDS: Record<AimReactionTier, number> = {
-  diamond: 0.4,
-  legendary: 0.28,
-  master: 0.19,
-};
 const MAGAZINE_CAPACITY = 3;
 const MAGAZINE_RELOAD_SECONDS = 1.5;
 // 普通射击平均间隔 1.9s，慢于单发恢复时间 1.5s。
@@ -748,7 +743,7 @@ export default function OfflineTrainingGame() {
   const reactionTier: AimReactionTier = requestedReactionTier === "legendary" || requestedReactionTier === "master"
     ? requestedReactionTier
     : "diamond";
-  const aimingReactionSeconds = AIMING_REACTION_SECONDS[reactionTier];
+  const aimingReactionSeconds = AIM_REACTION_TIERS[reactionTier].seconds;
 
   // 从 URL 读取子弹速度（最小 0.01，非法时回退到当前档位，而不是固定低速）。
   const rawSpeed = parseFloat(searchParams.get("bulletSpeed") ?? "");
