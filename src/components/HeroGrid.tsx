@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   HEROES,
-  HERO_MAP,
-  heroDisplayName,
-  heroImageUrl,
 } from "../../shared/types";
+import { HERO_MAP, heroDisplayName, heroImageUrl } from "../../shared/catalog";
 
 // 简易模糊匹配：按子串顺序出现即命中（不要求连续）
 function fuzzyMatch(name: string, query: string): boolean {

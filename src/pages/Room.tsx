@@ -35,7 +35,7 @@ export default function Room() {
   const socket = getSocket();
 
   const inviteUrl = useMemo(
-    () => `${window.location.origin}/?code=${code ?? ""}`,
+    () => `${window.location.origin}/bp?code=${code ?? ""}`,
     [code],
   );
 
@@ -105,7 +105,7 @@ export default function Room() {
   const leave = () => {
     socket.emit("leave_room");
     disconnectSocket();
-    navigate("/");
+    navigate("/bp");
   };
 
   const allPickedIds = useMemo(() => {
@@ -131,8 +131,8 @@ export default function Room() {
       <div className="app-shell">
         <div className="card" style={{ textAlign: "center" }}>
           <p style={{ marginBottom: "1rem" }}>{closedMsg}</p>
-          <button className="btn-primary" onClick={() => navigate("/")}>
-            返回首页
+          <button className="btn-primary" onClick={() => navigate("/bp")}>
+            返回 BP 大厅
           </button>
         </div>
       </div>
@@ -153,10 +153,10 @@ export default function Room() {
               onClick={() => {
                 socket.emit("leave_room");
                 disconnectSocket();
-                navigate("/");
+                navigate("/bp");
               }}
             >
-              终止并返回首页
+              终止并返回 BP 大厅
             </button>
           </div>
         )}

@@ -2,12 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   HEROES,
-  heroDisplayName,
-  heroImageUrl,
   type Hero,
   type Rarity,
   type Tier,
 } from "../../shared/types";
+import { heroDisplayName, heroImageUrl } from "../../shared/catalog";
 
 const RARITY_LABELS: Record<Rarity, string> = {
   starting: "初始",
@@ -135,9 +134,9 @@ export default function Preview() {
       <button
         className="btn-primary"
         style={{ marginTop: "1.5rem", width: "100%" }}
-        onClick={() => navigate("/")}
+        onClick={() => navigate("/bp")}
       >
-        返回首页
+        返回 BP 大厅
       </button>
 
       {activeHero && (

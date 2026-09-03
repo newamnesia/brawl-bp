@@ -171,8 +171,6 @@ export const HEROES: Hero[] = [
   { id: "sirius", name: "西里乌斯", enName: "Sirius", emoji: "🌟", rarity: "extraordinary", cdnId: 16000102 , stats: { health: 6800, attack: "1200(双投射物)", reloadMs: 1600, range: 7.33, moveSpeed: 720 }},
 ];
 
-export const HERO_MAP = Object.fromEntries(HEROES.map((h) => [h.id, h]));
-
 /**
  * 综合评级（S/A/B/C/D/E）。
  * 来源：荒野乱斗公开社区评级（如 brawlstars.fandom.com 及各类社区/视频网站的通行评级），
@@ -282,16 +280,6 @@ export interface RoomState {
   confirmedMapId: string | null;
 }
 
-/** 大厅列表项 */
-export interface LobbyRoom {
-  code: string;
-  roomName: string;
-  hostNickname: string;
-  playerCount: number;
-  spectatorCount: number;
-  phase: Phase;
-}
-
 export type GameMode = "brawl_ball" | "gem_grab" | "hot_zone" | "bounty" | "knockout";
 
 export interface BrawlMap {
@@ -308,8 +296,6 @@ export const GAME_MODES: { id: GameMode; name: string; icon: string }[] = [
   { id: "bounty", name: "赏金", icon: "/brawl-stars/res/img/modes/icon_bounty.webp" },
   { id: "knockout", name: "淘汰", icon: "/brawl-stars/res/img/modes/icon_knockout.webp" },
 ];
-
-export const MAPS_BASE_URL = "https://www.noff.gg";
 
 export const MAPS: BrawlMap[] = [
   // ===== Brawl Ball (足球) =====
@@ -448,25 +434,5 @@ export const MAPS: BrawlMap[] = [
   { id: "twilight_passage", name: "Twilight Passage", mode: "knockout", thumbnail: "/brawl-stars/res/img/maps/twilight_passage_thumbnail.webp" },
 ];
 
-export const MAP_MAP = Object.fromEntries(MAPS.map((m) => [m.id, m]));
+// 派生索引与资源 URL 位于 catalog.ts，避免协议文件继续承担视图职责。
 
-/** 获取地图缩略图完整 URL */
-export function mapThumbnailUrl(map: BrawlMap): string {
-  return `${MAPS_BASE_URL}${map.thumbnail}`;
-}
-
-/** 获取模式图标完整 URL */
-export function modeIconUrl(mode: Pick<{ id: GameMode; name: string; icon: string }, "icon">): string {
-  return `${MAPS_BASE_URL}${mode.icon}`;
-}
-
-/** 中文名（英文名）格式 */
-export function heroDisplayName(hero: Hero): string {
-  return `${hero.name}（${hero.enName}）`;
-}
-
-/** CDN 头像 URL */
-export function heroImageUrl(hero: Hero): string {
-  const folder = hero.borderless ? "borderless" : "borders";
-  return `https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/${folder}/${hero.cdnId}.png`;
-}

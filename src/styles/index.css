@@ -939,65 +939,13 @@ input:focus {
   font-size: 0.95rem;
 }
 
-.lobby-section {
-  margin-top: 1.5rem;
-}
-
-.lobby-title {
-  font-weight: 800;
-  margin-bottom: 0.75rem;
-  font-size: 1rem;
-}
-
-.lobby-empty {
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.88rem;
-  padding: 1.5rem 0;
-}
-
-.lobby-list {
-  list-style: none;
+.join-actions {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.lobby-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 0.75rem 1rem;
 }
 
-.lobby-item-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.lobby-item-name {
-  font-weight: 700;
-  font-size: 0.95rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.lobby-item-meta {
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-
-.lobby-item-actions {
-  display: flex;
-  gap: 0.4rem;
-  flex-shrink: 0;
+.join-actions button {
+  flex: 1;
 }
 
 /* 观战席横幅 */
@@ -1119,15 +1067,8 @@ input:focus {
 }
 
 @media (max-width: 600px) {
-  .lobby-item {
+  .join-actions {
     flex-direction: column;
-    align-items: stretch;
-  }
-  .lobby-item-actions {
-    justify-content: stretch;
-  }
-  .lobby-item-actions button {
-    flex: 1;
   }
 }
 
@@ -1813,7 +1754,6 @@ input:focus {
     margin: 0.65rem 0;
   }
 
-  .lobby-section,
   .credits-box {
     margin-top: 0.75rem;
   }

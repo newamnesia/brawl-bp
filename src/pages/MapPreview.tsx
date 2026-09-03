@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import {
   GAME_MODES,
   MAPS,
-  MAPS_BASE_URL,
   type GameMode,
 } from "../../shared/types";
+import { MAPS_BASE_URL } from "../../shared/catalog";
 
 export default function MapPreview() {
   const navigate = useNavigate();
@@ -85,9 +85,9 @@ export default function MapPreview() {
       <button
         className="btn-primary"
         style={{ marginTop: "1.5rem", width: "100%" }}
-        onClick={() => navigate("/")}
+        onClick={() => navigate("/bp")}
       >
-        返回首页
+        返回 BP 大厅
       </button>
     </div>
   );

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { getSocket } from "../lib/socket";
-import type { LobbyRoom } from "../../shared/types";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -10,7 +9,6 @@ export default function Home() {
   const [roomCode, setRoomCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [lobby, setLobby] = useState<LobbyRoom[]>([]);
 
   const socket = getSocket();
 
@@ -18,16 +16,6 @@ export default function Home() {
     const code = searchParams.get("code");
     if (code) setRoomCode(code.toUpperCase().trim());
   }, [searchParams]);
-
-  // 订阅大厅列表
-  useEffect(() => {
-    const onList = (list: LobbyRoom[]) => setLobby(list);
-    socket.on("lobby_list", onList);
-    socket.emit("list_rooms", (list: LobbyRoom[]) => setLobby(list));
-    return () => {
-      socket.off("lobby_list", onList);
-    };
-  }, [socket]);
 
   const handleCreate = () => {
     setError("");
@@ -78,7 +66,7 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      <h1 className="page-title">荒野乱斗在线BP模拟</h1>
+      <h1 className="page-title">BP 大厅</h1>
       <div className="tutorial-box tutorial-highlight">
         <p className="tutorial-intro">⚠️ 任何操作前请先输入你的 ID（昵称）</p>
         <p className="tutorial-emphasis">
@@ -119,62 +107,24 @@ export default function Home() {
           />
         </div>
 
-        <button
-          className="btn-primary"
-          disabled={!nickname.trim() || roomCode.trim().length < 4 || loading}
-          onClick={() => handleJoin(roomCode)}
-        >
-          加入房间
-        </button>
+        <div className="join-actions">
+          <button
+            className="btn-primary"
+            disabled={!nickname.trim() || roomCode.trim().length !== 6 || loading}
+            onClick={() => handleJoin(roomCode)}
+          >
+            以选手加入
+          </button>
+          <button
+            className="btn-secondary"
+            disabled={!nickname.trim() || roomCode.trim().length !== 6 || loading}
+            onClick={() => handleJoinSpectator(roomCode)}
+          >
+            以观战者加入
+          </button>
+        </div>
 
         {error && <p className="error-msg">{error}</p>}
-      </div>
-
-      <div className="lobby-section">
-        <p className="lobby-title">大厅列表（{lobby.length}）</p>
-        {lobby.length === 0 ? (
-          <p className="lobby-empty">暂无开放房间，快去创建一个吧</p>
-        ) : (
-          <ul className="lobby-list">
-            {lobby.map((room) => {
-              const phaseLabel =
-                room.phase === "lobby"
-                  ? "等待中"
-                  : room.phase === "ban"
-                    ? "禁选中"
-                    : room.phase === "ban_reveal"
-                      ? "公布禁选"
-                      : "选角中";
-              const canJoinPlayer = room.phase === "lobby" && room.playerCount < 2;
-              return (
-                <li key={room.code} className="lobby-item">
-                  <div className="lobby-item-info">
-                    <span className="lobby-item-name">{room.roomName}</span>
-                    <span className="lobby-item-meta">
-                      选手1：{room.hostNickname} · 选手 {room.playerCount}/2 · 观战 {room.spectatorCount} · {phaseLabel}
-                    </span>
-                  </div>
-                  <div className="lobby-item-actions">
-                    <button
-                      className="btn-secondary btn-sm"
-                      disabled={!nickname.trim() || loading || !canJoinPlayer}
-                      onClick={() => handleJoin(room.code)}
-                    >
-                      选手加入
-                    </button>
-                    <button
-                      className="btn-secondary btn-sm"
-                      disabled={!nickname.trim() || loading}
-                      onClick={() => handleJoinSpectator(room.code)}
-                    >
-                      观战加入
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </div>
 
       <button
@@ -194,25 +144,12 @@ export default function Home() {
       </button>
 
       <button
-        className="btn-primary"
+        className="btn-secondary"
         style={{ marginTop: "1rem", width: "100%" }}
-        onClick={() => navigate("/offline-training")}
+        onClick={() => navigate("/")}
       >
-        离线走位训练
+        返回总览
       </button>
-
-      <div className="credits-box">
-        <p className="credits-title">创作声明</p>
-        <p className="credits-text">
-          作者 ID 辗转。本项目使用agent协助完成，角色头像取自 GitHub 的 Brawlify CDN 项目。
-        </p>
-        <p className="credits-text credits-disclaimer">
-          免责声明：本站为《荒野乱斗》(Brawl Stars) 粉丝向非商业工具，与 Supercell 无任何隶属或合作关系，未获其官方授权或背书。游戏内所有角色名称、形象、数值等内容的著作权归 Supercell 及相关权利人所有，仅用于爱好者便捷参考，不代表官方立场。如权利人提出异议，将立即下架相关内容。
-        </p>
-        <p className="credits-contact">
-          联系方式 · QQ：3450265471 · 微信：newamnesia-1201
-        </p>
-      </div>
 
     </div>
   );

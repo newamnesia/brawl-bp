@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { createHash, randomBytes, scrypt, timingSafeEqual } from "crypto";
+import { promisify } from "util";
 import { Pool, type PoolClient } from "pg";
 
 const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD_HASH = "e0d3f7142b97813d6ef45dba445dca25:f3250c4d6140749a0495fc9e4fc92245ec5dccd0095462f85e17cf6da1604acaeb696c1dfb86c49dbf8120f5804726a90a41dedcc292717e5f64ca06ac7d5154";
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
 const SESSION_COOKIE = "brawl_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const DISTRIBUTION_BINS = { stick: 22, reaction: 24, turn: 24 } as const;
@@ -18,10 +19,12 @@ function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-function verifyPassword(password: string, storedValue: string) {
+const scryptAsync = promisify(scrypt);
+
+async function verifyPassword(password: string, storedValue: string) {
   const [salt, expectedHex] = storedValue.split(":");
   if (!salt || !expectedHex) return false;
-  const actual = scryptSync(password, salt, 64);
+  const actual = await scryptAsync(password, salt, 64) as Buffer;
   const expected = Buffer.from(expectedHex, "hex");
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
@@ -86,7 +89,7 @@ function rebinReaction(target: number[], source: number[], sourceMax: number) {
 function normalizeConfiguration(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const source = value as Record<string, unknown>;
-  const allowedKeys = ["trainingMode", "controlMode", "speedTier", "character", "bulletSpeed", "reactionTier", "reactionSeconds", "result", "survivalTime"];
+  const allowedKeys = ["trainingMode", "controlMode", "speedTier", "character", "bulletSpeed", "reactionTier", "reactionSeconds", "aimingRule", "totalDamage", "result", "survivalTime"];
   const result: Record<string, string | number> = {};
   for (const key of allowedKeys) {
     const field = source[key];
@@ -96,13 +99,14 @@ function normalizeConfiguration(value: unknown) {
   return result;
 }
 
-async function loadTrainingDataForUsername(username: string) {
+async function loadTrainingDataForUsername(username: string, historyOffset = 0, historyLimit = 20) {
   if (!pool) throw new Error("Database unavailable");
   const movementResult = await pool.query(
     `SELECT id, control_mode, stick_bins, stick_count, stick_sum,
             reaction_bins, reaction_count, reaction_sum, reaction_max,
             turn_bins, turn_count, turn_sum, configuration, uploaded_at
-     FROM training_uploads WHERE username = $1`,
+     FROM training_uploads WHERE username = $1
+     ORDER BY uploaded_at DESC`,
     [username],
   );
   const makeMode = () => ({
@@ -127,7 +131,8 @@ async function loadTrainingDataForUsername(username: string) {
   const aimingResult = await pool.query(
     `SELECT id, lead_bins, lead_count, lead_sum, lead_max, empty_ammo_seconds, total_seconds,
             configuration, uploaded_at
-     FROM aiming_uploads WHERE username = $1`,
+     FROM aiming_uploads WHERE username = $1
+     ORDER BY uploaded_at DESC`,
     [username],
   );
   const aimingRows = aimingResult.rows;
@@ -164,9 +169,16 @@ async function loadTrainingDataForUsername(username: string) {
     emptyAmmoSeconds: Number(row.empty_ammo_seconds), totalSeconds: Number(row.total_seconds),
     supportsEmptyAmmoRatio: row.configuration?.speedTier === "high" || row.configuration?.character === "佩佩",
   }));
-  const history = [...movementHistory, ...aimingHistory]
+  const allHistory = [...movementHistory, ...aimingHistory]
     .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
-  return { modes, aiming, history };
+  const history = allHistory.slice(historyOffset, historyOffset + historyLimit);
+  return {
+    modes,
+    aiming,
+    history,
+    historyTotal: allHistory.length,
+    historyHasMore: historyOffset + history.length < allHistory.length,
+  };
 }
 
 export async function initializeAuthDatabase() {
@@ -208,6 +220,8 @@ export async function initializeAuthDatabase() {
       UNIQUE (username, round_id)
     );
     CREATE INDEX IF NOT EXISTS training_uploads_username_idx ON training_uploads(username);
+    CREATE INDEX IF NOT EXISTS training_uploads_username_uploaded_at_idx
+      ON training_uploads(username, uploaded_at DESC);
     CREATE TABLE IF NOT EXISTS aiming_uploads (
       id BIGSERIAL PRIMARY KEY,
       username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
@@ -223,15 +237,21 @@ export async function initializeAuthDatabase() {
       UNIQUE (username, round_id)
     );
     CREATE INDEX IF NOT EXISTS aiming_uploads_username_idx ON aiming_uploads(username);
+    CREATE INDEX IF NOT EXISTS aiming_uploads_username_uploaded_at_idx
+      ON aiming_uploads(username, uploaded_at DESC);
     ALTER TABLE training_uploads ADD COLUMN IF NOT EXISTS configuration JSONB NOT NULL DEFAULT '{}'::jsonb;
     ALTER TABLE aiming_uploads ADD COLUMN IF NOT EXISTS configuration JSONB NOT NULL DEFAULT '{}'::jsonb;
   `);
-  await pool.query(
-    `INSERT INTO users (username, password_hash, role)
-     VALUES ($1, $2, 'admin')
-     ON CONFLICT (username) DO NOTHING`,
-    [ADMIN_USERNAME, ADMIN_PASSWORD_HASH],
-  );
+  if (ADMIN_PASSWORD_HASH) {
+    await pool.query(
+      `INSERT INTO users (username, password_hash, role)
+       VALUES ($1, $2, 'admin')
+       ON CONFLICT (username) DO NOTHING`,
+      [ADMIN_USERNAME, ADMIN_PASSWORD_HASH],
+    );
+  } else {
+    console.warn("ADMIN_PASSWORD_HASH 未配置，不会自动创建管理员账号");
+  }
   await pool.query("DELETE FROM sessions WHERE expires_at <= NOW()");
 }
 
@@ -268,7 +288,7 @@ export function createAuthRouter(secureCookies: boolean) {
         [username],
       );
       const user = result.rows[0];
-      if (!user || !verifyPassword(password, user.password_hash)) {
+      if (!user || !await verifyPassword(password, user.password_hash)) {
         const current = attempt && attempt.resetAt > now ? attempt : { count: 0, resetAt: now + 15 * 60_000 };
         current.count += 1;
         loginAttempts.set(clientKey, current);
@@ -385,82 +405,14 @@ export function createAuthRouter(secureCookies: boolean) {
     try {
       const user = await getSessionUser(req.headers.cookie);
       if (!user) return res.status(401).json({ error: "请先登录账号" });
-      const result = await pool.query(
-        `SELECT id, control_mode, stick_bins, stick_count, stick_sum,
-                reaction_bins, reaction_count, reaction_sum, reaction_max,
-                turn_bins, turn_count, turn_sum, configuration, uploaded_at
-         FROM training_uploads WHERE username = $1`,
-        [user.username],
-      );
-      const makeMode = () => ({
-        uploads: 0,
-        stick: { bins: Array(DISTRIBUTION_BINS.stick).fill(0), count: 0, sum: 0 },
-        reaction: { bins: Array(DISTRIBUTION_BINS.reaction).fill(0), count: 0, sum: 0 },
-        turn: { bins: Array(DISTRIBUTION_BINS.turn).fill(0), count: 0, sum: 0 },
-      });
-      const modes: Record<"keyboard" | "joystick", ReturnType<typeof makeMode>> = {
-        keyboard: makeMode(), joystick: makeMode(),
-      };
-      for (const row of result.rows) {
-        const mode = modes[row.control_mode as "keyboard" | "joystick"];
-        mode.uploads += 1;
-        addBins(mode.stick.bins, row.stick_bins);
-        rebinReaction(mode.reaction.bins, row.reaction_bins, Number(row.reaction_max));
-        addBins(mode.turn.bins, row.turn_bins);
-        mode.stick.count += row.stick_count; mode.stick.sum += Number(row.stick_sum);
-        mode.reaction.count += row.reaction_count; mode.reaction.sum += Number(row.reaction_sum);
-        mode.turn.count += row.turn_count; mode.turn.sum += Number(row.turn_sum);
-      }
-      const aimingResult = await pool.query(
-        `SELECT id, lead_bins, lead_count, lead_sum, lead_max, empty_ammo_seconds, total_seconds,
-                configuration, uploaded_at
-         FROM aiming_uploads WHERE username = $1`,
-        [user.username],
-      );
-      const aimingRows = aimingResult.rows;
-      const aggregateMaxTenths = Math.max(1, ...aimingRows.map((row) => Math.round(Number(row.lead_max) * 10)));
-      const aiming = {
-        uploads: aimingRows.length,
-        lead: { bins: Array(aggregateMaxTenths * 2 + 1).fill(0), count: 0, sum: 0, max: aggregateMaxTenths / 10 },
-        emptyAmmoSeconds: 0,
-        totalSeconds: 0,
-      };
-      for (const row of aimingRows) {
-        const rowMaxTenths = Math.round(Number(row.lead_max) * 10);
-        row.lead_bins.forEach((count: number, index: number) => {
-          const angleTenths = index - rowMaxTenths;
-          aiming.lead.bins[angleTenths + aggregateMaxTenths] += Number(count);
-        });
-        aiming.lead.count += row.lead_count;
-        aiming.lead.sum += Number(row.lead_sum);
-        if (row.configuration?.speedTier === "high" || row.configuration?.character === "佩佩") {
-          aiming.emptyAmmoSeconds += Number(row.empty_ammo_seconds);
-          aiming.totalSeconds += Number(row.total_seconds);
-        }
-      }
-      const movementHistory = result.rows.map((row) => ({
-        id: `movement:${row.id}`,
-        kind: "movement",
-        uploadedAt: row.uploaded_at,
-        configuration: row.configuration,
-        controlMode: row.control_mode,
-        stick: { bins: row.stick_bins, count: row.stick_count, sum: Number(row.stick_sum), min: 0, max: 1.05 },
-        reaction: { bins: row.reaction_bins, count: row.reaction_count, sum: Number(row.reaction_sum), min: 120, max: Number(row.reaction_max) },
-        turn: { bins: row.turn_bins, count: row.turn_count, sum: Number(row.turn_sum), min: 80, max: 4200 },
-      }));
-      const aimingHistory = aimingRows.map((row) => ({
-        id: `aiming:${row.id}`,
-        kind: "aiming",
-        uploadedAt: row.uploaded_at,
-        configuration: row.configuration,
-        lead: { bins: row.lead_bins, count: row.lead_count, sum: Number(row.lead_sum), min: -Number(row.lead_max), max: Number(row.lead_max) },
-        emptyAmmoSeconds: Number(row.empty_ammo_seconds),
-        totalSeconds: Number(row.total_seconds),
-        supportsEmptyAmmoRatio: row.configuration?.speedTier === "high" || row.configuration?.character === "佩佩",
-      }));
-      const history = [...movementHistory, ...aimingHistory]
-        .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
-      return res.json({ modes, aiming, history });
+      const requestedOffset = Number(req.query.historyOffset ?? 0);
+      const requestedLimit = Number(req.query.historyLimit ?? 20);
+      const historyOffset = Number.isInteger(requestedOffset) ? Math.max(0, requestedOffset) : 0;
+      const historyLimit = Number.isInteger(requestedLimit)
+        ? Math.max(1, Math.min(50, requestedLimit))
+        : 20;
+      const data = await loadTrainingDataForUsername(user.username, historyOffset, historyLimit);
+      return res.json(data);
     } catch (error) {
       console.error("读取训练数据失败", error);
       return res.status(503).json({ error: "读取个人数据失败" });

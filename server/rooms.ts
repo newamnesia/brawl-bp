@@ -7,7 +7,6 @@ import {
   DISABLED_HERO_IDS,
   HEROES,
   type GameMode,
-  type LobbyRoom,
   MAPS,
   PICK_DURATION_MS,
   PICK_TURNS,
@@ -50,6 +49,7 @@ interface Room {
   banTimer: ReturnType<typeof setTimeout> | null;
   revealTimer: ReturnType<typeof setTimeout> | null;
   pickTimer: ReturnType<typeof setTimeout> | null;
+  cleanupTimer: ReturnType<typeof setTimeout> | null;
   timedOutBy: PlayerRole | null;
   pendingSwaps: Map<string, PendingSwap>; // requestId -> 换位申请
   gameMode: GameMode | null;
@@ -61,6 +61,7 @@ interface Room {
 const rooms = new Map<string, Room>();
 const socketToRoom = new Map<string, string>();
 const RECONNECT_GRACE_MS = 120_000;
+const COMPLETED_ROOM_TTL_MS = 30 * 60_000;
 
 function generateResumeToken(): string {
   return randomBytes(24).toString("hex");
@@ -193,7 +194,17 @@ function clearTimers(room: Room) {
   if (room.banTimer) clearTimeout(room.banTimer);
   if (room.revealTimer) clearTimeout(room.revealTimer);
   if (room.pickTimer) clearTimeout(room.pickTimer);
+  if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
   room.banTimer = room.revealTimer = room.pickTimer = null;
+  room.cleanupTimer = null;
+}
+
+function scheduleCompletedRoomCleanup(io: Server, room: Room) {
+  if (room.cleanupTimer) clearTimeout(room.cleanupTimer);
+  room.cleanupTimer = setTimeout(() => {
+    io.to(room.code).emit("room_closed", "房间结果已过期，请创建新房间");
+    destroyRoom(room.code);
+  }, COMPLETED_ROOM_TTL_MS);
 }
 
 function startBanPhase(io: Server, room: Room) {
@@ -242,6 +253,7 @@ function handlePickTimeout(io: Server, room: Room) {
   clearTimers(room);
   room.phase = "complete";
   room.phaseEndsAt = null;
+  scheduleCompletedRoomCleanup(io, room);
   broadcastRoom(io, room);
 }
 
@@ -262,6 +274,7 @@ function advancePick(io: Server, room: Room) {
     room.phase = "complete";
     room.phaseEndsAt = null;
     room.pickTimer = null;
+    scheduleCompletedRoomCleanup(io, room);
   } else {
     schedulePickTimer(io, room);
   }
@@ -274,12 +287,20 @@ function tryStartGame(io: Server, room: Room) {
   if (!room.firstPicker) return;
   if (!players.every((p) => p.ready)) return;
   startBanPhase(io, room);
-  broadcastLobbyList(io);
 }
 
 function destroyRoom(code: string) {
   const room = rooms.get(code);
-  if (room) clearTimers(room);
+  if (room) {
+    clearTimers(room);
+    for (const member of [...room.players.values(), ...room.spectators.values()]) {
+      if (member.disconnectTimer) clearTimeout(member.disconnectTimer);
+      socketToRoom.delete(member.id);
+    }
+    room.pendingSwaps.clear();
+    room.players.clear();
+    room.spectators.clear();
+  }
   rooms.delete(code);
 }
 
@@ -316,28 +337,6 @@ function performSwap(room: Room, fromId: string, toId: string) {
   }
 }
 
-function getLobbyRooms(): LobbyRoom[] {
-  const list: LobbyRoom[] = [];
-  for (const room of rooms.values()) {
-    // 展示未结束的房间：选手可加入(lobby 且未满)或观战可加入(任意阶段)
-    if (room.phase === "complete") continue;
-    const host = [...room.players.values()].find((p) => p.role === "host");
-    list.push({
-      code: room.code,
-      roomName: room.roomName,
-      hostNickname: host?.nickname ?? "选手1",
-      playerCount: room.players.size,
-      spectatorCount: room.spectators.size,
-      phase: room.phase,
-    });
-  }
-  return list;
-}
-
-function broadcastLobbyList(io: Server) {
-  io.emit("lobby_list", getLobbyRooms());
-}
-
 export function registerRoomHandlers(io: Server) {
   io.on("connection", (socket: Socket) => {
     socket.on(
@@ -369,6 +368,7 @@ export function registerRoomHandlers(io: Server) {
           banTimer: null,
           revealTimer: null,
           pickTimer: null,
+          cleanupTimer: null,
           timedOutBy: null,
           pendingSwaps: new Map(),
           gameMode: null,
@@ -390,7 +390,6 @@ export function registerRoomHandlers(io: Server) {
         socket.join(code);
         cb({ ok: true, code, resumeToken: player.resumeToken });
         broadcastRoom(io, room);
-        broadcastLobbyList(io);
       },
     );
 
@@ -436,7 +435,6 @@ export function registerRoomHandlers(io: Server) {
         socket.join(code);
         cb({ ok: true, resumeToken: player.resumeToken });
         broadcastRoom(io, room);
-        broadcastLobbyList(io);
       },
     );
 
@@ -461,7 +459,6 @@ export function registerRoomHandlers(io: Server) {
       const trimmed = name?.trim().slice(0, 20);
       room.roomName = trimmed || room.roomName;
       broadcastRoom(io, room);
-      broadcastLobbyList(io);
     });
 
     // 设置游戏模式
@@ -549,7 +546,6 @@ export function registerRoomHandlers(io: Server) {
         socket.join(code);
         cb({ ok: true, resumeToken: spectator.resumeToken });
         broadcastRoom(io, room);
-        broadcastLobbyList(io);
       },
     );
 
@@ -604,11 +600,6 @@ export function registerRoomHandlers(io: Server) {
         performSwap(room, sw.fromId, sw.toId);
       }
       broadcastRoom(io, room);
-      broadcastLobbyList(io);
-    });
-
-    socket.on("list_rooms", (cb: (list: LobbyRoom[]) => void) => {
-      cb(getLobbyRooms());
     });
 
     // 客户端挂载后主动拉取当前房间状态，避免初始 room_state 在监听器注册前到达而丢失
@@ -710,33 +701,28 @@ export function registerRoomHandlers(io: Server) {
       } else {
         broadcastRoom(io, room);
       }
-      broadcastLobbyList(io);
       return;
     }
 
     // 观战席离开（非 complete 阶段）：不影响对局
     if (!wasPlayer) {
       broadcastRoom(io, room);
-      broadcastLobbyList(io);
       return;
     }
 
     // 选手离开
     if (room.players.size === 0) {
       destroyRoom(code);
-      broadcastLobbyList(io);
       return;
     }
 
     if (room.phase === "lobby") {
       broadcastRoom(io, room);
-      broadcastLobbyList(io);
       return;
     }
 
     // 对局中选手离开 → 终止
     io.to(code).emit("room_closed", "选手已离开房间，对局结束");
     destroyRoom(code);
-    broadcastLobbyList(io);
   }
 }

@@ -1,46 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { summarizeAngleDistribution, summarizeDistribution } from "../features/training/statistics";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
 type AimReactionTier = "diamond" | "legendary" | "master";
+type AimingRule = "infinite" | "challenge";
 type TrainingSnapshot = {
   stickMag: number[];
   reactionMs: number[];
   turnIntervalMs: number[];
   aimLeadDeg: number[];
   emptyAmmoRatio: number;
+  damagePerSecond: number;
 };
-
-function summarizeDistribution(samples: number[], xMin: number, xMax: number, binCount: number) {
-  const bins = Array<number>(binCount).fill(0);
-  let count = 0;
-  let sum = 0;
-  const binWidth = (xMax - xMin) / binCount;
-  for (const sample of samples) {
-    if (!Number.isFinite(sample) || sample < xMin || sample > xMax) continue;
-    const index = Math.max(0, Math.min(binCount - 1, Math.floor((sample - xMin) / binWidth)));
-    bins[index] += 1;
-    count += 1;
-    sum += sample;
-  }
-  return { bins, count, sum };
-}
-
-function summarizeAngleDistribution(samples: number[], maxDegrees: number) {
-  const maxTenths = Math.max(1, Math.floor(maxDegrees * 10));
-  const bins = Array<number>(maxTenths * 2 + 1).fill(0);
-  let count = 0;
-  let sum = 0;
-  for (const sample of samples) {
-    const tenths = Math.round(sample * 10);
-    if (!Number.isFinite(sample) || Math.abs(tenths) > maxTenths) continue;
-    bins[tenths + maxTenths] += 1;
-    count += 1;
-    sum += tenths / 10;
-  }
-  return { bins, count, sum, max: maxTenths / 10 };
-}
 
 // 地图常量
 const MAP_WIDTH = 21;  // 列数（横向单位）
@@ -767,6 +740,8 @@ export default function OfflineTrainingGame() {
     : requestedTrainingMode === "aiming" ? "aiming" : "practice";
   const isSurvivalMode = trainingMode === "survival";
   const isAimingMode = trainingMode === "aiming";
+  const aimingRule: AimingRule = searchParams.get("aimingRule") === "infinite" ? "infinite" : "challenge";
+  const isAimingInfinite = isAimingMode && aimingRule === "infinite";
   const requestedReactionTier = searchParams.get("reactionTier");
   const reactionTier: AimReactionTier = requestedReactionTier === "legendary" || requestedReactionTier === "master"
     ? requestedReactionTier
@@ -840,8 +815,10 @@ export default function OfflineTrainingGame() {
   const aimingTargetHealthRef = useRef(PLAYER_MAX_HEALTH);
   const aimingTargetSecondsSinceDamageRef = useRef(0);
 
+  // 仅在离散输入事件中刷新摇杆 UI；逐帧游戏状态全部保存在 ref 中。
   const [, forceUpdate] = useState(0);
   const [hitCount, setHitCount] = useState(0);
+  const [totalDamage, setTotalDamage] = useState(0);
   const [health, setHealth] = useState(PLAYER_MAX_HEALTH);
   const [survivalTime, setSurvivalTime] = useState(0);
   const [roundResult, setRoundResult] = useState<"victory" | "defeat" | "ended" | null>(null);
@@ -872,6 +849,9 @@ export default function OfflineTrainingGame() {
         aimLeadDeg: aimingLeadAnglesRef.current,
         emptyAmmoRatio: aimingElapsedSecondsRef.current > 0
           ? aimingEmptyAmmoSecondsRef.current / aimingElapsedSecondsRef.current
+          : 0,
+        damagePerSecond: aimingElapsedSecondsRef.current > 0
+          ? totalDamageRef.current / aimingElapsedSecondsRef.current
           : 0,
       });
     } else if (!paused) {
@@ -913,6 +893,8 @@ export default function OfflineTrainingGame() {
             bulletSpeed,
             reactionTier,
             reactionSeconds: aimingReactionSeconds,
+            aimingRule,
+            totalDamage: totalDamageRef.current,
             result: roundResult ?? "ended",
           },
         } : {
@@ -989,6 +971,7 @@ export default function OfflineTrainingGame() {
   const burstFollowupRef = useRef(false);
   const beaEnhancedShotsRef = useRef(0);
   const hitCountRef = useRef(0); // 与 state 同步，供循环内读取/累加
+  const totalDamageRef = useRef(0);
   const bulletIdRef = useRef(1);
   const healthRef = useRef(PLAYER_MAX_HEALTH);
   const secondsSinceDamageRef = useRef(0);
@@ -1101,9 +1084,11 @@ export default function OfflineTrainingGame() {
     secondsSinceDamageRef.current = 0;
     survivalTimeRef.current = 0;
     hitCountRef.current = 0;
+    totalDamageRef.current = 0;
     setHealth(PLAYER_MAX_HEALTH);
     setSurvivalTime(0);
     setHitCount(0);
+    setTotalDamage(0);
     setRoundResult(null);
     setUploadStatus("idle");
     setUploadMessage("");
@@ -1167,7 +1152,6 @@ export default function OfflineTrainingGame() {
       scaleY = scale * GROUND_DEPTH_PROJECTION;
       offsetX = (cssWidth - MAP_WIDTH * scale) / 2;
 
-      forceUpdate((n) => n + 1);
     };
 
     resize();
@@ -1340,6 +1324,8 @@ export default function OfflineTrainingGame() {
           if (speedTier === "high" && magazineAmmoRef.current < 1) aimingEmptyAmmoSecondsRef.current += dt;
           aimingTargetSecondsSinceDamageRef.current += dt;
           if (
+            !isAimingInfinite
+            &&
             aimingTargetSecondsSinceDamageRef.current >= HEALTH_REGEN_DELAY_SECONDS
             && aimingTargetHealthRef.current < PLAYER_MAX_HEALTH
           ) {
@@ -1517,14 +1503,16 @@ export default function OfflineTrainingGame() {
               } else if (b.texture === "beaEnhanced") {
                 beaEnhancedShotsRef.current = 0;
               }
-              aimingTargetHealthRef.current = Math.max(
-                0,
-                aimingTargetHealthRef.current - projectileDamage(b.texture, b.traveled),
-              );
-              aimingTargetSecondsSinceDamageRef.current = 0;
-              if (aimingTargetHealthRef.current <= 0) {
-                pausedRef.current = true;
-                setRoundResult("victory");
+              const damage = projectileDamage(b.texture, b.traveled);
+              totalDamageRef.current += damage;
+              setTotalDamage(Math.round(totalDamageRef.current));
+              if (!isAimingInfinite) {
+                aimingTargetHealthRef.current = Math.max(0, aimingTargetHealthRef.current - damage);
+                aimingTargetSecondsSinceDamageRef.current = 0;
+                if (aimingTargetHealthRef.current <= 0) {
+                  pausedRef.current = true;
+                  setRoundResult("victory");
+                }
               }
               continue;
             }
@@ -1758,7 +1746,7 @@ export default function OfflineTrainingGame() {
       ctx.ellipse(enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
 
-      if (isAimingMode) {
+      if (isAimingMode && !isAimingInfinite) {
         const barWidth = Math.min(110, Math.max(48, scale * 2.2));
         const barHeight = 8;
         const barX = enemyCenterPx - barWidth / 2;
@@ -1974,7 +1962,7 @@ export default function OfflineTrainingGame() {
       beaEnhancedShotsRef.current = 0;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, bulletSpeed, isSurvivalMode, isAimingMode, aimingReactionSeconds, restartNonce]);
+  }, [mode, bulletSpeed, isSurvivalMode, isAimingMode, isAimingInfinite, aimingReactionSeconds, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -2129,6 +2117,9 @@ export default function OfflineTrainingGame() {
     emptyAmmoRatio: aimingElapsedSecondsRef.current > 0
       ? aimingEmptyAmmoSecondsRef.current / aimingElapsedSecondsRef.current
       : 0,
+    damagePerSecond: aimingElapsedSecondsRef.current > 0
+      ? totalDamageRef.current / aimingElapsedSecondsRef.current
+      : 0,
   };
   const aimingMaxLeadDeg = Math.floor(Math.asin(Math.min(0.999, MOVE_SPEED / bulletSpeed)) * 180 / Math.PI * 10) / 10;
 
@@ -2179,7 +2170,7 @@ export default function OfflineTrainingGame() {
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
             <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#4fc3f7" }}>
-              离线走位训练
+              {isAimingMode ? "离线瞄准训练" : "离线走位训练"}
             </div>
             {/* 受击计数器（左上角） */}
             <div
@@ -2196,6 +2187,11 @@ export default function OfflineTrainingGame() {
             >
               {isAimingMode ? "命中次数" : "受击次数"}: {hitCount}
             </div>
+            {isAimingInfinite && (
+              <div style={{ color: "#ffee58", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+                总伤害: {totalDamage}
+              </div>
+            )}
             <div
               style={{
                 background: "rgba(255, 167, 38, 0.12)",
@@ -2313,7 +2309,7 @@ export default function OfflineTrainingGame() {
             结束本局
           </button>
           <button
-            onClick={() => navigate("/offline-training")}
+            onClick={() => navigate(isAimingMode ? "/offline-aiming" : "/offline-training")}
             style={{
               background: "var(--surface2)",
               color: "var(--text)",
@@ -2353,7 +2349,9 @@ export default function OfflineTrainingGame() {
               {roundResult === "victory" ? "预判命中，训练胜利！" : "本轮结束"}
             </div>
             <div className="training-game-over-time">
-              {roundResult === "victory"
+              {isAimingInfinite
+                ? `累计造成 ${totalDamage} 点伤害`
+                : roundResult === "victory"
                 ? "成功击败移动目标"
                 : isSurvivalMode ? `生存时间 ${survivalTime.toFixed(1)} 秒` : "训练已主动结束"}
             </div>
@@ -2389,7 +2387,7 @@ export default function OfflineTrainingGame() {
             >
               再来一次
             </button>
-            <button className="btn-secondary" onClick={() => navigate("/offline-training")}>返回设置</button>
+            <button className="btn-secondary" onClick={() => navigate(isAimingMode ? "/offline-aiming" : "/offline-training")}>返回设置</button>
           </div>
         </div>
       )}
@@ -2643,9 +2641,14 @@ function TrainingStatsGrid({ snapshot, aiming, mode, reactionWindowMaxMs, aiming
           unitLabel="°"
           decimals={1}
         />
+        <div className="training-ratio-card">
+          <div className="training-ratio-title">数据2 · DPS</div>
+          <div className="training-ratio-value">{snapshot.damagePerSecond.toFixed(1)}</div>
+          <div className="training-ratio-note">累计造成伤害 ÷ 本局有效训练时间（暂停时间不计入）</div>
+        </div>
         {showEmptyAmmoRatio && (
           <div className="training-ratio-card">
-            <div className="training-ratio-title">数据2 · 零子弹状态时长占比</div>
+            <div className="training-ratio-title">数据3 · 零子弹状态时长占比</div>
             <div className="training-ratio-value">{(snapshot.emptyAmmoRatio * 100).toFixed(1)}%</div>
             <div className="training-ratio-track"><span style={{ width: `${Math.min(100, snapshot.emptyAmmoRatio * 100)}%` }} /></div>
             <div className="training-ratio-note">仅佩佩：玩家持有子弹量小于 1 的时间 ÷ 本局有效训练时间</div>

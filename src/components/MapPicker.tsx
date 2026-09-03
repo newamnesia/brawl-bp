@@ -3,10 +3,9 @@ import {
   GAME_MODES,
   GAME_MODES as _GM,
   MAPS,
-  MAP_MAP,
-  MAPS_BASE_URL,
   type GameMode,
 } from "../../shared/types";
+import { MAP_MAP, MAPS_BASE_URL } from "../../shared/catalog";
 
 interface MapPickerProps {
   gameMode: GameMode | null;

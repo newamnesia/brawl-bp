@@ -1,43 +1,13 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-
-type Account = { username: string; role: string };
-type DistributionTotal = { bins: number[]; count: number; sum: number };
-type ModeStats = {
-  uploads: number;
-  stick: DistributionTotal;
-  reaction: DistributionTotal;
-  turn: DistributionTotal;
-};
-type AimingStats = {
-  uploads: number;
-  lead: DistributionTotal & { max: number };
-  emptyAmmoSeconds: number;
-  totalSeconds: number;
-};
-type PersonalStats = { keyboard: ModeStats; joystick: ModeStats; aiming: AimingStats };
-type RecordDistribution = DistributionTotal & { min: number; max: number };
-type TrainingRecord = {
-  id: string;
-  kind: "movement" | "aiming";
-  uploadedAt: string;
-  configuration: Record<string, string | number>;
-  controlMode?: "keyboard" | "joystick";
-  stick?: RecordDistribution;
-  reaction?: RecordDistribution;
-  turn?: RecordDistribution;
-  lead?: RecordDistribution;
-  emptyAmmoSeconds?: number;
-  totalSeconds?: number;
-  supportsEmptyAmmoRatio?: boolean;
-};
-type AdminUser = {
-  username: string;
-  role: string;
-  createdAt: string;
-  movementUploads: number;
-  aimingUploads: number;
-  lastUpload: string | null;
-};
+import type {
+  Account,
+  AdminUser,
+  AimingStats,
+  DistributionTotal,
+  ModeStats,
+  PersonalStats,
+  TrainingRecord,
+} from "../features/account/types";
 
 export default function AccountMenu() {
   const [account, setAccount] = useState<Account | null>(null);
@@ -50,6 +20,7 @@ export default function AccountMenu() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState("");
   const [history, setHistory] = useState<TrainingRecord[]>([]);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [adminOpen, setAdminOpen] = useState(false);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -71,17 +42,34 @@ export default function AccountMenu() {
     setStatsLoading(true);
     setStatsError("");
     try {
-      const response = await fetch("/api/auth/training-data");
+      const response = await fetch("/api/auth/training-data?historyOffset=0&historyLimit=20");
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "读取个人数据失败");
       setStats({ ...data.modes, aiming: data.aiming });
       setHistory(data.history ?? []);
+      setHistoryHasMore(Boolean(data.historyHasMore));
     } catch (loadError) {
       setStatsError(loadError instanceof Error ? loadError.message : "读取个人数据失败");
     } finally {
       setStatsLoading(false);
     }
   }, [account]);
+
+  const loadMoreHistory = async () => {
+    if (statsLoading || !historyHasMore) return;
+    setStatsLoading(true);
+    try {
+      const response = await fetch(`/api/auth/training-data?historyOffset=${history.length}&historyLimit=20`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "读取更多记录失败");
+      setHistory((current) => [...current, ...(data.history ?? [])]);
+      setHistoryHasMore(Boolean(data.historyHasMore));
+    } catch (loadError) {
+      setStatsError(loadError instanceof Error ? loadError.message : "读取更多记录失败");
+    } finally {
+      setStatsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (open && account) void loadStats();
@@ -257,6 +245,11 @@ export default function AccountMenu() {
                           onDelete={() => void deleteRecord(record)}
                         />
                       ))}
+                      {historyHasMore && (
+                        <button className="btn-secondary" disabled={statsLoading} onClick={() => void loadMoreHistory()}>
+                          {statsLoading ? "加载中…" : "加载更多记录"}
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
@@ -324,8 +317,8 @@ function TrainingHistoryItem({ record, expanded, onToggle, onDelete }: {
 }) {
   const config = record.configuration ?? {};
   const modeLabel = record.kind === "aiming"
-    ? "射击预判训练"
-    : config.trainingMode === "survival" ? "纯走位 · 生存模式" : "纯走位 · 普通训练";
+    ? `离线瞄准 · ${config.aimingRule === "infinite" ? "无限训练" : "挑战模式"}`
+    : config.trainingMode === "survival" ? "离线走位 · 挑战模式" : "离线走位 · 无限训练";
   const controlLabel = record.kind === "aiming"
     ? "攻击摇杆"
     : (record.controlMode === "keyboard" ? "键盘" : "摇杆");
@@ -335,8 +328,8 @@ function TrainingHistoryItem({ record, expanded, onToggle, onDelete }: {
   const survivalLabel = typeof config.survivalTime === "number" && config.trainingMode === "survival"
     ? ` · 生存 ${config.survivalTime.toFixed(1)} 秒`
     : "";
-  const reactionLabel = typeof config.reactionSeconds === "number"
-    ? ` · 人机反应 ${config.reactionSeconds.toFixed(2)} 秒`
+  const damageLabel = typeof config.totalDamage === "number" && config.aimingRule === "infinite"
+    ? ` · 总伤害 ${Math.round(config.totalDamage)}`
     : "";
   const uploadedAt = new Date(record.uploadedAt).toLocaleString("zh-CN", { hour12: false });
   return (
@@ -345,7 +338,7 @@ function TrainingHistoryItem({ record, expanded, onToggle, onDelete }: {
         <time>{uploadedAt}</time>
         <div className="account-history-config">
           <strong>{modeLabel}</strong>
-          <span>{controlLabel} · {character} · {speedLabel} · {bulletSpeedLabel}{reactionLabel}{survivalLabel}</span>
+          <span>{controlLabel} · {character} · {speedLabel} · {bulletSpeedLabel}{damageLabel}{survivalLabel}</span>
         </div>
         <button className="account-detail-button" onClick={(event) => { event.stopPropagation(); onToggle(); }}>{expanded ? "收起详情" : "查看详情"}</button>
         {onDelete && <button className="account-delete-button" onClick={(event) => { event.stopPropagation(); onDelete(); }}>删除</button>}
@@ -398,7 +391,7 @@ function AimingStatsCard({ stats }: { stats: AimingStats }) {
   return (
     <section className="account-stats-card account-aiming-stats-card">
       <div className="account-stats-heading">
-        <h3>射击预判训练</h3>
+        <h3>离线瞄准训练</h3>
         <span>已上传 {stats.uploads} 局</span>
       </div>
       {stats.uploads === 0 ? (
