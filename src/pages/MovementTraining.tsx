@@ -62,5 +62,5 @@ export function BackButton() {
 }
 
 function MapGuide() {
-  return <div className="tutorial-box"><p className="tutorial-intro">地图说明</p><ul className="tutorial-list"><li>地图尺寸：<strong>21 × 33</strong> 单位</li><li>玩家体积：半径 <strong>0.5</strong> 单位圆形</li><li>移动速度：最高 <strong>3 单位/秒</strong>，加速时间 <strong>0.1 秒</strong></li><li>视野横向固定 <strong>31.2</strong> 格，地图居中显示</li></ul></div>;
+  return <div className="tutorial-box"><p className="tutorial-intro">地图说明</p><ul className="tutorial-list"><li>地图尺寸：<strong>21 × 33</strong> 单位</li><li>玩家体积：半径 <strong>0.5</strong> 单位圆形</li><li>移动速度：最高 <strong>3 单位/秒</strong>，加速时间 <strong>0.1 秒</strong></li><li>视野横向至少 <strong>31.2</strong> 格、玩家正上方至少 <strong>9.8</strong> 格，地图居中显示</li></ul></div>;
 }
