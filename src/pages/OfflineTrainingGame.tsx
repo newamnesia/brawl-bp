@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { summarizeAngleDistribution, summarizeDistribution } from "../features/training/statistics";
 import { AIM_REACTION_TIERS, type AimReactionTier } from "../features/training/config";
 
 type ControlMode = "joystick" | "keyboard";
@@ -819,9 +818,6 @@ export default function OfflineTrainingGame() {
   const [health, setHealth] = useState(PLAYER_MAX_HEALTH);
   const [survivalTime, setSurvivalTime] = useState(0);
   const [roundResult, setRoundResult] = useState<"victory" | "defeat" | "ended" | null>(null);
-  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
-  const [uploadMessage, setUploadMessage] = useState("");
-  const roundIdRef = useRef(crypto.randomUUID());
   const [restartNonce, setRestartNonce] = useState(0);
   const [magazineAmmo, setMagazineAmmo] = useState(magazineCapacity);
   const [magazineReloadProgress, setMagazineReloadProgress] = useState(0);
@@ -864,64 +860,6 @@ export default function OfflineTrainingGame() {
     pausedRef.current = true;
     setPaused(false);
     setRoundResult("ended");
-  };
-
-  const uploadTrainingData = async () => {
-    const profiler = profilerRef.current;
-    if (!profiler || uploadStatus === "uploading" || uploadStatus === "success") return;
-    setUploadStatus("uploading");
-    setUploadMessage("");
-    try {
-      const aimingMaxLeadDeg = Math.asin(Math.min(0.999, MOVE_SPEED / bulletSpeed)) * 180 / Math.PI;
-      const aimingLead = summarizeAngleDistribution(aimingLeadAnglesRef.current, aimingMaxLeadDeg);
-      const response = await fetch(isAimingMode ? "/api/auth/aiming-data" : "/api/auth/training-data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isAimingMode ? {
-          roundId: roundIdRef.current,
-          lead: aimingLead,
-          emptyAmmoSeconds: speedTier === "high" ? aimingEmptyAmmoSecondsRef.current : 0,
-          totalSeconds: speedTier === "high" ? aimingElapsedSecondsRef.current : 0,
-          configuration: {
-            trainingMode: "aiming",
-            controlMode: "joystick",
-            speedTier,
-            character: speedTier === "high" ? "佩佩" : "贝亚",
-            bulletSpeed,
-            reactionTier,
-            reactionSeconds: aimingReactionSeconds,
-            aimingRule,
-            totalDamage: totalDamageRef.current,
-            result: roundResult ?? "ended",
-          },
-        } : {
-          roundId: roundIdRef.current,
-          controlMode: mode,
-          stick: summarizeDistribution(mode === "joystick" ? profiler.samplesStickMag : [], 0, 1.05, 22),
-          reaction: {
-            ...summarizeDistribution(profiler.samplesReactionMs, 120, reactionWindowMaxMs, 24),
-            max: reactionWindowMaxMs,
-          },
-          turn: summarizeDistribution(profiler.samplesTurnIntervalMs, 80, 4200, 24),
-          configuration: {
-            trainingMode,
-            controlMode: mode,
-            speedTier,
-            character: speedTier === "high" ? "佩佩" : "贝亚",
-            bulletSpeed,
-            result: roundResult ?? "ended",
-            survivalTime: isSurvivalMode ? survivalTimeRef.current : 0,
-          },
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "上传失败");
-      setUploadStatus("success");
-      setUploadMessage("本局数据已上传到当前账号");
-    } catch (error) {
-      setUploadStatus("error");
-      setUploadMessage(error instanceof Error ? error.message : "上传失败，请稍后重试");
-    }
   };
 
   useEffect(() => {
@@ -1087,9 +1025,6 @@ export default function OfflineTrainingGame() {
     setHitCount(0);
     setTotalDamage(0);
     setRoundResult(null);
-    setUploadStatus("idle");
-    setUploadMessage("");
-    roundIdRef.current = crypto.randomUUID();
     aimingLeadAnglesRef.current = [];
     aimingElapsedSecondsRef.current = 0;
     aimingEmptyAmmoSecondsRef.current = 0;
@@ -2362,20 +2297,6 @@ export default function OfflineTrainingGame() {
               aimingMaxLeadDeg={aimingMaxLeadDeg}
               showEmptyAmmoRatio={speedTier === "high"}
             />
-            <button
-              className="btn-secondary"
-              disabled={uploadStatus === "uploading" || uploadStatus === "success"}
-              onClick={uploadTrainingData}
-            >
-              {uploadStatus === "uploading"
-                ? "上传中…"
-                : uploadStatus === "success" ? "✓ 已上传本局数据" : "确认上传到当前账号"}
-            </button>
-            {uploadMessage && (
-              <p className={`training-upload-message ${uploadStatus === "success" ? "success" : ""}`}>
-                {uploadMessage}
-              </p>
-            )}
             <button
               className="btn-primary"
               onClick={() => {

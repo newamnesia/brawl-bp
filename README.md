@@ -82,7 +82,6 @@ npm run dev
 | `PORT` | 服务端端口，默认 3001 |
 | `NODE_ENV` | 设为 `production` 启用静态文件托管 |
 | `VITE_SOCKET_URL` | 前后端分离部署时，构建前指定 Socket.io 地址 |
-| `ADMIN_PASSWORD_HASH` | 首次部署时创建管理员账号所用的 scrypt 哈希；不要提交明文密码 |
 
 同域部署（推荐）无需设置 `VITE_SOCKET_URL`，客户端会自动连接当前页面域名。
 

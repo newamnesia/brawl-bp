@@ -1,6 +1,5 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
-import AccountMenu from "./components/AccountMenu";
 
 const Overview = lazy(() => import("./pages/Overview"));
 const Home = lazy(() => import("./pages/Home"));
@@ -14,7 +13,6 @@ const OfflineTrainingGame = lazy(() => import("./pages/OfflineTrainingGame"));
 export default function App() {
   return (
     <>
-      <AccountMenu />
       <Suspense fallback={<main className="page-loading">页面加载中…</main>}>
         <Routes>
           <Route path="/" element={<Overview />} />
