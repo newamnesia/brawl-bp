@@ -738,7 +738,9 @@ export default function OfflineTrainingGame() {
   const reactionTier: AimReactionTier = requestedReactionTier === "legendary" || requestedReactionTier === "master"
     ? requestedReactionTier
     : "diamond";
-  const aimingReactionSeconds = AIM_REACTION_TIERS[reactionTier].seconds[speedTier];
+  const aimingReactionConfig = AIM_REACTION_TIERS[reactionTier];
+  const aimingReactionSeconds = aimingReactionConfig.seconds[speedTier];
+  const aimingDodgesProjectiles = aimingReactionConfig.dodgesProjectiles;
 
   // 统一读取角色配置，旧链接中的格/秒 bulletSpeed 参数不再覆盖新单位数值。
   const projectileConfig = SPEED_TIERS[speedTier];
@@ -1162,10 +1164,12 @@ export default function OfflineTrainingGame() {
           ai.dodgeLockTimer = Math.max(0, ai.dodgeLockTimer - dt);
 
           // 子弹飞行达到当前段位反应时间后，选择与弹道成 90°~150° 的随机躲避方向。
-          const threat = bulletsRef.current
-            .filter((bullet) => bullet.owner === "player" && !ai.reactedBulletIds.has(bullet.id))
-            .filter((bullet) => bullet.traveled / Math.max(0.01, Math.hypot(bullet.vx, bullet.vy)) >= aimingReactionSeconds)
-            .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0];
+          const threat = aimingDodgesProjectiles
+            ? bulletsRef.current
+              .filter((bullet) => bullet.owner === "player" && !ai.reactedBulletIds.has(bullet.id))
+              .filter((bullet) => bullet.traveled / Math.max(0.01, Math.hypot(bullet.vx, bullet.vy)) >= aimingReactionSeconds)
+              .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0]
+            : undefined;
           if (threat) {
             const bulletHeading = Math.atan2(threat.vy, threat.vx);
             const projectileSpeed = Math.max(0.01, Math.hypot(threat.vx, threat.vy));
@@ -1910,7 +1914,7 @@ export default function OfflineTrainingGame() {
       beaEnhancedShotsRef.current = 0;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, bulletSpeed, isSurvivalMode, isAimingMode, isAimingInfinite, aimingReactionSeconds, restartNonce]);
+  }, [mode, bulletSpeed, isSurvivalMode, isAimingMode, isAimingInfinite, aimingReactionSeconds, aimingDodgesProjectiles, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {

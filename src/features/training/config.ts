@@ -17,8 +17,12 @@ export const SPEED_TIERS: Record<SpeedTier, {
   high: { label: "佩佩", value: 4000, reloadSeconds: 2.3, bulletWidth: 200 },
 };
 
-export const AIM_REACTION_TIERS: Record<AimReactionTier, { label: string; seconds: Record<SpeedTier, number> }> = {
-  diamond: { label: "钻石", seconds: { high: 0.24, mid: 0.28 } },
-  legendary: { label: "传奇", seconds: { high: 0.20, mid: 0.24 } },
-  master: { label: "Pro", seconds: { high: 0.16, mid: 0.20 } },
+export const AIM_REACTION_TIERS: Record<AimReactionTier, {
+  label: string;
+  dodgesProjectiles: boolean;
+  seconds: Record<SpeedTier, number>;
+}> = {
+  diamond: { label: "钻石", dodgesProjectiles: false, seconds: { high: 0.24, mid: 0.28 } },
+  legendary: { label: "传奇", dodgesProjectiles: true, seconds: { high: 0.28, mid: 0.32 } },
+  master: { label: "Pro", dodgesProjectiles: true, seconds: { high: 0.24, mid: 0.28 } },
 };
