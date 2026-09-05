@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AIM_REACTION_TIERS, type AimReactionTier } from "../features/training/config";
+import { AIM_REACTION_TIERS, type AimReactionTier, type SpeedTier } from "../features/training/config";
 import { Capacitor } from '@capacitor/core';
 import { mean, saveTraining } from '../features/training/history';
 
@@ -731,7 +731,7 @@ export default function OfflineTrainingGame() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const mode = (searchParams.get("mode") as ControlMode) || "joystick";
-  const speedTier = searchParams.get("speedTier") || "mid";
+  const speedTier: SpeedTier = searchParams.get("speedTier") === "high" ? "high" : "mid";
   const requestedTrainingMode = searchParams.get("trainingMode");
   const trainingMode: TrainingMode = requestedTrainingMode === "survival"
     ? "survival"
@@ -744,7 +744,7 @@ export default function OfflineTrainingGame() {
   const reactionTier: AimReactionTier = requestedReactionTier === "legendary" || requestedReactionTier === "master"
     ? requestedReactionTier
     : "diamond";
-  const aimingReactionSeconds = AIM_REACTION_TIERS[reactionTier].seconds;
+  const aimingReactionSeconds = AIM_REACTION_TIERS[reactionTier].seconds[speedTier];
 
   // 从 URL 读取子弹速度（最小 0.01，非法时回退到当前档位，而不是固定低速）。
   const rawSpeed = parseFloat(searchParams.get("bulletSpeed") ?? "");
@@ -1208,9 +1208,23 @@ export default function OfflineTrainingGame() {
             .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0];
           if (threat) {
             const bulletHeading = Math.atan2(threat.vy, threat.vx);
-            const evadeOffset = (Math.PI / 2 + Math.random() * Math.PI / 3) * (Math.random() < 0.5 ? -1 : 1);
-            ai.desiredHeading = bulletHeading + evadeOffset;
-            ai.dodgeLockTimer = 0.28;
+            const projectileSpeed = Math.max(0.01, Math.hypot(threat.vx, threat.vy));
+            const perpendicularX = -threat.vy / projectileSpeed;
+            const perpendicularY = threat.vx / projectileSpeed;
+            const signedLineOffset = (target.x - threat.x) * perpendicularX
+              + (target.y - threat.y) * perpendicularY;
+            const currentPerpendicularMotion = Math.cos(ai.heading) * perpendicularX
+              + Math.sin(ai.heading) * perpendicularY;
+            // 严格沿弹道法线躲避；优先远离弹道，正中弹道时延续当前垂直分量以避免无谓掉速。
+            const evadeSign = Math.abs(signedLineOffset) > 0.001
+              ? Math.sign(signedLineOffset)
+              : Math.abs(currentPerpendicularMotion) > 0.05 ? Math.sign(currentPerpendicularMotion) : (Math.random() < 0.5 ? -1 : 1);
+            const evadeHeading = bulletHeading + evadeSign * Math.PI / 2;
+            // 反应计时已经模拟了决策延迟；躲避触发后立即进入精确垂直航向。
+            ai.desiredHeading = evadeHeading;
+            ai.heading = evadeHeading;
+            ai.dodgeLockTimer = Math.hypot(threat.x - target.x, threat.y - target.y) / projectileSpeed
+              + (ENEMY_RADIUS + threat.radius) / projectileSpeed;
             ai.reactedBulletIds.add(threat.id);
           } else if (ai.changeTimer <= 0 && ai.dodgeLockTimer <= 0) {
             ai.desiredHeading = Math.random() * Math.PI * 2 - Math.PI;
