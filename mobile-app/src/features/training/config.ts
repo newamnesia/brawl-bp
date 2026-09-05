@@ -8,7 +8,7 @@ export const SPEED_TIERS: Record<SpeedTier, { label: string; value: number }> = 
 };
 
 export const AIM_REACTION_TIERS: Record<AimReactionTier, { label: string; seconds: Record<SpeedTier, number> }> = {
-  diamond: { label: "钻石", seconds: { high: 0.19, mid: 0.23 } },
-  legendary: { label: "传奇", seconds: { high: 0.15, mid: 0.19 } },
-  master: { label: "Pro", seconds: { high: 0.11, mid: 0.15 } },
+  diamond: { label: "钻石", seconds: { high: 0.24, mid: 0.28 } },
+  legendary: { label: "传奇", seconds: { high: 0.20, mid: 0.24 } },
+  master: { label: "Pro", seconds: { high: 0.16, mid: 0.20 } },
 };
