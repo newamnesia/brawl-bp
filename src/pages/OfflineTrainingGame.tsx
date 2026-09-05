@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AIM_REACTION_TIERS, type AimReactionTier } from "../features/training/config";
+import { AIM_REACTION_TIERS, CHARACTER_MOVE_SPEED, SPEED_TIERS, TILE_SIZE, tiles, type AimReactionTier } from "../features/training/config";
+import { advanceMovement, resetsMovementOnTurn } from "../features/training/movement";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
@@ -15,46 +16,42 @@ type TrainingSnapshot = {
 };
 
 // 地图常量
-const MAP_WIDTH = 21;  // 列数（横向单位）
-const MAP_HEIGHT = 33; // 行数（纵向单位）
-const HORIZONTAL_VIEW_UNITS = 31.2; // 横向基准可见格数；宽屏会为纵向视野继续缩小
+const MAP_WIDTH = tiles(21);  // 6300 单位，21 列
+const MAP_HEIGHT = tiles(33); // 9900 单位，33 行
+const HORIZONTAL_VIEW_UNITS = tiles(31.2); // 横向基准视野；宽屏会为纵向视野继续缩小
 const CAMERA_GROUND_ANGLE_DEG = 67;
 const GROUND_DEPTH_PROJECTION = Math.sin((CAMERA_GROUND_ANGLE_DEG * Math.PI) / 180);
-const MIN_UPWARD_VIEW_UNITS = 9.8;
+const MIN_UPWARD_VIEW_UNITS = tiles(9.8);
 const MIN_VERTICAL_VIEW_UNITS = MIN_UPWARD_VIEW_UNITS * 2;
 const PERSPECTIVE_WIDTH_STRENGTH = 0.16; // 上沿约窄 8%，下沿约宽 8%
-const PLAYER_RADIUS = 0.5; // 玩家半径 0.5 单位
-const MOVE_SPEED = 3;  // 移动速度 3 单位/秒
-const MOVE_ACCELERATION_TIME = 0.1;
-const MOVE_ACCELERATION = MOVE_SPEED / MOVE_ACCELERATION_TIME; // 30 单位/秒²
+const PLAYER_RADIUS = tiles(0.5); // 玩家半径 150 单位
+const MOVE_SPEED = CHARACTER_MOVE_SPEED;
 
 // 敌人 + 子弹常量
 // 第10行（1-indexed）正中间方格：行9（0-indexed）中心 y=9.5；列10（0-indexed，21列正中）中心 x=10.5
-const ENEMY_X = 10.5;
-const ENEMY_Y = 9.5;
-const ENEMY_RADIUS = 0.5;
-const ENEMY_RANGE = 10;       // 射程半径
-const AIMING_MIN_DISTANCE = 8;
-const AIMING_MAX_DISTANCE = 10;
+const ENEMY_X = tiles(10.5);
+const ENEMY_Y = tiles(9.5);
+const ENEMY_RADIUS = tiles(0.5);
+const ENEMY_RANGE = tiles(10); // 射程半径 3000 单位
+const AIMING_MIN_DISTANCE = tiles(8);
+const AIMING_MAX_DISTANCE = tiles(10);
 const AIMING_FRONT_ANGLE = -Math.PI / 2;
 const AIMING_SECTOR_HALF_ANGLE = Math.PI / 4;
 const AIMING_AI_TURN_RATE = 10;
 const MAGAZINE_CAPACITY = 3;
-const MAGAZINE_RELOAD_SECONDS = 1.5;
-// 普通射击平均间隔 1.9s，慢于单发恢复时间 1.5s。
+// AI 开火决策间隔与单发装填时间独立；无弹时仍需等待装填完成。
 const FIRE_INTERVAL_MIN = 1.55;
 const FIRE_INTERVAL_MAX = 2.25;
 const BURST_INTERVAL_SECONDS = 0.4;
 const BURST_PROBABILITY = 0.3;
 const BEA_MAGAZINE_CAPACITY = 1;
-const BEA_RELOAD_SECONDS = 1.0;
 const BEA_FIRE_INTERVAL_MIN = 1.05;
 const BEA_FIRE_INTERVAL_MAX = 1.35;
 const BEA_HONEY_FIRST_TRIGGER_MS = 7000;
 const BEA_HONEY_TRIGGER_INTERVAL_MS = 10000;
 const BEA_HONEY_WAVE_DURATION_MS = 3000;
 const BEA_HONEY_SLOW_MULTIPLIER = 0.7;
-const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
+const BULLET_MAX_DIST = tiles(10); // 子弹最远行进 3000 单位
 const PLAYER_MAX_HEALTH = 6000;
 const HEALTH_REGEN_DELAY_SECONDS = 3;
 const HEALTH_REGEN_PER_SECOND = PLAYER_MAX_HEALTH * 0.2;
@@ -64,7 +61,6 @@ const PIPER_MIN_DAMAGE = 720;
 const PIPER_MAX_DAMAGE = 3600;
 const DIFFICULTY_GROWTH_PER_SECOND = 0.005; // 每存活 1 秒提高 0.5%
 const MAX_DIFFICULTY_MULTIPLIER = 2.5;
-const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_TEXTURES = {
   beaNormal: "/assets/projectiles/bea-normal-v4.png",
   beaEnhanced: "/assets/projectiles/bea-enhanced-v4.png",
@@ -633,7 +629,7 @@ function predictAimAngle(args: {
 
   // 最近持续行为优先于整局均值：超过稳定窗口后逐渐拟合为标准匀速直线运动。
   // 约 1.5 秒无有效转向时达到完全拟合，避免刚按下方向键就产生过大的瞬时提前量。
-  const stableTravelS = speed < INPUT_DEADZONE_MAG ? 0 : Math.max(0, now - p.stableDirectionSince) / 1000;
+  const stableTravelS = speed < tiles(INPUT_DEADZONE_MAG) ? 0 : Math.max(0, now - p.stableDirectionSince) / 1000;
   const straightLineFit = smooth01((stableTravelS - TURN_STABLE_MS / 1000) / 1.2);
 
   // 玩家若刚从一个长期稳定方向突然切走，开火瞬间方向可能只是诱导。
@@ -686,7 +682,7 @@ function predictAimAngle(args: {
   let predX = playerX;
   let predY = playerY;
   for (let iter = 0; iter < 3; iter++) {
-    const movingScale = speed < INPUT_DEADZONE_MAG ? 0 : motionGain;
+    const movingScale = speed < tiles(INPUT_DEADZONE_MAG) ? 0 : motionGain;
     predX = playerX + predictedVelX * movingScale * t;
     predY = playerY + predictedVelY * movingScale * t;
     predX = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS, predX));
@@ -729,7 +725,7 @@ export default function OfflineTrainingGame() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const mode = (searchParams.get("mode") as ControlMode) || "keyboard";
-  const speedTier = searchParams.get("speedTier") || "mid";
+  const speedTier = searchParams.get("speedTier") === "high" ? "high" : "mid";
   const requestedTrainingMode = searchParams.get("trainingMode");
   const trainingMode: TrainingMode = requestedTrainingMode === "survival"
     ? "survival"
@@ -744,20 +740,20 @@ export default function OfflineTrainingGame() {
     : "diamond";
   const aimingReactionSeconds = AIM_REACTION_TIERS[reactionTier].seconds;
 
-  // 从 URL 读取子弹速度（最小 0.01，非法时回退到当前档位，而不是固定低速）。
-  const rawSpeed = parseFloat(searchParams.get("bulletSpeed") ?? "");
-  const tierFallbackSpeed = BULLET_SPEED_BY_TIER[speedTier] ?? BULLET_SPEED_BY_TIER.mid;
-  const bulletSpeed: number =
-    Number.isFinite(rawSpeed) && rawSpeed >= 0.01 ? rawSpeed : tierFallbackSpeed;
+  // 统一读取角色配置，旧链接中的格/秒 bulletSpeed 参数不再覆盖新单位数值。
+  const projectileConfig = SPEED_TIERS[speedTier];
+  const bulletSpeed = projectileConfig.value;
+  const bulletRadius = projectileConfig.bulletWidth / 2;
   const isBeaMode = speedTier === "mid";
   const magazineCapacity = isBeaMode ? BEA_MAGAZINE_CAPACITY : MAGAZINE_CAPACITY;
-  const magazineReloadSeconds = isBeaMode ? BEA_RELOAD_SECONDS : MAGAZINE_RELOAD_SECONDS;
+  const magazineReloadSeconds = projectileConfig.reloadSeconds;
   const fireIntervalMin = isBeaMode ? BEA_FIRE_INTERVAL_MIN : FIRE_INTERVAL_MIN;
   const fireIntervalMax = isBeaMode ? BEA_FIRE_INTERVAL_MAX : FIRE_INTERVAL_MAX;
   // 反应时间不可能超过子弹从出生到飞满射程的时间。
   const reactionWindowMaxMs = Math.min(REACTION_MAX_MS, (BULLET_MAX_DIST / bulletSpeed) * 1000);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const playerMovementElapsedRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // 玩家位置（圆心，使用 ref 避免重渲染）
@@ -796,7 +792,7 @@ export default function OfflineTrainingGame() {
   });
   const aimingTargetRef = useRef({
     x: ENEMY_X,
-    y: ENEMY_Y - 9,
+    y: ENEMY_Y - tiles(9),
     angle: -Math.PI / 2,
     direction: 1 as 1 | -1,
     switchTimer: 0.7,
@@ -936,7 +932,7 @@ export default function OfflineTrainingGame() {
       if (keys.has("a") || keys.has("arrowleft")) x -= 1;
       if (keys.has("d") || keys.has("arrowright")) x += 1;
 
-      // 按角度三角函数分解速度分量（cos/sin），总速度恒为 MOVE_SPEED
+      // 输入只提供方向；起步速度由主循环的归一化加速函数决定。
       if (x !== 0 || y !== 0) {
         const len = Math.sqrt(x * x + y * y);
         inputRef.current.x = x / len; // cos(angle)
@@ -944,6 +940,7 @@ export default function OfflineTrainingGame() {
       } else {
         inputRef.current.x = 0;
         inputRef.current.y = 0;
+        playerMovementElapsedRef.current = 0;
       }
     };
 
@@ -984,6 +981,15 @@ export default function OfflineTrainingGame() {
     let nextHoneyTriggerMs = BEA_HONEY_FIRST_TRIGGER_MS;
     let honeyWaveElapsedMs = 0;
     let honeyWaveRemainingMs = 0;
+    let aiMovementElapsed = 0;
+    playerMovementElapsedRef.current = 0;
+
+    // 只在新方向指令出现时判断，不能用每帧平滑转向的小角度代替单次转向。
+    const setAiDirection = (heading: number) => {
+      const ai = aimingTargetAiRef.current;
+      if (resetsMovementOnTurn(ai.desiredHeading, heading)) aiMovementElapsed = 0;
+      ai.desiredHeading = heading;
+    };
     let honeySlowRemainingMs = 0;
 
     // 初始化 Profiler
@@ -993,7 +999,7 @@ export default function OfflineTrainingGame() {
       : { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
     aimingTargetRef.current = {
       x: ENEMY_X,
-      y: ENEMY_Y - 9,
+      y: ENEMY_Y - tiles(9),
       angle: -Math.PI / 2,
       direction: 1,
       switchTimer: 0.7,
@@ -1047,7 +1053,7 @@ export default function OfflineTrainingGame() {
       const count = 7 + Math.floor(Math.random() * 4);
       for (let i = 0; i < count; i++) {
         const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.45;
-        const speed = 2.2 + Math.random() * 2.4;
+        const speed = tiles(2.2 + Math.random() * 2.4);
         const maxLife = 0.28 + Math.random() * 0.22;
         hitParticles.push({
           x,
@@ -1056,7 +1062,7 @@ export default function OfflineTrainingGame() {
           vy: Math.sin(angle) * speed,
           life: maxLife,
           maxLife,
-          size: 0.055 + Math.random() * 0.07,
+          size: tiles(0.055 + Math.random() * 0.07),
         });
       }
     };
@@ -1128,26 +1134,18 @@ export default function OfflineTrainingGame() {
         const movementSpeed = isBeaMode && !isAimingMode && honeySlowRemainingMs > 0
           ? MOVE_SPEED * BEA_HONEY_SLOW_MULTIPLIER
           : MOVE_SPEED;
-        const targetVelX = isAimingMode ? 0 : input.x * movementSpeed;
-        const targetVelY = isAimingMode ? 0 : input.y * movementSpeed;
-        const deltaVelX = targetVelX - velocity.x;
-        const deltaVelY = targetVelY - velocity.y;
-        const deltaVel = Math.hypot(deltaVelX, deltaVelY);
-        const maxVelocityChange = MOVE_ACCELERATION * dt;
-        if (deltaVel <= maxVelocityChange || deltaVel === 0) {
-          velocity.x = targetVelX;
-          velocity.y = targetVelY;
-        } else {
-          velocity.x += (deltaVelX / deltaVel) * maxVelocityChange;
-          velocity.y += (deltaVelY / deltaVel) * maxVelocityChange;
-        }
+        const movement = advanceMovement(playerMovementElapsedRef.current, dt,
+          !isAimingMode && Math.hypot(input.x, input.y) > 0);
+        playerMovementElapsedRef.current = movement.elapsed;
+        velocity.x = input.x * movementSpeed * movement.speed;
+        velocity.y = input.y * movementSpeed * movement.speed;
         const velX = velocity.x;
         const velY = velocity.y;
         const curSpeed = Math.hypot(velX, velY);
-        if (!isAimingMode && curSpeed > 0.05) playerDirectionRef.current = Math.atan2(velY, velX);
+        if (!isAimingMode && curSpeed > tiles(0.05)) playerDirectionRef.current = Math.atan2(velY, velX);
 
-        player.x += velX * dt;
-        player.y += velY * dt;
+        player.x += input.x * movementSpeed * movement.distance;
+        player.y += input.y * movementSpeed * movement.distance;
 
         // 边界限制（圆心需保证半径在内）
         const clampedX = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS, player.x));
@@ -1171,11 +1169,11 @@ export default function OfflineTrainingGame() {
           if (threat) {
             const bulletHeading = Math.atan2(threat.vy, threat.vx);
             const evadeOffset = (Math.PI / 2 + Math.random() * Math.PI / 3) * (Math.random() < 0.5 ? -1 : 1);
-            ai.desiredHeading = bulletHeading + evadeOffset;
+            setAiDirection(bulletHeading + evadeOffset);
             ai.dodgeLockTimer = 0.28;
             ai.reactedBulletIds.add(threat.id);
           } else if (ai.changeTimer <= 0 && ai.dodgeLockTimer <= 0) {
-            ai.desiredHeading = Math.random() * Math.PI * 2 - Math.PI;
+            setAiDirection(Math.random() * Math.PI * 2 - Math.PI);
             ai.changeTimer = 0.3 + Math.random() * 0.7;
           }
 
@@ -1187,11 +1185,13 @@ export default function OfflineTrainingGame() {
           const headingStep = Math.max(-AIMING_AI_TURN_RATE * dt, Math.min(AIMING_AI_TURN_RATE * dt, headingDelta));
           ai.heading += headingStep;
 
-          let nextX = target.x + Math.cos(ai.heading) * MOVE_SPEED * dt;
-          let nextY = target.y + Math.sin(ai.heading) * MOVE_SPEED * dt;
+          const aiMovement = advanceMovement(aiMovementElapsed, dt, true);
+          aiMovementElapsed = aiMovement.elapsed;
+          let nextX = target.x + Math.cos(ai.heading) * MOVE_SPEED * aiMovement.distance;
+          let nextY = target.y + Math.sin(ai.heading) * MOVE_SPEED * aiMovement.distance;
           const relativeX = nextX - player.x;
           const relativeY = nextY - player.y;
-          const rawDistance = Math.hypot(relativeX, relativeY) || 9;
+          const rawDistance = Math.hypot(relativeX, relativeY) || tiles(9);
           const rawAngle = Math.atan2(relativeY, relativeX);
           const sectorOffset = Math.max(
             -AIMING_SECTOR_HALF_ANGLE,
@@ -1206,12 +1206,12 @@ export default function OfflineTrainingGame() {
 
           // 靠近扇区或距离边界时提前把目标方向拉回活动区中心，下一帧仍平滑转向。
           const touchedBoundary = Math.abs(sectorOffset) >= AIMING_SECTOR_HALF_ANGLE - 0.025
-            || rawDistance <= AIMING_MIN_DISTANCE + 0.04
-            || rawDistance >= AIMING_MAX_DISTANCE - 0.04;
+            || rawDistance <= AIMING_MIN_DISTANCE + tiles(0.04)
+            || rawDistance >= AIMING_MAX_DISTANCE - tiles(0.04);
           if (touchedBoundary && ai.dodgeLockTimer <= 0) {
-            const centerX = player.x + Math.cos(AIMING_FRONT_ANGLE) * 9;
-            const centerY = player.y + Math.sin(AIMING_FRONT_ANGLE) * 9;
-            ai.desiredHeading = Math.atan2(centerY - target.y, centerX - target.x) + (Math.random() - 0.5) * 0.35;
+            const centerX = player.x + Math.cos(AIMING_FRONT_ANGLE) * tiles(9);
+            const centerY = player.y + Math.sin(AIMING_FRONT_ANGLE) * tiles(9);
+            setAiDirection(Math.atan2(centerY - target.y, centerX - target.x) + (Math.random() - 0.5) * 0.35);
           }
 
           target.x = nextX;
@@ -1333,7 +1333,7 @@ export default function OfflineTrainingGame() {
               vy: (ay / da) * currentBulletSpeed,
               traveled: 0,
               id: shotId,
-              radius: isBeaMode ? 0.325 : 0.25,
+              radius: bulletRadius,
               texture: projectileTexture,
               owner: "enemy",
             });
@@ -1374,7 +1374,7 @@ export default function OfflineTrainingGame() {
           oY = Math.min(0, Math.max(cssH - mapPixelHeight, oY));
         }
         // 视野对应地图坐标系范围（含少量外延，避免边界闪烁）
-        const viewMargin = 1;
+        const viewMargin = tiles(1);
         const viewMapLeft = (-offsetX) / scale - viewMargin;
         const viewMapRight = (cssW - offsetX) / scale + viewMargin;
         const viewMapTop = (-oY) / scaleY - viewMargin;
@@ -1399,7 +1399,7 @@ export default function OfflineTrainingGame() {
               bulletEnteredVision.add(b.id);
               const projectileSpeed = Math.hypot(b.vx, b.vy) || bulletSpeed;
               const remainingLifeMs = ((BULLET_MAX_DIST - b.traveled) / projectileSpeed) * 1000;
-              const baselineAngle = curSpeed >= INPUT_DEADZONE_MAG ? Math.atan2(input.y, input.x) : null;
+              const baselineAngle = curSpeed >= tiles(INPUT_DEADZONE_MAG) ? Math.atan2(input.y, input.x) : null;
               profileBulletEnterVision(prof, now, b.id, remainingLifeMs, baselineAngle);
             }
           }
@@ -1527,11 +1527,11 @@ export default function OfflineTrainingGame() {
       ctx.strokeStyle = "#243044";
       ctx.lineWidth = 1;
       ctx.beginPath();
-      for (let gx = 0; gx <= MAP_WIDTH; gx += 5) {
+      for (let gx = 0; gx <= MAP_WIDTH; gx += tiles(5)) {
         ctx.moveTo(projectX(gx, 0), projectY(0));
         ctx.lineTo(projectX(gx, MAP_HEIGHT), projectY(MAP_HEIGHT));
       }
-      for (let gy = 0; gy <= MAP_HEIGHT; gy += 5) {
+      for (let gy = 0; gy <= MAP_HEIGHT; gy += tiles(5)) {
         ctx.moveTo(projectX(0, gy), projectY(gy));
         ctx.lineTo(projectX(MAP_WIDTH, gy), projectY(gy));
       }
@@ -1541,11 +1541,11 @@ export default function OfflineTrainingGame() {
       ctx.strokeStyle = "rgba(45, 63, 85, 0.4)";
       ctx.lineWidth = 0.5;
       ctx.beginPath();
-      for (let gx = 0; gx <= MAP_WIDTH; gx++) {
+      for (let gx = 0; gx <= MAP_WIDTH; gx += TILE_SIZE) {
         ctx.moveTo(projectX(gx, 0), projectY(0));
         ctx.lineTo(projectX(gx, MAP_HEIGHT), projectY(MAP_HEIGHT));
       }
-      for (let gy = 0; gy <= MAP_HEIGHT; gy++) {
+      for (let gy = 0; gy <= MAP_HEIGHT; gy += TILE_SIZE) {
         ctx.moveTo(projectX(0, gy), projectY(gy));
         ctx.lineTo(projectX(MAP_WIDTH, gy), projectY(gy));
       }
@@ -1578,8 +1578,8 @@ export default function OfflineTrainingGame() {
         angle: number,
         color: string,
       ) => {
-        const probeX = projectX(worldX + Math.cos(angle), worldY + Math.sin(angle));
-        const probeY = projectY(worldY + Math.sin(angle));
+        const probeX = projectX(worldX + tiles(Math.cos(angle)), worldY + tiles(Math.sin(angle)));
+        const probeY = projectY(worldY + tiles(Math.sin(angle)));
         const screenDx = probeX - centerX;
         const screenDy = probeY - centerY;
         const screenLength = Math.hypot(screenDx, screenDy) || 1;
@@ -1681,10 +1681,10 @@ export default function OfflineTrainingGame() {
       ctx.stroke();
 
       if (isAimingMode && !isAimingInfinite) {
-        const barWidth = Math.min(110, Math.max(48, scale * 2.2));
+        const barWidth = Math.min(110, Math.max(48, scale * tiles(2.2)));
         const barHeight = 8;
         const barX = enemyCenterPx - barWidth / 2;
-        const barY = projectY(renderedEnemy.y - 0.85) - barHeight;
+        const barY = projectY(renderedEnemy.y - tiles(0.85)) - barHeight;
         const healthRatio = Math.max(0, aimingTargetHealthRef.current / PLAYER_MAX_HEALTH);
         ctx.fillStyle = "rgba(8, 12, 18, 0.82)";
         ctx.fillRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
@@ -1911,6 +1911,10 @@ export default function OfflineTrainingGame() {
     js.knobX = 0;
     js.knobY = 0;
     (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+    js.rawMagnitude = 0;
+    inputRef.current.x = 0;
+    inputRef.current.y = 0;
+    playerMovementElapsedRef.current = 0;
     forceUpdate((n) => n + 1);
   };
 
@@ -1936,9 +1940,10 @@ export default function OfflineTrainingGame() {
     // 真实归一化幅度（0~1，1=摇杆边界），用于距离分布曲线采样
     js.rawMagnitude = dist / js.maxRadius;
 
-    // 更新输入：按角度分解速度分量（cos/sin），总速度恒为 MOVE_SPEED
+    // 死区外仅取方向；实际速度由起步时间决定，与推杆幅度无关。
     const deadzone = 8; // 小死区防止误触
     if (dist <= deadzone) {
+      playerMovementElapsedRef.current = 0;
       inputRef.current.x = 0;
       inputRef.current.y = 0;
     } else {
@@ -1954,6 +1959,7 @@ export default function OfflineTrainingGame() {
     if (js.touchId !== e.pointerId) return;
     e.preventDefault();
     js.active = false;
+    playerMovementElapsedRef.current = 0;
     js.touchId = null;
     js.knobX = 0;
     js.knobY = 0;
@@ -2022,7 +2028,7 @@ export default function OfflineTrainingGame() {
         vy: (aim.knobY / directionLength) * bulletSpeed,
         traveled: 0,
         id: bulletIdRef.current++,
-        radius: isBeaMode ? 0.325 : 0.25,
+        radius: bulletRadius,
         texture: isBeaMode ? (isEnhancedBeaShot ? "beaEnhanced" : "beaNormal") : "high",
         owner: "player",
       });

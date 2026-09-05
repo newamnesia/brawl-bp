@@ -1,0 +1,1418 @@
+[
+  {
+    "path": "assets/heroes/borderless/16000056.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borderless/16000056.png",
+    "bytes": 4606,
+    "sha256": "336cef650cfe9305c59222c31458a53b76e62ae7dbfe8379af363b0cd146a591"
+  },
+  {
+    "path": "assets/heroes/borderless/16000089.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borderless/16000089.png",
+    "bytes": 7809,
+    "sha256": "34af11bec5e7496765aa4de4d1a1c68aefc9fbfe3f9bf0e77a873ff6065ba88b"
+  },
+  {
+    "path": "assets/heroes/borderless/16000107.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borderless/16000107.png",
+    "bytes": 10490,
+    "sha256": "2a34864dca45f765c2844fc05cb1342d5f167876988c9eece01ad9955bfaea59"
+  },
+  {
+    "path": "assets/heroes/borderless/16000108.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borderless/16000108.png",
+    "bytes": 12994,
+    "sha256": "8bf54ae338b92396352c8eb94c55aea782d31a023f988fec713c732800fef366"
+  },
+  {
+    "path": "assets/heroes/borders/16000000.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000000.png",
+    "bytes": 8104,
+    "sha256": "421194f305777f26866ae9f1273c9557d77a82facafd9bb3f8396e423416fda2"
+  },
+  {
+    "path": "assets/heroes/borders/16000001.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000001.png",
+    "bytes": 5882,
+    "sha256": "2169e216cfaeb1938686cb3346947ba2754e0940691e9c4cdc822bb81273f929"
+  },
+  {
+    "path": "assets/heroes/borders/16000002.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000002.png",
+    "bytes": 8474,
+    "sha256": "39ea2519c620642b9e74f828b9c03fdd84e0552c5e7557f40ce8c841b406e5ee"
+  },
+  {
+    "path": "assets/heroes/borders/16000003.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000003.png",
+    "bytes": 9541,
+    "sha256": "5fe85c036671b250520b5a64d9353960f9456c992a7e1fbe1d58d23b30cdf48a"
+  },
+  {
+    "path": "assets/heroes/borders/16000004.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000004.png",
+    "bytes": 9026,
+    "sha256": "39a280e54be043e49b38e304ebc302c8aafdcb457e9aeb4f718ec051304290cf"
+  },
+  {
+    "path": "assets/heroes/borders/16000005.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000005.png",
+    "bytes": 7316,
+    "sha256": "0b8c1f856134a7a7c8c73589c225dd6887a49b043f2f087c1ea7ac48d9d8d49f"
+  },
+  {
+    "path": "assets/heroes/borders/16000006.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000006.png",
+    "bytes": 8290,
+    "sha256": "970bb126ad58a58cc03a02167ae9aeeb5030b280fde90a3b38cb359e32bd431c"
+  },
+  {
+    "path": "assets/heroes/borders/16000007.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000007.png",
+    "bytes": 7631,
+    "sha256": "faddc9f7c06f4ecba8658b762c3badd9fdc9c9c347a2d6ec80dd519598233025"
+  },
+  {
+    "path": "assets/heroes/borders/16000008.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000008.png",
+    "bytes": 7210,
+    "sha256": "fc47a3aff9fa27478c15802bd77d032089af37dce8cc7fcbc8e62199ea4a46b2"
+  },
+  {
+    "path": "assets/heroes/borders/16000009.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000009.png",
+    "bytes": 8167,
+    "sha256": "5e703321563e367726ddd6df39680f4f4492cbe63032839f92b87ec1ed9c4ad8"
+  },
+  {
+    "path": "assets/heroes/borders/16000010.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000010.png",
+    "bytes": 9420,
+    "sha256": "7a8a68e5ece7a462e0df1eeeddf20b1929775820a262cb4eb3918a5bfe98f439"
+  },
+  {
+    "path": "assets/heroes/borders/16000011.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000011.png",
+    "bytes": 5925,
+    "sha256": "2c6cb86c09c632084230c02d6c9f4566fc777e929edc2c87480f2401fb2a4296"
+  },
+  {
+    "path": "assets/heroes/borders/16000012.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000012.png",
+    "bytes": 3742,
+    "sha256": "542f448562d1757227a5b1786bcc5c41f8dd35faa588c2e7a6b01578d5fa7f57"
+  },
+  {
+    "path": "assets/heroes/borders/16000013.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000013.png",
+    "bytes": 7826,
+    "sha256": "bd88fbb4010ac56c8bc5c1012c750892db72ae04c05b31c301714720bbfdb211"
+  },
+  {
+    "path": "assets/heroes/borders/16000014.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000014.png",
+    "bytes": 4617,
+    "sha256": "79fc2f45e95b86fde49c1a973896dcf73952b93b5e15832ce40b84ed6380f5e7"
+  },
+  {
+    "path": "assets/heroes/borders/16000015.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000015.png",
+    "bytes": 8924,
+    "sha256": "5b8cc300e250809144d4c1dee937b9a4067bd298ccced77322f8b2a800958927"
+  },
+  {
+    "path": "assets/heroes/borders/16000016.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000016.png",
+    "bytes": 5504,
+    "sha256": "bb717e8d1c373715a3cecbf7e6b907b9f39a6a1b4cf1eb2bfd3c0f147d8eb766"
+  },
+  {
+    "path": "assets/heroes/borders/16000017.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000017.png",
+    "bytes": 5334,
+    "sha256": "db4a0a8aa8c05b225c447f1ff8a280fe901103179015307d807c9bfb875fb164"
+  },
+  {
+    "path": "assets/heroes/borders/16000018.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000018.png",
+    "bytes": 5404,
+    "sha256": "250d61456dae55dca3f5d684f614b9aa54917c7f8cc97bf2126372686a6a795a"
+  },
+  {
+    "path": "assets/heroes/borders/16000019.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000019.png",
+    "bytes": 7132,
+    "sha256": "a35c87b7cb4f897bed2be977816b176043e77fa40cc989284b5249415464913a"
+  },
+  {
+    "path": "assets/heroes/borders/16000020.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000020.png",
+    "bytes": 8875,
+    "sha256": "fced79cd5ffca9bfd2b3daf42fc971c9de17cc469473775ff8201c067aeaecf1"
+  },
+  {
+    "path": "assets/heroes/borders/16000021.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000021.png",
+    "bytes": 6597,
+    "sha256": "9172710be93a9dc09ef551b0e1a9c761a4842f9c22c20f61708ea0d829954e17"
+  },
+  {
+    "path": "assets/heroes/borders/16000022.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000022.png",
+    "bytes": 6115,
+    "sha256": "f62558d0b8d2694a6385a6937c7199a433be9cb3572cb0209777bd00568a762e"
+  },
+  {
+    "path": "assets/heroes/borders/16000023.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000023.png",
+    "bytes": 6026,
+    "sha256": "0c430569eb0566bcad40539d093af6928a47413e5822eba4a248f0161c706768"
+  },
+  {
+    "path": "assets/heroes/borders/16000024.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000024.png",
+    "bytes": 8738,
+    "sha256": "49341b65b2ea83bc5d253d2234111655382d223f829e21af8c261500602a3286"
+  },
+  {
+    "path": "assets/heroes/borders/16000025.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000025.png",
+    "bytes": 7675,
+    "sha256": "37d867503dc3d2554165f9c7af32be2fa68e2f5239583fcc2bb5db917645b133"
+  },
+  {
+    "path": "assets/heroes/borders/16000026.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000026.png",
+    "bytes": 5700,
+    "sha256": "c0bade78e22554cefdfa6fa2dc1c64dd3f191e590f0b7a911f9a5d365c48c018"
+  },
+  {
+    "path": "assets/heroes/borders/16000027.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000027.png",
+    "bytes": 4253,
+    "sha256": "620d45aaaba3e7a2cf3b05ffbbe85d1a32737e644de8f446ac7ea625330ab1c2"
+  },
+  {
+    "path": "assets/heroes/borders/16000028.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000028.png",
+    "bytes": 7718,
+    "sha256": "ee58f647873033c66fced25d17c41de618cb243e8115cfeb7be503564a6080c4"
+  },
+  {
+    "path": "assets/heroes/borders/16000029.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000029.png",
+    "bytes": 7378,
+    "sha256": "93dcf785a0057a95aa1327aa74aa61d6b43e152f30e5ebb079ad6485eeb2769b"
+  },
+  {
+    "path": "assets/heroes/borders/16000030.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000030.png",
+    "bytes": 6812,
+    "sha256": "75e80158ea07026913c12feec76ad7f0fcc87a5c68d7aee269cc05a81b0b9f17"
+  },
+  {
+    "path": "assets/heroes/borders/16000031.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000031.png",
+    "bytes": 4646,
+    "sha256": "867ec71969e2f0964d6b0f3166a149d39c45d287dcdc00a51229b657c3249564"
+  },
+  {
+    "path": "assets/heroes/borders/16000032.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000032.png",
+    "bytes": 8242,
+    "sha256": "e17259ec16ff0f286a1f1fb6d7b0f053305dce34e81d95402f6088f6c01a2f3f"
+  },
+  {
+    "path": "assets/heroes/borders/16000034.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000034.png",
+    "bytes": 5416,
+    "sha256": "23ff3b0e36a86cc6aec05c825e387dc02b8b39ad85e63caaad7c3ff5da3390a6"
+  },
+  {
+    "path": "assets/heroes/borders/16000035.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000035.png",
+    "bytes": 5638,
+    "sha256": "083d8ba8b5402134b0c81141f7f68c18660fbe36693e863b42f2ff7161f34449"
+  },
+  {
+    "path": "assets/heroes/borders/16000036.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000036.png",
+    "bytes": 8406,
+    "sha256": "dc8e747359503c6d3357fb21bb0c0a98f78d8fd60358cb889d9552a83645ac79"
+  },
+  {
+    "path": "assets/heroes/borders/16000037.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000037.png",
+    "bytes": 7604,
+    "sha256": "56fe91dfe862f44cf1e1c2acf180ff946b8222c9093059d719a95dcf1ce88f50"
+  },
+  {
+    "path": "assets/heroes/borders/16000038.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000038.png",
+    "bytes": 5353,
+    "sha256": "fde6fa524fcc2ef32d739938c4920186937b0244b465fec14674e1b90acc5da0"
+  },
+  {
+    "path": "assets/heroes/borders/16000039.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000039.png",
+    "bytes": 7723,
+    "sha256": "f6b5e2ddc68ffac6744e86da342119ab9a2f96e47a45c031c575b8aa82b262ff"
+  },
+  {
+    "path": "assets/heroes/borders/16000040.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000040.png",
+    "bytes": 7294,
+    "sha256": "979d6e884eefcd9afca6ee556cfef318dcacecb3bede750cecf6ff2844d4e462"
+  },
+  {
+    "path": "assets/heroes/borders/16000041.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000041.png",
+    "bytes": 8351,
+    "sha256": "06f549f1d758f150ce3ad5f4502aece0ecc1986562072a653fa04f54d4efdf75"
+  },
+  {
+    "path": "assets/heroes/borders/16000042.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000042.png",
+    "bytes": 9617,
+    "sha256": "04a316eeb2b19bf75600088890cf368003ebf9b9c0ee8af48a2a001a29f60e8e"
+  },
+  {
+    "path": "assets/heroes/borders/16000043.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000043.png",
+    "bytes": 4001,
+    "sha256": "cdd1bf5ee0779c6e9181f30077dcdf93c8087795fdb206f5267c711402ea7667"
+  },
+  {
+    "path": "assets/heroes/borders/16000044.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000044.png",
+    "bytes": 6265,
+    "sha256": "e143eea4d831d72932a93ade9c0faa2561772cb6bccaf59d7a5168ebba087dff"
+  },
+  {
+    "path": "assets/heroes/borders/16000045.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000045.png",
+    "bytes": 4965,
+    "sha256": "60d2295636789d3d8f428f6d7a7334ba3a62bfda8b9dbe3a1d9924138d6e8a06"
+  },
+  {
+    "path": "assets/heroes/borders/16000046.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000046.png",
+    "bytes": 9764,
+    "sha256": "d977d53ec71687928a2281d4f6374ac2440963c7f611ebf5e344e425302731aa"
+  },
+  {
+    "path": "assets/heroes/borders/16000047.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000047.png",
+    "bytes": 6386,
+    "sha256": "7e9ba562d6fee1b61396e303211b73c13e6413021fcc7a139e7152cf72d70d32"
+  },
+  {
+    "path": "assets/heroes/borders/16000048.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000048.png",
+    "bytes": 6553,
+    "sha256": "065afdc2e6588393e598a8a297ce854e6f2022bdd4c0d533bf5761acab179e4e"
+  },
+  {
+    "path": "assets/heroes/borders/16000049.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000049.png",
+    "bytes": 5818,
+    "sha256": "c5d940f60af14ab8ef332a9702758815731dbc5eeef6c0997bc43cfb4bc4df0f"
+  },
+  {
+    "path": "assets/heroes/borders/16000050.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000050.png",
+    "bytes": 11926,
+    "sha256": "dcd583608829ce488e26081dc44cdeb227cec6335297704d3241086835192b57"
+  },
+  {
+    "path": "assets/heroes/borders/16000051.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000051.png",
+    "bytes": 6392,
+    "sha256": "86a075ae295e9349ab4438cbd82d990b28c7482c42c30e86da6e49473e3171c5"
+  },
+  {
+    "path": "assets/heroes/borders/16000052.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000052.png",
+    "bytes": 6598,
+    "sha256": "65d08e8fd6dcd6a1262d5afa8f87f7499ee01fe78acb8676f005adb3b0c3aa3a"
+  },
+  {
+    "path": "assets/heroes/borders/16000053.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000053.png",
+    "bytes": 7381,
+    "sha256": "3565bdbbcda8299573838c93002dd4ae0b494f1e5d06819daf8425378fc6a689"
+  },
+  {
+    "path": "assets/heroes/borders/16000054.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000054.png",
+    "bytes": 5277,
+    "sha256": "e1fb11076d8165b11a081df39a83d483e8e5979f98b9e096227ec8f4e0af72b8"
+  },
+  {
+    "path": "assets/heroes/borders/16000057.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000057.png",
+    "bytes": 10173,
+    "sha256": "0adde30e30b7b9929ba9fc9818b429a0cd6e2a3193f8699676519404f62d1469"
+  },
+  {
+    "path": "assets/heroes/borders/16000058.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000058.png",
+    "bytes": 11062,
+    "sha256": "734e48059e423168a4504f1311d7e89f7fd795531ba817db0ef38a4a299cfeb2"
+  },
+  {
+    "path": "assets/heroes/borders/16000059.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000059.png",
+    "bytes": 5328,
+    "sha256": "4fc4fbe30b482919251e2728c37c0ffe51b14aeca1a6ff57d866ef4db8d8c352"
+  },
+  {
+    "path": "assets/heroes/borders/16000060.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000060.png",
+    "bytes": 7342,
+    "sha256": "278fb5a9516f45fbfc4210d1edb22e2c17b96178ba444993cee895ade97cdba1"
+  },
+  {
+    "path": "assets/heroes/borders/16000061.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000061.png",
+    "bytes": 6819,
+    "sha256": "3ebd1211a9de5f63a1e48299a1a958d3b6a1bd08ebf2d5cec2f9dbddf2f8e8a1"
+  },
+  {
+    "path": "assets/heroes/borders/16000062.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000062.png",
+    "bytes": 6830,
+    "sha256": "7865302431447d367b9cc81bbc0883efc17221aa8b3217770358b0463e4967cf"
+  },
+  {
+    "path": "assets/heroes/borders/16000063.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000063.png",
+    "bytes": 12187,
+    "sha256": "fea8f30fde91ac2220dcd8f96ffcf1ea008ad8063a33d962ae4dd17772c39623"
+  },
+  {
+    "path": "assets/heroes/borders/16000064.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000064.png",
+    "bytes": 7335,
+    "sha256": "1e0a6007a76e0a7190a32a3153026e74e5f0070c7daab3bea45ef7b84561dcda"
+  },
+  {
+    "path": "assets/heroes/borders/16000065.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000065.png",
+    "bytes": 8777,
+    "sha256": "80ff4b507dc1a806366141cd308600d86c384749c196f9c94f75346f1c74482f"
+  },
+  {
+    "path": "assets/heroes/borders/16000066.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000066.png",
+    "bytes": 6733,
+    "sha256": "e89109565d327f26aecfeb05bed086ba4fc5eb62c98357279b1a69bd2e2d865f"
+  },
+  {
+    "path": "assets/heroes/borders/16000067.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000067.png",
+    "bytes": 8702,
+    "sha256": "420913bfc97b5290f97f5d80a8b46edfce9c534cb6f5a594375c59048b019b5b"
+  },
+  {
+    "path": "assets/heroes/borders/16000068.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000068.png",
+    "bytes": 10243,
+    "sha256": "7fe5aeec321f02445cb3e9aea42b9cd44f591042ca475b4141d13d97a1b28e1f"
+  },
+  {
+    "path": "assets/heroes/borders/16000069.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000069.png",
+    "bytes": 7141,
+    "sha256": "5351268a8c1d7194486a0cae6beb8d5f909e637bc85a018635691cdd669ca068"
+  },
+  {
+    "path": "assets/heroes/borders/16000070.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000070.png",
+    "bytes": 7629,
+    "sha256": "f8cf2e349975262eb17415cd8c68cc546bec43a9756d066f3bbc9059819e6d8f"
+  },
+  {
+    "path": "assets/heroes/borders/16000071.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000071.png",
+    "bytes": 8177,
+    "sha256": "52cac41e3607a63f9bdfd3334a5abd35b3ed2401031a4a469326e6d2c3b69ea1"
+  },
+  {
+    "path": "assets/heroes/borders/16000072.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000072.png",
+    "bytes": 7897,
+    "sha256": "7493607ae9e0b3188007cbf242891e3cf473846dc7ac88d9097fdf1251ea8b9e"
+  },
+  {
+    "path": "assets/heroes/borders/16000073.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000073.png",
+    "bytes": 7829,
+    "sha256": "c7ff26db820a521806dab0093828a87d07a868bd0e702dca26e6cd1d2e22f5b6"
+  },
+  {
+    "path": "assets/heroes/borders/16000074.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000074.png",
+    "bytes": 7103,
+    "sha256": "064387e9d458c633e42080c9b2405b5332664b524aca3c57cb95fa8b12201b6b"
+  },
+  {
+    "path": "assets/heroes/borders/16000075.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000075.png",
+    "bytes": 7488,
+    "sha256": "c2aa04e882d710d653ca6d351f72e547368a63d1611bac5fd2b9cb458313b58c"
+  },
+  {
+    "path": "assets/heroes/borders/16000076.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000076.png",
+    "bytes": 6482,
+    "sha256": "94391d556638e483b55d896f7618b304435a47b18d6eb31173076d709feda9f9"
+  },
+  {
+    "path": "assets/heroes/borders/16000077.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000077.png",
+    "bytes": 6419,
+    "sha256": "1499d6945badcfd20660d73dab1e226b5e3502382b281cc154b12ce8babe5945"
+  },
+  {
+    "path": "assets/heroes/borders/16000078.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000078.png",
+    "bytes": 8904,
+    "sha256": "095515ff17ae58f14219062f97759e2f4955668cbd6d38541350e2921ec687c7"
+  },
+  {
+    "path": "assets/heroes/borders/16000079.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000079.png",
+    "bytes": 7287,
+    "sha256": "ab1b505e3b3768f31b1dab9e9037dc200fec46cf2dae2de2581f2328358fe54f"
+  },
+  {
+    "path": "assets/heroes/borders/16000080.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000080.png",
+    "bytes": 8616,
+    "sha256": "653b63ff63a02d2bb7bda1bd939f9971ca45e7e68665f5a0240eb6daac40d515"
+  },
+  {
+    "path": "assets/heroes/borders/16000081.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000081.png",
+    "bytes": 7779,
+    "sha256": "2957f576712daadb7e68b236bc52ac393e3d04f238144bfcc7d8f6607d74d832"
+  },
+  {
+    "path": "assets/heroes/borders/16000082.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000082.png",
+    "bytes": 9202,
+    "sha256": "18473fccde750aaa948674f74f1d0304d3faff9f729a9999a15305e568132c4e"
+  },
+  {
+    "path": "assets/heroes/borders/16000083.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000083.png",
+    "bytes": 5188,
+    "sha256": "0d86bb56ab9e6c9db87c108ff3f6c083ead88aa6a2356c857e03ea4b036d3f82"
+  },
+  {
+    "path": "assets/heroes/borders/16000084.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000084.png",
+    "bytes": 9657,
+    "sha256": "0898098804e63f93f604a07738a47b1daeeadb096cacc6d9a7d126973d718112"
+  },
+  {
+    "path": "assets/heroes/borders/16000085.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000085.png",
+    "bytes": 8721,
+    "sha256": "704fc1ec57bedd2382be78ec0692c92fa7a7d9d06fb3e40cecf5335ff721a8a1"
+  },
+  {
+    "path": "assets/heroes/borders/16000086.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000086.png",
+    "bytes": 9514,
+    "sha256": "59ddaaf795b0953c4bb52f0e4ef26bfce2cab9023f2fe44caf75f930dea312b1"
+  },
+  {
+    "path": "assets/heroes/borders/16000087.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000087.png",
+    "bytes": 13166,
+    "sha256": "22cad50fe1632b7ffc90097b1c9d20b140b38c5036b09ffe1e0673286c83aaa6"
+  },
+  {
+    "path": "assets/heroes/borders/16000090.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000090.png",
+    "bytes": 10139,
+    "sha256": "cd4d8cf25e7d027c1d015eeb72191e83cab5f4f6b2013d5f202439be0df07256"
+  },
+  {
+    "path": "assets/heroes/borders/16000091.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000091.png",
+    "bytes": 7771,
+    "sha256": "6223f25795a6cb732d63501d66d52c5224890c1b690ee403e3bb8cb70bfcc8e6"
+  },
+  {
+    "path": "assets/heroes/borders/16000092.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000092.png",
+    "bytes": 5598,
+    "sha256": "6f80f695bf4de857e1cd59c3011269c21355822d2bd701f5fc85306d1fde0a91"
+  },
+  {
+    "path": "assets/heroes/borders/16000093.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000093.png",
+    "bytes": 8585,
+    "sha256": "90688876f813bdf7f7cf57e0e6ebef623f823f9bd70d64ec1492303766416f23"
+  },
+  {
+    "path": "assets/heroes/borders/16000094.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000094.png",
+    "bytes": 7390,
+    "sha256": "573860ce3149e3a47cc5cf640d115eb3ff21e21eb43f1efa6d92bd8ec3c03e77"
+  },
+  {
+    "path": "assets/heroes/borders/16000095.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000095.png",
+    "bytes": 7050,
+    "sha256": "14547f19edae82617a481a2bd83b131f0a0f073504e3ffa4ea7ae43cb9bb5710"
+  },
+  {
+    "path": "assets/heroes/borders/16000096.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000096.png",
+    "bytes": 3327,
+    "sha256": "8a33dc2e409779b1e6da12609c84a0608da9ec47de57909b2cfda9f7787046dd"
+  },
+  {
+    "path": "assets/heroes/borders/16000097.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000097.png",
+    "bytes": 6357,
+    "sha256": "a023ff2aff448e41e2646c4d49575dec20999fd6eb2d88a638fc9dd36affbfe2"
+  },
+  {
+    "path": "assets/heroes/borders/16000098.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000098.png",
+    "bytes": 9454,
+    "sha256": "105ff0aa653cfda6a1ec97d2daa241275c2107b50ea9638f89eb1aff83767f80"
+  },
+  {
+    "path": "assets/heroes/borders/16000099.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000099.png",
+    "bytes": 4986,
+    "sha256": "b9d7e96b28a7792a95743ccfb6061f38d4219c3fbc2934b53d8ac9153e648c8b"
+  },
+  {
+    "path": "assets/heroes/borders/16000100.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000100.png",
+    "bytes": 7916,
+    "sha256": "fe82868551ea55b3839576bb276ef02395e3b4e3c0a51152f9d620a40b3677f8"
+  },
+  {
+    "path": "assets/heroes/borders/16000101.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000101.png",
+    "bytes": 6217,
+    "sha256": "9560316db2245d1dd39c1ff96fb34a5058c8cd5a6570f0b34e44d68c9f84bd56"
+  },
+  {
+    "path": "assets/heroes/borders/16000102.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000102.png",
+    "bytes": 7635,
+    "sha256": "b1746b7dd1245e5ea20c606b6b250a38aaa34b4775aae8f3b2fec4d50784db01"
+  },
+  {
+    "path": "assets/heroes/borders/16000103.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000103.png",
+    "bytes": 6611,
+    "sha256": "3df0f3080fe1b48167f7f7548c047b3b4b5aa44303032832c2b75a19df85e283"
+  },
+  {
+    "path": "assets/heroes/borders/16000104.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000104.png",
+    "bytes": 7844,
+    "sha256": "d89ad00b07eca4071c9b673d75fe1c4176d813f1dc822373a52039c44e3f8683"
+  },
+  {
+    "path": "assets/heroes/borders/16000105.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000105.png",
+    "bytes": 12011,
+    "sha256": "95243fc7cd007f78e2909903ee64d74ff0267ffc4d63ad560b38ce7c0e78e098"
+  },
+  {
+    "path": "assets/heroes/borders/16000106.png",
+    "source": "https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/borders/16000106.png",
+    "bytes": 6753,
+    "sha256": "9f3a499b435d53da4d9eb9993fc993eb41163a701bf429a5a6f31cfd77aa4a25"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/a_ballad_about_minced_cutlets_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/a_ballad_about_minced_cutlets_thumbnail.webp",
+    "bytes": 4316,
+    "sha256": "cb793abcea83d01f69c24721e849b0ee16574be9431383be1920bab6ae12ac3c"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/abracadabra_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/abracadabra_thumbnail.webp",
+    "bytes": 4370,
+    "sha256": "47b7f52a7ce66b3e528eea2a164b061725f31d96c416be5eee783066c0f0da75"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/acute_angle_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/acute_angle_thumbnail.webp",
+    "bytes": 3766,
+    "sha256": "60cd360224db78095bbde8550715f5ffd90a82bdeab0ba8d95317693a326f64c"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/afterparty_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/afterparty_thumbnail.webp",
+    "bytes": 4246,
+    "sha256": "9411621da9e4918a903c81502ebfc934b41be9e0ee3bdd7b60ceba2d5988dd56"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/ahead_of_the_curve_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/ahead_of_the_curve_thumbnail.webp",
+    "bytes": 3944,
+    "sha256": "676549daa39a188c3d15c18d6b9147e08c44a4fdd86e362ac04e6f0485cd73a2"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/atlas_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/atlas_thumbnail.webp",
+    "bytes": 3902,
+    "sha256": "7f69994e0697c139b75da52cb64b5cfcb5f60a2545886b42bb310c4f6d54acb9"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/back_pocket_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/back_pocket_thumbnail.webp",
+    "bytes": 3566,
+    "sha256": "7921de4b60d21407e8412f76944a1022f964f06644ef41632e8d18f5f500da23"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/back_shuffle_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/back_shuffle_thumbnail.webp",
+    "bytes": 3534,
+    "sha256": "2181365180a41b8b3b8ed52cb808bcabd823d8b53d697b7626eb3b9224ded0c9"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/backyard_bowl_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/backyard_bowl_thumbnail.webp",
+    "bytes": 3106,
+    "sha256": "09d4cbcc6ff05e8e3ad076e95dd38ccf9f2b3ae875a10fee7debaa9755d3a61f"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/beach_ball_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/beach_ball_thumbnail.webp",
+    "bytes": 3806,
+    "sha256": "734e0810d81d81f18dcd4d9bf1fae50aec333b09de74104a55760dc6402599c2"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/bear_trap_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/bear_trap_thumbnail.webp",
+    "bytes": 4302,
+    "sha256": "25a3c0ed99e163ffc9d0da8c53aa84d4d4c3f9b36bf75d1acb97553aa8f7c606"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/bejeweled_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/bejeweled_thumbnail.webp",
+    "bytes": 3706,
+    "sha256": "bd5c7b51e33c7052fdd4ab7953670d3fd0f1211090df967713da535466db27e9"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/belles_rock_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/belles_rock_thumbnail.webp",
+    "bytes": 6560,
+    "sha256": "379480ad12499b781509852dfb09c09de94e8ee60818ed5b7caa56c1381769e3"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/between_the_rivers_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/between_the_rivers_thumbnail.webp",
+    "bytes": 3068,
+    "sha256": "1f5592288a0fc2adb76ea00292611e81d9b4d2e7fef816ab3d6db592f340615c"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/brace_for_impact_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/brace_for_impact_thumbnail.webp",
+    "bytes": 4202,
+    "sha256": "4da2f3d48151cbc5dd04f7dba77de272cbc664cfa22a69405c9b247282fc0a56"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/call_of_the_water_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/call_of_the_water_thumbnail.webp",
+    "bytes": 3886,
+    "sha256": "173438efa9710d03038c3c98142f90ef0a56dfda5eb4d15cd69bb25753cc3269"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/canal_grande_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/canal_grande_thumbnail.webp",
+    "bytes": 3818,
+    "sha256": "de8d0375b2e5af27c9876f54fbcd49c604d68283038abffa7b945a87e194912d"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/center_stage_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/center_stage_thumbnail.webp",
+    "bytes": 4778,
+    "sha256": "c8528c0819cf65c48bc90ea72122ffde86248f891d3302bebc9a782d39b8c1d3"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/chivalry_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/chivalry_thumbnail.webp",
+    "bytes": 2534,
+    "sha256": "04de04e3b521a3fd602e8a312092e8a044c848edaf3f672e87a3f58d84bed3ab"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/choral_chambers_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/choral_chambers_thumbnail.webp",
+    "bytes": 2338,
+    "sha256": "84cc9f50f1b8d42c704deed7ce4b4406fad02fad680dbbc6d8be18e20d096520"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/close_quarters_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/close_quarters_thumbnail.webp",
+    "bytes": 3448,
+    "sha256": "300b19474b3d275ff46a1d9bec8752bdb0052bb13b5b7e9266fa68821770c27b"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/color_me_intrigued_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/color_me_intrigued_thumbnail.webp",
+    "bytes": 3828,
+    "sha256": "f67cfee417c1674659ab865f4efac698d8053c1a2cc2c60139c811ab9e515e9d"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/crab_claws_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/crab_claws_thumbnail.webp",
+    "bytes": 4684,
+    "sha256": "fddb30131cba32a38f1b5ea545288847b01d30384f3046938c65b747e0dc111b"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/crowd_strike_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/crowd_strike_thumbnail.webp",
+    "bytes": 4174,
+    "sha256": "6c99ac2c2d4f610436ae00224f0706657fb7d6e110bf8bffd52ce28068fc8ef7"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/crystal_arcade_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/crystal_arcade_thumbnail.webp",
+    "bytes": 3386,
+    "sha256": "b432fb5267e1c63263a2e8b8b89caf5d03099726ed66fa32cd1a4260c5f0815d"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/deathcap_trap_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/deathcap_trap_thumbnail.webp",
+    "bytes": 3866,
+    "sha256": "96a05c9df6518eeb4fcc93b9864d4965518811ad8a6d03a95ecb392666a12bda"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/deep_end_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/deep_end_thumbnail.webp",
+    "bytes": 2406,
+    "sha256": "a54a232cb962b1d133e259625376d342b3ca866020eed9ca0076f92967047f8b"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/dont_turn_around_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/dont_turn_around_thumbnail.webp",
+    "bytes": 4040,
+    "sha256": "846288fadd0a996086766911c1938b4cd01590dbe5f1f52af005faf00b3ed3af"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/double_decker_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/double_decker_thumbnail.webp",
+    "bytes": 3184,
+    "sha256": "9bdccf468d5d7e715dd6375325ff28ee9022f0df4e18038c1bae3b1e1ef113d9"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/double_swoosh_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/double_swoosh_thumbnail.webp",
+    "bytes": 4268,
+    "sha256": "b564531e60fa3947347f201b4286b8dc046adc60ebe66426e83bf6937b37fcff"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/dragon_jaws_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/dragon_jaws_thumbnail.webp",
+    "bytes": 4550,
+    "sha256": "2b5ea374d9ff5adf4974f03380b96794bc7295efc9865c4359c21494ac8c5738"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/dry_season_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/dry_season_thumbnail.webp",
+    "bytes": 3058,
+    "sha256": "774d899c082e81221966d588c25e69afc33d4a2f4267289eeacba9f919e2ab5c"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/dueling_beetles_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/dueling_beetles_thumbnail.webp",
+    "bytes": 5560,
+    "sha256": "4a9f81bd5fcfdfe795f60e1e495ffb043ed66c1ee500b92dc20ada73ce43c1ad"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/extreme_nonchalance_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/extreme_nonchalance_thumbnail.webp",
+    "bytes": 4606,
+    "sha256": "5990a220c8ec6ef324a6ab9ec509e18fff181b5075e39251588af063cd4873ea"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/fishing_bed_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/fishing_bed_thumbnail.webp",
+    "bytes": 4210,
+    "sha256": "32fee72707b64f7480b089613ed500db248647966e1d0bf7528f5f3f808f4ca2"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/flank_attack_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/flank_attack_thumbnail.webp",
+    "bytes": 4040,
+    "sha256": "88847c21373e580088a4ea95279970e0539baf16ebacc4e46d74c2c4faac47f6"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/flaring_phoenix_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/flaring_phoenix_thumbnail.webp",
+    "bytes": 5142,
+    "sha256": "0720b80064825fefbe79d5d76cc3ccfa6c07cb1a998c36573a989502959c946a"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/flowing_springs_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/flowing_springs_thumbnail.webp",
+    "bytes": 3286,
+    "sha256": "3f5aadd6f310394560a1e29ba71b7c78db2cd06baa33fcc71b8c012c4003048f"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/flute_chutes_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/flute_chutes_thumbnail.webp",
+    "bytes": 4694,
+    "sha256": "ebb4a59f1851eeddd3a4a3dcd38b86eff469c4b6efd2e326b3ab54f255cf2165"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/forest_clearing_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/forest_clearing_thumbnail.webp",
+    "bytes": 2922,
+    "sha256": "0778366804ca59bc76471cfd0f96c121afd2c3a501a52086dcc0f0897030046e"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/fortress_fall_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/fortress_fall_thumbnail.webp",
+    "bytes": 3556,
+    "sha256": "c6983494492f3400f10e454849d25fa5faf53ff56aa4675b880f421c816d674a"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/four_levels_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/four_levels_thumbnail.webp",
+    "bytes": 3920,
+    "sha256": "6bc1e93dc379c1a9d3aceaffd6caba4fe89aeb4ed92b06c656b5bae3bb1f344b"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/gem_fort_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/gem_fort_thumbnail.webp",
+    "bytes": 4032,
+    "sha256": "b1de93c2a64eff6f8a05c492af4e57486059c5aafd5641cb3165459bf78a3590"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/goalies_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/goalies_thumbnail.webp",
+    "bytes": 4216,
+    "sha256": "a327c8df3b25d5ab8a9cb4407fef971839cdfe9222a8c175e946b085796ce60f"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/goalkeepers_dream_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/goalkeepers_dream_thumbnail.webp",
+    "bytes": 2770,
+    "sha256": "cc587d55cfb400068e92624fbd3b4e680d9ad390cd642105a4a7f48047de5626"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/goldarm_gulch_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/goldarm_gulch_thumbnail.webp",
+    "bytes": 3102,
+    "sha256": "60d45949adf6c6860b00f0b95aad1f1de59abd81cd554b6ef2d0db52e7ee972a"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/golden_bay_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/golden_bay_thumbnail.webp",
+    "bytes": 5280,
+    "sha256": "a7c5b7f0472a5cee989f90da234d822b98907bb2f2e605072ffa4fe082e019ba"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/grab_the_moment_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/grab_the_moment_thumbnail.webp",
+    "bytes": 5062,
+    "sha256": "ba9ee1ac1f30a9f0120486e8ac492e3d9a31ccc2403f7d07bdc93089542a0542"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/grass_knot_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/grass_knot_thumbnail.webp",
+    "bytes": 3766,
+    "sha256": "18473924fe96e5522c9d4d41647e334269c7151770b8cb807a8e33c1e5a7dbd1"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/h_for..._thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/h_for..._thumbnail.webp",
+    "bytes": 2982,
+    "sha256": "a0e0647ed68dcf617132f44f52f3e6cc78a106bb75dd45dd448c852f8c482b53"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/hard_lane_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/hard_lane_thumbnail.webp",
+    "bytes": 4020,
+    "sha256": "6da6b59fa7bf9e307d64e57c7ea97187b4f39254e5428f237eecd382806ce3a2"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/hard_rock_mine_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/hard_rock_mine_thumbnail.webp",
+    "bytes": 4822,
+    "sha256": "4764cafc8b508f9d1f4c02d2cb274c22324beaaf4b8c7532bd3c800b4f4901fd"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/healthy_middle_ground_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/healthy_middle_ground_thumbnail.webp",
+    "bytes": 4112,
+    "sha256": "a04f46cd054c2520d08b6613a75e7c73ee1080b6afdd234ed666c882e1986c1e"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/hideout_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/hideout_thumbnail.webp",
+    "bytes": 3210,
+    "sha256": "a1b83ebee338ab2ac6576c3a93f0056e2c7a7ced9fc57e364e8a4457277095de"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/hit_and_run_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/hit_and_run_thumbnail.webp",
+    "bytes": 3452,
+    "sha256": "35b934c902474f71cbf8d35d8b22f14f90cdf5355e8afb43ca089321b12f9b3b"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/hyacinth_house_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/hyacinth_house_thumbnail.webp",
+    "bytes": 4472,
+    "sha256": "ed6482e97b0826a64032056b6fd65997162ce5fe61ab78afaec33e2dd7edbd4a"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/in_the_liminal_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/in_the_liminal_thumbnail.webp",
+    "bytes": 3512,
+    "sha256": "6870e7c3c367b8fb17146f79d3b140b4dda031a0e81af36a40bcc7392dad5921"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/iris_intervention_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/iris_intervention_thumbnail.webp",
+    "bytes": 4376,
+    "sha256": "4ca13ad6b5180efed930e38e2d42aba0a68d4e69e7113050e40ef9a3fe75a702"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/island_hopping_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/island_hopping_thumbnail.webp",
+    "bytes": 3462,
+    "sha256": "b5a5183e254f66369913b9461387074069668a3330dcd5519a93b3bc206ee03e"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/just_another_race_to_anywhere_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/just_another_race_to_anywhere_thumbnail.webp",
+    "bytes": 5056,
+    "sha256": "6b1670566fb840412e31414972bfe9b720f38c5c7b06c33727964697cc6fdf3f"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/konnakol_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/konnakol_thumbnail.webp",
+    "bytes": 2668,
+    "sha256": "1575058df5774be310117a85b02460d06db703b81ddd22da8d9a068fbb92995e"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/last_stop_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/last_stop_thumbnail.webp",
+    "bytes": 6000,
+    "sha256": "64d40d475cbfff9829e105899e2aacccc169c5672be40321e665ec77b9d0c894"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/layer_cake_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/layer_cake_thumbnail.webp",
+    "bytes": 4626,
+    "sha256": "115f5716525ffee3e003f92dc5cf2dcd8935d5c312c1b060bf2c59df83b5a86a"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/lilygear_lake_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/lilygear_lake_thumbnail.webp",
+    "bytes": 2798,
+    "sha256": "b4d0876bfaa73c5d79d2ca0fb5d262c24149ec447671ca525316ccc718331559"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/local_businesses_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/local_businesses_thumbnail.webp",
+    "bytes": 4344,
+    "sha256": "85284fc6b791f4543dbdc42e71dac07b09fa37cd63376d4123488fc1521e72cf"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/local_restaurants_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/local_restaurants_thumbnail.webp",
+    "bytes": 3946,
+    "sha256": "6b7718c5a6c8397aa2283a649bd31670f28064ec2bda985dc53593823011b786"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/match_1123581321_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/match_1123581321_thumbnail.webp",
+    "bytes": 4196,
+    "sha256": "eafc5939a07fa61cef1a38d3c40e3f9cd7412e32c58ab7e03c080f0b493bb2b5"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/minecart_madness_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/minecart_madness_thumbnail.webp",
+    "bytes": 3628,
+    "sha256": "7314ba1f2433b035258d9b4c85405fa4e86fc4a043f7484f6db8db8351e42d0d"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/misty_meadows_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/misty_meadows_thumbnail.webp",
+    "bytes": 4138,
+    "sha256": "1279b9674ea9312bb317f686ba48bae58443f9422f0461a6ecf3edbbc52f015a"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/mossy_crossing_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/mossy_crossing_thumbnail.webp",
+    "bytes": 3770,
+    "sha256": "280614cf29911102b5fa25790c641c86542f62f2d656cdcd41bbd9d5c60cceb9"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/new_horizons_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/new_horizons_thumbnail.webp",
+    "bytes": 3142,
+    "sha256": "af969852b0dbf35ee67977221258ba42a64f9c7247d5fef64f8d90e8786de9fe"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/new_perspective_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/new_perspective_thumbnail.webp",
+    "bytes": 3668,
+    "sha256": "4bb1383d2eedcfc202bbeecb511973d320394a246c7e4c03044beb9830df0f56"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/no_good_deed_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/no_good_deed_thumbnail.webp",
+    "bytes": 4774,
+    "sha256": "12d9968c2ccb64852c5607a9007d1bd579d24236f17ec7ba252d409d849dc2ac"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/nutmeg_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/nutmeg_thumbnail.webp",
+    "bytes": 3866,
+    "sha256": "16d6e4118f5f07248ab5dff8e4f58bffe4cfd96ebb1427ffcd38efc4a96b5314"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/offside_trap_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/offside_trap_thumbnail.webp",
+    "bytes": 3392,
+    "sha256": "78be9472b03389c6d6de02c722ad03e7a78aec9d5068fea6f655d51ec9646d57"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/on_a_roll_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/on_a_roll_thumbnail.webp",
+    "bytes": 3530,
+    "sha256": "57fc2151afb86af71ded13dcdf1eedcf83be09447223964424c7cabe8fa4cebb"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/open_business_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/open_business_thumbnail.webp",
+    "bytes": 3648,
+    "sha256": "1636a1fce5eba7043ff5005af4cf02c40c570ecbe2a7cf73ac7fe67face1f307"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/open_space_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/open_space_thumbnail.webp",
+    "bytes": 3160,
+    "sha256": "f126f03df42ac36680d816b7ee9c8909726952523ee6b22c90321e2606307d8c"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/open_zone_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/open_zone_thumbnail.webp",
+    "bytes": 4142,
+    "sha256": "bb10ff2fdf764ade8c3f30f442de34967f9a64653a8756e1c5ad331262869c40"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/opening_move_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/opening_move_thumbnail.webp",
+    "bytes": 3876,
+    "sha256": "768cd2e150b770a12dc55b71cdba850d55f052a4e86c00f221bc2e15caaa5c4f"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/out_in_the_open_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/out_in_the_open_thumbnail.webp",
+    "bytes": 3424,
+    "sha256": "f213450a25e4c53ccaed9a43f08cd1a3b844c439a83b655271a005632c03518e"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/parallel_plays_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/parallel_plays_thumbnail.webp",
+    "bytes": 4456,
+    "sha256": "d6db93456625b6c9b96bbd5251daa3951dd4e0990dfe223e3a0d5ad3fae7dafa"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/party_for_you_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/party_for_you_thumbnail.webp",
+    "bytes": 3742,
+    "sha256": "b1fd0e194f172f08a12ecb2b3e5e97f9100406969b165e1381ac1d0b3fd46b25"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/penalty_kick_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/penalty_kick_thumbnail.webp",
+    "bytes": 3912,
+    "sha256": "fe08fd1a2b5b8f0d69d31c93d1c3bd48b220ec7b238e2ec6bd25196ff12976fe"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/picturesque_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/picturesque_thumbnail.webp",
+    "bytes": 3620,
+    "sha256": "33c6ae031c82cf474bb2453dd4d8f450f5126e55dc507386332a878fd4b73163"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/pinball_dreams_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/pinball_dreams_thumbnail.webp",
+    "bytes": 3634,
+    "sha256": "e77d507aefc26f26f840be26b6e02d8ae51bb3c6440d8e26ef24babf02becca1"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/pinhole_punt_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/pinhole_punt_thumbnail.webp",
+    "bytes": 2956,
+    "sha256": "73fb3c7060f45a6f03f6fb8b831ca30ae1994b985068f55e392e36bf50fdc61d"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/pinned_down_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/pinned_down_thumbnail.webp",
+    "bytes": 3718,
+    "sha256": "47d13f6d6d40936114630109e25dc023f425f55423689ac419d609d97561edd5"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/playmaker_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/playmaker_thumbnail.webp",
+    "bytes": 4520,
+    "sha256": "52fdcc13b696b502a7975a0b14afcb25c02ee89826b4340b18e6af974dd7a1bb"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/priceless_cactus_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/priceless_cactus_thumbnail.webp",
+    "bytes": 3738,
+    "sha256": "bd762fcd5277f260b8af246ef37a4d4ca96524dd0253108e20517a772964b8cc"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/railroad_robbery_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/railroad_robbery_thumbnail.webp",
+    "bytes": 2560,
+    "sha256": "e1ca5c73c71b7b75c5a20b82f70d7e698cfad865fec1670721ebade115ee4977"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/reflections_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/reflections_thumbnail.webp",
+    "bytes": 4730,
+    "sha256": "31f169ccd01f319486a564deacb84d449e6daa5c9a0dbeffbbb37a9aabbb1589"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/retina_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/retina_thumbnail.webp",
+    "bytes": 3764,
+    "sha256": "54832f034023521122b4286f0419b9b319611b4434179d0f9a77b16df7185363"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/ring_of_fire_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/ring_of_fire_thumbnail.webp",
+    "bytes": 3634,
+    "sha256": "f622de76aeda2f14f5c5c269532b9dcf512fa966563b865da050345639de70af"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/rooftop_runners_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/rooftop_runners_thumbnail.webp",
+    "bytes": 3830,
+    "sha256": "f78fbdfbc7777caeb290f3dd9a2343869fd2591c69e2aa1f263c9409adc10e0c"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/rustic_arcade_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/rustic_arcade_thumbnail.webp",
+    "bytes": 2726,
+    "sha256": "7726525495c85e0a0a0b9777643f74f549aaf3270616dd987cbc0cf7403940f0"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/satomi_springs_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/satomi_springs_thumbnail.webp",
+    "bytes": 4200,
+    "sha256": "39650a1412ce696180d3fbadbdc589fecdf71c5a717ec5b169e09662840b7e7d"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/second_try_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/second_try_thumbnail.webp",
+    "bytes": 2756,
+    "sha256": "e78f44405e21ea2d112ed6722f7cb77f1570eac3ad216c7f578598ad464ccd71"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/shooting_star_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/shooting_star_thumbnail.webp",
+    "bytes": 2894,
+    "sha256": "9e85505099cde45c6928a82ea41623f6bb993ce5a54454ae48d86011e913ea88"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/side_by_side_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/side_by_side_thumbnail.webp",
+    "bytes": 3332,
+    "sha256": "eb322fcd71282ef926022bfedd959ccfbcff65a01b3293dfdfd09500f1bed5f6"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/sidetrack_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/sidetrack_thumbnail.webp",
+    "bytes": 5014,
+    "sha256": "556da6cc479be9fb922367d1182e16f0ab502460773095db7464b69aaf293ab0"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/singed_earth_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/singed_earth_thumbnail.webp",
+    "bytes": 3866,
+    "sha256": "0be1330a3f8935ac2b2e3a7d7f31e75ac5c6ebb339e222e4819ec072b2dddd1e"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/snake_pit_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/snake_pit_thumbnail.webp",
+    "bytes": 3134,
+    "sha256": "793529ded6999455d113ec33cf76237d1f00299bad5abfef609804e8e2ac8f6c"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/snake_prairie_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/snake_prairie_thumbnail.webp",
+    "bytes": 3130,
+    "sha256": "30641b0f5e6438c1d35bab6f09ab927a691c0fa7ed2cfa21e17c7a958d3b332d"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/sneaky_fields_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/sneaky_fields_thumbnail.webp",
+    "bytes": 3490,
+    "sha256": "cf7f8c66dbf88e32a646c84f30621c9566cdfddcbfbc485f20682f298ec0dd6d"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/sneaky_sneak_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/sneaky_sneak_thumbnail.webp",
+    "bytes": 3714,
+    "sha256": "f9c7f2c0ac84a8e9abef5fd1aa9ae0c38a35ecd1b9b1fdaf960773700caffeb0"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/spider_crawler_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/spider_crawler_thumbnail.webp",
+    "bytes": 3236,
+    "sha256": "ef1a9e677430b9a94ae2fe5cbeea00009765bb703aa9cf5c17e7e795af39b78b"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/spiraling_out_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/spiraling_out_thumbnail.webp",
+    "bytes": 2816,
+    "sha256": "3f7c43e72e9b2136909c3d65226925f6183dab956d35649bd86ae882dd270df0"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/starrburst_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/starrburst_thumbnail.webp",
+    "bytes": 3430,
+    "sha256": "872406a5d4294ca36d0beee025f615dcd70366bd9cbd5533ef6072db0a16e50e"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/storage_sector_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/storage_sector_thumbnail.webp",
+    "bytes": 3914,
+    "sha256": "3ee00fc7ecb73a95dabc12da09d4cd2085a40b6008a2be734a70a22ec94d0622"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/streets_with_no_name_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/streets_with_no_name_thumbnail.webp",
+    "bytes": 3284,
+    "sha256": "68ab36aff126e915a8d0a27546ad9889463c747e48d33a43ff779932341f8ef3"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/sunny_soccer_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/sunny_soccer_thumbnail.webp",
+    "bytes": 3610,
+    "sha256": "beca4a21c6333b454385ee427bc6f7f0363664bb222b18ab0658ad0bb74aeb91"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/sunset_spar_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/sunset_spar_thumbnail.webp",
+    "bytes": 4346,
+    "sha256": "3a834fcaca7d4a77bcceaa371a3ab08d746e6e7591df3c8567fd2f300cc1950b"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/super_beach_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/super_beach_thumbnail.webp",
+    "bytes": 3868,
+    "sha256": "caf9c0d7e9c0c384b4f482d4fdf789390653128a75e63853ea2283e5aa84b01b"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/the_seven_pillars_of_humanity_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/the_seven_pillars_of_humanity_thumbnail.webp",
+    "bytes": 3300,
+    "sha256": "9d59df73efbac0c1885fd56f51553835678eed376627c7db7e59ce5ad30f71f5"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/think_ahead_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/think_ahead_thumbnail.webp",
+    "bytes": 3278,
+    "sha256": "d62a7dc8418db7c5b2c81ccdd9830875839186710115a4db5e8c9cc386d25ace"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/ticket_to_die_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/ticket_to_die_thumbnail.webp",
+    "bytes": 2854,
+    "sha256": "a439d28246251df8ca0cff3f3d9a741a3105ae8ab344c7a277645df4b6eb28ad"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/trickey_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/trickey_thumbnail.webp",
+    "bytes": 2842,
+    "sha256": "10d995e95462edd4fe27fa9d227ff827d440dc1b8bc3361e337124629ec1ef22"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/triple_dribble_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/triple_dribble_thumbnail.webp",
+    "bytes": 3282,
+    "sha256": "a15595bfe43b838ff2cb57c11ebf6f2bb5fa10bc078f7c74ebef81d6bd5e74fe"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/twilight_passage_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/twilight_passage_thumbnail.webp",
+    "bytes": 3616,
+    "sha256": "ebd2320c39450893c69c47c4f63d4eca93bc42552745de4eba000079e151e2af"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/undermine_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/undermine_thumbnail.webp",
+    "bytes": 3910,
+    "sha256": "894245ee121e50c82083bda589491b163edd892ab6d6087fc1251a733fcf96e6"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/wall_hugging_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/wall_hugging_thumbnail.webp",
+    "bytes": 3786,
+    "sha256": "8c64f9a82958bf81fa337f81a1c2cabd0c513285bdcabc096493bdab9201c202"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/watermelons_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/watermelons_thumbnail.webp",
+    "bytes": 3262,
+    "sha256": "aab31aa9a8c73749cd7d44a5aa9f1d00c9d78f5226bb13cc31681b8387f34cc1"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/whisper_vale_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/whisper_vale_thumbnail.webp",
+    "bytes": 4096,
+    "sha256": "aee6b7c9fc83b8669dccbf2e34f40f93fd1764a1866e26a9c963d5b6a43914ae"
+  },
+  {
+    "path": "brawl-stars/res/img/maps/zone_splitting_thumbnail.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/maps/zone_splitting_thumbnail.webp",
+    "bytes": 2910,
+    "sha256": "acec5e6a42d85a63e750650d34e3f6d550a5c38691f2840e3988c0fe6959422d"
+  },
+  {
+    "path": "brawl-stars/res/img/modes/icon_bounty.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/modes/icon_bounty.webp",
+    "bytes": 4068,
+    "sha256": "8ebf7c5975c833ea2711f61f4a80e69cfe216c54b361b952904c77bec9f6ce6f"
+  },
+  {
+    "path": "brawl-stars/res/img/modes/icon_brawl_ball.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/modes/icon_brawl_ball.webp",
+    "bytes": 4072,
+    "sha256": "6129f3e07f33ec47ab008229d9f90a107f10e65b573621c7d971d223742e99af"
+  },
+  {
+    "path": "brawl-stars/res/img/modes/icon_gem_grab.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/modes/icon_gem_grab.webp",
+    "bytes": 4390,
+    "sha256": "66da473fc2b2c95ecc548fea82f294384e71bce906befd9af4adfbb6465dc51e"
+  },
+  {
+    "path": "brawl-stars/res/img/modes/icon_hot_zone.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/modes/icon_hot_zone.webp",
+    "bytes": 4476,
+    "sha256": "646af838558fc7494714b3b7a866a9b806afda48d1f9e681fcf1bfbd4c7ec629"
+  },
+  {
+    "path": "brawl-stars/res/img/modes/icon_knockout.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/modes/icon_knockout.webp",
+    "bytes": 3700,
+    "sha256": "fcc1caff5bdeec164864b15b1fea9fdf127b41767fc3ed8e792ee056765db616"
+  }
+]

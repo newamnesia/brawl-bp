@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+*.log
+.temp/
+.env.local
+.env.*.local
+*.jks
+*.keystore

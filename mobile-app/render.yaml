@@ -1,0 +1,21 @@
+# Blueprint path: mobile-app/render.yaml
+services:
+  - type: web
+    name: brawl-bp-app
+    runtime: node
+    rootDir: mobile-app
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: NODE_ENV
+        value: production
+      - key: VITE_SOCKET_URL
+        value: ''
+      - key: VITE_PUBLIC_WEB_URL
+        value: ''
+      - key: PORT
+        value: "10000"

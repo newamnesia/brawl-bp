@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AIM_REACTION_TIERS, SPEED_TIERS, type AimReactionTier, type AimingRule, type SpeedTier } from "../features/training/config";
+import { AIM_REACTION_TIERS, type AimReactionTier, type AimingRule, type SpeedTier } from "../features/training/config";
 import { BackButton, Choice, SpeedPicker, TrainingGuide } from "./MovementTraining";
 
 export default function AimingTraining() {
@@ -10,8 +10,7 @@ export default function AimingTraining() {
   const [reactionTier, setReactionTier] = useState<AimReactionTier>("diamond");
 
   const start = () => {
-    const speed = SPEED_TIERS[speedTier].value;
-    navigate(`/offline-training/game?mode=joystick&speedTier=${speedTier}&bulletSpeed=${speed.toFixed(2)}&trainingMode=aiming&aimingRule=${rule}&reactionTier=${reactionTier}`);
+    navigate(`/offline-training/game?mode=joystick&speedTier=${speedTier}&trainingMode=aiming&aimingRule=${rule}&reactionTier=${reactionTier}`);
   };
 
   return (
