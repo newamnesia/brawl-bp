@@ -1,3 +1,4 @@
+import { FIRE_INTERVAL_MIN, FIRE_INTERVAL_MAX, BEA_FIRE_INTERVAL_MIN, BEA_FIRE_INTERVAL_MAX, canMovementShoot, movementShotDelay } from "../features/training/firing";
 import { BEA_SUPER, beaSuperPosition, chargeBeaSuper } from "../features/training/beaSuper";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -42,14 +43,8 @@ const AIMING_FRONT_ANGLE = -Math.PI / 2;
 const AIMING_SECTOR_HALF_ANGLE = Math.PI / 4;
 const AIMING_AI_TURN_RATE = 10;
 const MAGAZINE_CAPACITY = 3;
-// AI 开火决策间隔与单发装填时间独立；无弹时仍需等待装填完成。
-const FIRE_INTERVAL_MIN = 1.55;
-const FIRE_INTERVAL_MAX = 2.25;
-const BURST_INTERVAL_SECONDS = 0.4;
-const BURST_PROBABILITY = 0.3;
+// 走位训练射击节奏见 firing.ts，普通射击保留两发弹药。
 const BEA_MAGAZINE_CAPACITY = 1;
-const BEA_FIRE_INTERVAL_MIN = 1.05;
-const BEA_FIRE_INTERVAL_MAX = 1.35;
 const BEA_SUPER_UNIT = TILE_SIZE;
 const BULLET_MAX_DIST = tiles(10); // 子弹最远行进 3000 单位
 const PLAYER_MAX_HEALTH = 6000;
@@ -1330,8 +1325,6 @@ export default function OfflineTrainingGame() {
           ? Math.min(MAX_DIFFICULTY_MULTIPLIER, 1 + survivalTimeRef.current * DIFFICULTY_GROWTH_PER_SECOND)
           : 1;
         const currentReloadSeconds = magazineReloadSeconds / difficultyMultiplier;
-        const currentFireIntervalMin = fireIntervalMin / difficultyMultiplier;
-        const currentFireIntervalMax = fireIntervalMax / difficultyMultiplier;
         const currentBulletSpeed = bulletSpeed * difficultyMultiplier;
 
         // ======== 弹匣恢复 + 随机开火（含最多一次双发追射） ========
@@ -1357,8 +1350,7 @@ export default function OfflineTrainingGame() {
           const dx = player.x - ENEMY_X;
           const dy = player.y - ENEMY_Y;
           // 射程判定：用玩家当前位置
-          if (magazineAmmoRef.current > 0 && dx * dx + dy * dy <= ENEMY_RANGE * ENEMY_RANGE) {
-            const ammoBeforeShot = magazineAmmoRef.current;
+          if (canMovementShoot(isBeaMode, magazineAmmoRef.current, burstFollowupRef.current) && dx * dx + dy * dy <= ENEMY_RANGE * ENEMY_RANGE) {
             const shotId = bulletIdRef.current++;
             const metrics = getMetrics(prof);
             const pred = predictAimAngle({
@@ -1398,19 +1390,15 @@ export default function OfflineTrainingGame() {
             magazineAmmoRef.current -= 1;
             setMagazineAmmo(magazineAmmoRef.current);
 
-            if (burstFollowupRef.current) {
-              burstFollowupRef.current = false;
-              fireTimerRef.current = currentFireIntervalMin + Math.random() * (currentFireIntervalMax - currentFireIntervalMin);
-            } else if (!isBeaMode && ammoBeforeShot >= 2 && Math.random() < BURST_PROBABILITY) {
-              burstFollowupRef.current = true;
-              fireTimerRef.current = BURST_INTERVAL_SECONDS / difficultyMultiplier;
-            } else {
-              fireTimerRef.current = currentFireIntervalMin + Math.random() * (currentFireIntervalMax - currentFireIntervalMin);
-            }
+            const nextShot = movementShotDelay(
+              isBeaMode, magazineAmmoRef.current, magazineReloadTimerRef.current,
+              currentReloadSeconds, difficultyMultiplier, burstFollowupRef.current,
+            );
+            burstFollowupRef.current = nextShot.followup;
+            fireTimerRef.current = nextShot.seconds;
           } else {
-            // 无弹或玩家不在射程时也重新抽取等待，避免补弹瞬间固定开火。
-            burstFollowupRef.current = false;
-            fireTimerRef.current = currentFireIntervalMin + Math.random() * (currentFireIntervalMax - currentFireIntervalMin);
+            // Keep a due shot pending while reloading or out of range, without adding a full interval.
+            fireTimerRef.current = 0;
           }
         }
 
