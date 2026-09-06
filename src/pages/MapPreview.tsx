@@ -5,7 +5,7 @@ import {
   MAPS,
   type GameMode,
 } from "../../shared/types";
-import { MAPS_BASE_URL } from "../../shared/catalog";
+import { mapThumbnailUrl } from "../../shared/catalog";
 
 export default function MapPreview() {
   const navigate = useNavigate();
@@ -57,7 +57,7 @@ export default function MapPreview() {
             >
               <img
                 className="map-preview-thumb"
-                src={`${MAPS_BASE_URL}${map.thumbnail}`}
+                src={mapThumbnailUrl(map)}
                 alt={map.name}
                 loading="lazy"
                 draggable={false}

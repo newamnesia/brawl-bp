@@ -1,7 +1,8 @@
+import { BEA_SUPER, beaSuperPosition, chargeBeaSuper } from "../features/training/beaSuper";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AIM_REACTION_TIERS, CHARACTER_MOVE_SPEED, SPEED_TIERS, TILE_SIZE, tiles, type AimReactionTier } from "../features/training/config";
-import { advanceMovement, resetsMovementOnTurn } from "../features/training/movement";
+import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, type WallCell } from "../features/training/movement";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
@@ -25,6 +26,8 @@ const MIN_UPWARD_VIEW_UNITS = tiles(9.8);
 const MIN_VERTICAL_VIEW_UNITS = MIN_UPWARD_VIEW_UNITS * 2;
 const PERSPECTIVE_WIDTH_STRENGTH = 0.16; // 上沿约窄 8%，下沿约宽 8%
 const PLAYER_RADIUS = tiles(0.5); // 玩家半径 150 单位
+const PLAYER_COLLISION_HALF_SIZE = tiles(0.5); // 隐形 300 × 300 正方形移动碰撞体
+const WALL_TILES: ReadonlySet<WallCell> = new Set(); // 地图暂时为空；以后在此接入障碍格
 const MOVE_SPEED = CHARACTER_MOVE_SPEED;
 
 // 敌人 + 子弹常量
@@ -47,10 +50,7 @@ const BURST_PROBABILITY = 0.3;
 const BEA_MAGAZINE_CAPACITY = 1;
 const BEA_FIRE_INTERVAL_MIN = 1.05;
 const BEA_FIRE_INTERVAL_MAX = 1.35;
-const BEA_HONEY_FIRST_TRIGGER_MS = 7000;
-const BEA_HONEY_TRIGGER_INTERVAL_MS = 10000;
-const BEA_HONEY_WAVE_DURATION_MS = 3000;
-const BEA_HONEY_SLOW_MULTIPLIER = 0.7;
+const BEA_SUPER_UNIT = TILE_SIZE;
 const BULLET_MAX_DIST = tiles(10); // 子弹最远行进 3000 单位
 const PLAYER_MAX_HEALTH = 6000;
 const HEALTH_REGEN_DELAY_SECONDS = 3;
@@ -64,10 +64,12 @@ const MAX_DIFFICULTY_MULTIPLIER = 2.5;
 const BULLET_TEXTURES = {
   beaNormal: "/assets/projectiles/bea-normal-v4.png",
   beaEnhanced: "/assets/projectiles/bea-enhanced-v4.png",
+  beaSuper: "", // 技能弹由 Canvas 绘制
   high: "/assets/projectiles/bullet-17-5-v4.png",
 } as const;
 
 function projectileDamage(texture: keyof typeof BULLET_TEXTURES, traveled: number): number {
+  if (texture === "beaSuper") return BEA_SUPER.damage;
   if (texture === "beaNormal") return BEA_NORMAL_DAMAGE;
   if (texture === "beaEnhanced") return BEA_ENHANCED_DAMAGE;
   return PIPER_MIN_DAMAGE
@@ -84,6 +86,7 @@ type Bullet = {
   radius: number;
   texture: keyof typeof BULLET_TEXTURES;
   owner: "enemy" | "player";
+  superTrajectory?: { originX: number; originY: number; angle: number; omega: number; elapsed: number };
 };
 
 type HitParticle = {
@@ -912,6 +915,8 @@ export default function OfflineTrainingGame() {
   const lastSurvivalUiUpdateRef = useRef(0);
   const playerDirectionRef = useRef(-Math.PI / 2);
   const enemyDirectionRef = useRef(Math.PI / 2);
+  const playerIsMovingRef = useRef(false);
+  const enemyIsMovingRef = useRef(false);
 
   // Profiler（每局新建）
   const profilerRef = useRef<Prof | null>(null);
@@ -979,11 +984,9 @@ export default function OfflineTrainingGame() {
     let animationId: number;
     let lastTime = performance.now();
     const nowStart = lastTime;
-    let trainingElapsedMs = 0;
-    let nextHoneyTriggerMs = BEA_HONEY_FIRST_TRIGGER_MS;
-    let honeyWaveElapsedMs = 0;
-    let honeyWaveRemainingMs = 0;
+    let superCharge = 0;
     let aiMovementElapsed = 0;
+    let aiDodgeTurn: { start: number; delta: number; elapsed: number; duration: number } | null = null;
     playerMovementElapsedRef.current = 0;
 
     // 只在新方向指令出现时判断，不能用每帧平滑转向的小角度代替单次转向。
@@ -992,7 +995,7 @@ export default function OfflineTrainingGame() {
       if (resetsMovementOnTurn(ai.desiredHeading, heading)) aiMovementElapsed = 0;
       ai.desiredHeading = heading;
     };
-    let honeySlowRemainingMs = 0;
+    let superSlowRemainingMs = 0;
 
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
@@ -1038,6 +1041,8 @@ export default function OfflineTrainingGame() {
     aimingEmptyAmmoSecondsRef.current = 0;
     playerDirectionRef.current = -Math.PI / 2;
     enemyDirectionRef.current = Math.PI / 2;
+    playerIsMovingRef.current = false;
+    enemyIsMovingRef.current = false;
 
     const projectileImages: Partial<Record<keyof typeof BULLET_TEXTURES, HTMLImageElement>> = {};
     if (isBeaMode) {
@@ -1116,46 +1121,36 @@ export default function OfflineTrainingGame() {
 
         const velocity = playerVelocityRef.current;
         if (isBeaMode && !isAimingMode) {
-          trainingElapsedMs += dtMs;
-          if (honeyWaveRemainingMs > 0) {
-            honeyWaveRemainingMs = Math.max(0, honeyWaveRemainingMs - dtMs);
-            honeyWaveElapsedMs = Math.min(BEA_HONEY_WAVE_DURATION_MS, honeyWaveElapsedMs + dtMs);
-          }
-          if (trainingElapsedMs >= nextHoneyTriggerMs) {
-            honeyWaveElapsedMs = 0;
-            honeyWaveRemainingMs = BEA_HONEY_WAVE_DURATION_MS;
-            nextHoneyTriggerMs += BEA_HONEY_TRIGGER_INTERVAL_MS;
-            const honeyDx = player.x - ENEMY_X;
-            const honeyDy = player.y - ENEMY_Y;
-            if (honeyDx * honeyDx + honeyDy * honeyDy <= ENEMY_RANGE * ENEMY_RANGE) {
-              honeySlowRemainingMs = BEA_HONEY_WAVE_DURATION_MS;
-            }
-          }
-          honeySlowRemainingMs = Math.max(0, honeySlowRemainingMs - dtMs);
+          superSlowRemainingMs = Math.max(0, superSlowRemainingMs - dtMs);
         }
-        const movementSpeed = isBeaMode && !isAimingMode && honeySlowRemainingMs > 0
-          ? MOVE_SPEED * BEA_HONEY_SLOW_MULTIPLIER
+        const movementSpeed = isBeaMode && !isAimingMode && superSlowRemainingMs > 0
+          ? MOVE_SPEED * BEA_SUPER.slowMultiplier
           : MOVE_SPEED;
         const movement = advanceMovement(playerMovementElapsedRef.current, dt,
           !isAimingMode && Math.hypot(input.x, input.y) > 0);
         playerMovementElapsedRef.current = movement.elapsed;
-        velocity.x = input.x * movementSpeed * movement.speed;
-        velocity.y = input.y * movementSpeed * movement.speed;
-        const velX = velocity.x;
-        const velY = velocity.y;
-        const curSpeed = Math.hypot(velX, velY);
-        if (!isAimingMode && curSpeed > tiles(0.05)) playerDirectionRef.current = Math.atan2(velY, velX);
-
-        player.x += input.x * movementSpeed * movement.distance;
-        player.y += input.y * movementSpeed * movement.distance;
-
-        // 边界限制（圆心需保证半径在内）
-        const clampedX = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS, player.x));
-        const clampedY = Math.max(PLAYER_RADIUS, Math.min(MAP_HEIGHT - PLAYER_RADIUS, player.y));
-        if (clampedX !== player.x) velocity.x = 0;
-        if (clampedY !== player.y) velocity.y = 0;
-        player.x = clampedX;
-        player.y = clampedY;
+        const resolvedPlayerMove = resolveSquareMovement({
+          x: player.x,
+          y: player.y,
+          dx: input.x * movementSpeed * movement.distance,
+          dy: input.y * movementSpeed * movement.distance,
+          halfSize: PLAYER_COLLISION_HALF_SIZE,
+          mapWidth: MAP_WIDTH,
+          mapHeight: MAP_HEIGHT,
+          tileSize: TILE_SIZE,
+          walls: WALL_TILES,
+        });
+        player.x = resolvedPlayerMove.x;
+        player.y = resolvedPlayerMove.y;
+        velocity.x = resolvedPlayerMove.blockedX ? 0 : input.x * movementSpeed * movement.speed;
+        velocity.y = resolvedPlayerMove.blockedY ? 0 : input.y * movementSpeed * movement.speed;
+        let velX = velocity.x;
+        let velY = velocity.y;
+        let curSpeed = Math.hypot(velX, velY);
+        playerIsMovingRef.current = Math.hypot(resolvedPlayerMove.dx, resolvedPlayerMove.dy) > 1e-7;
+        if (!isAimingMode && playerIsMovingRef.current) {
+          playerDirectionRef.current = Math.atan2(resolvedPlayerMove.dy, resolvedPlayerMove.dx);
+        }
 
         if (isAimingMode) {
           const target = aimingTargetRef.current;
@@ -1163,7 +1158,7 @@ export default function OfflineTrainingGame() {
           ai.changeTimer -= dt;
           ai.dodgeLockTimer = Math.max(0, ai.dodgeLockTimer - dt);
 
-          // 子弹飞行达到当前段位反应时间后，选择与弹道成 90°~150° 的随机躲避方向。
+          // 子弹飞行达到当前段位反应时间后，开始把模拟摇杆拖向弹道的垂直方向。
           const threat = aimingDodgesProjectiles
             ? bulletsRef.current
               .filter((bullet) => bullet.owner === "player" && !ai.reactedBulletIds.has(bullet.id))
@@ -1185,8 +1180,16 @@ export default function OfflineTrainingGame() {
               : Math.abs(currentPerpendicularMotion) > 0.05 ? Math.sign(currentPerpendicularMotion) : (Math.random() < 0.5 ? -1 : 1);
             const evadeHeading = bulletHeading + evadeSign * Math.PI / 2;
             setAiDirection(evadeHeading);
-            // 反应计时已经模拟了决策延迟；躲避触发后立即进入精确垂直航向。
-            ai.heading = evadeHeading;
+            const turnDelta = Math.atan2(Math.sin(evadeHeading - ai.heading), Math.cos(evadeHeading - ai.heading));
+            const joystickRadius = aimJoystickRef.current.maxRadius * aimingReactionConfig.joystickRadiusRatio;
+            const dragDistance = 2 * joystickRadius * Math.sin(Math.abs(turnDelta) / 2);
+            aiDodgeTurn = {
+              start: ai.heading,
+              delta: turnDelta,
+              elapsed: 0,
+              duration: dragDistance / aimingReactionConfig.joystickDragSpeed
+                + aimingReactionConfig.joystickDragExtraSeconds,
+            };
             ai.dodgeLockTimer = Math.hypot(threat.x - target.x, threat.y - target.y) / projectileSpeed
               + (ENEMY_RADIUS + threat.radius) / projectileSpeed;
             ai.reactedBulletIds.add(threat.id);
@@ -1195,18 +1198,38 @@ export default function OfflineTrainingGame() {
             ai.changeTimer = 0.3 + Math.random() * 0.7;
           }
 
-          // 模拟手指拖动摇杆：航向以有限角速度平滑转向，不瞬间跳变。
-          const headingDelta = Math.atan2(
-            Math.sin(ai.desiredHeading - ai.heading),
-            Math.cos(ai.desiredHeading - ai.heading),
-          );
-          const headingStep = Math.max(-AIMING_AI_TURN_RATE * dt, Math.min(AIMING_AI_TURN_RATE * dt, headingDelta));
-          ai.heading += headingStep;
+          if (aiDodgeTurn) {
+            aiDodgeTurn.elapsed = Math.min(aiDodgeTurn.duration, aiDodgeTurn.elapsed + dt);
+            const progress = aiDodgeTurn.duration > 0 ? aiDodgeTurn.elapsed / aiDodgeTurn.duration : 1;
+            ai.heading = aiDodgeTurn.start + aiDodgeTurn.delta * progress;
+            if (progress >= 1) aiDodgeTurn = null;
+          } else {
+            // 常规随机走位继续模拟有限角速度；子弹躲避使用摇杆拖动距离模型。
+            const headingDelta = Math.atan2(
+              Math.sin(ai.desiredHeading - ai.heading),
+              Math.cos(ai.desiredHeading - ai.heading),
+            );
+            const headingStep = Math.max(-AIMING_AI_TURN_RATE * dt, Math.min(AIMING_AI_TURN_RATE * dt, headingDelta));
+            ai.heading += headingStep;
+          }
 
           const aiMovement = advanceMovement(aiMovementElapsed, dt, true);
           aiMovementElapsed = aiMovement.elapsed;
-          let nextX = target.x + Math.cos(ai.heading) * MOVE_SPEED * aiMovement.distance;
-          let nextY = target.y + Math.sin(ai.heading) * MOVE_SPEED * aiMovement.distance;
+          const targetBeforeMoveX = target.x;
+          const targetBeforeMoveY = target.y;
+          const resolvedAiMove = resolveSquareMovement({
+            x: target.x,
+            y: target.y,
+            dx: Math.cos(ai.heading) * MOVE_SPEED * aiMovement.distance,
+            dy: Math.sin(ai.heading) * MOVE_SPEED * aiMovement.distance,
+            halfSize: PLAYER_COLLISION_HALF_SIZE,
+            mapWidth: MAP_WIDTH,
+            mapHeight: MAP_HEIGHT,
+            tileSize: TILE_SIZE,
+            walls: WALL_TILES,
+          });
+          let nextX = resolvedAiMove.x;
+          let nextY = resolvedAiMove.y;
           const relativeX = nextX - player.x;
           const relativeY = nextY - player.y;
           const rawDistance = Math.hypot(relativeX, relativeY) || tiles(9);
@@ -1219,8 +1242,19 @@ export default function OfflineTrainingGame() {
           const constrainedAngle = AIMING_FRONT_ANGLE + sectorOffset;
           nextX = player.x + Math.cos(constrainedAngle) * constrainedDistance;
           nextY = player.y + Math.sin(constrainedAngle) * constrainedDistance;
-          nextX = Math.max(ENEMY_RADIUS, Math.min(MAP_WIDTH - ENEMY_RADIUS, nextX));
-          nextY = Math.max(ENEMY_RADIUS, Math.min(MAP_HEIGHT - ENEMY_RADIUS, nextY));
+          const finalAiMove = resolveSquareMovement({
+            x: targetBeforeMoveX,
+            y: targetBeforeMoveY,
+            dx: nextX - targetBeforeMoveX,
+            dy: nextY - targetBeforeMoveY,
+            halfSize: PLAYER_COLLISION_HALF_SIZE,
+            mapWidth: MAP_WIDTH,
+            mapHeight: MAP_HEIGHT,
+            tileSize: TILE_SIZE,
+            walls: WALL_TILES,
+          });
+          nextX = finalAiMove.x;
+          nextY = finalAiMove.y;
 
           // 靠近扇区或距离边界时提前把目标方向拉回活动区中心，下一帧仍平滑转向。
           const touchedBoundary = Math.abs(sectorOffset) >= AIMING_SECTOR_HALF_ANGLE - 0.025
@@ -1234,6 +1268,10 @@ export default function OfflineTrainingGame() {
 
           target.x = nextX;
           target.y = nextY;
+          enemyIsMovingRef.current = Math.hypot(target.x - targetBeforeMoveX, target.y - targetBeforeMoveY) > 1e-7;
+          if (enemyIsMovingRef.current) {
+            enemyDirectionRef.current = Math.atan2(target.y - targetBeforeMoveY, target.x - targetBeforeMoveX);
+          }
           target.angle = Math.atan2(target.y - player.y, target.x - player.x);
           target.direction = Math.sin(ai.heading - target.angle) >= 0 ? 1 : -1;
         }
@@ -1376,6 +1414,24 @@ export default function OfflineTrainingGame() {
           }
         }
 
+        // 满充后在射程内自动释放，不消耗普攻弹药；技能每发命中回充 2.5%。
+        if (isBeaMode && !isAimingMode && superCharge >= 1 &&
+            Math.hypot(player.x - ENEMY_X, player.y - ENEMY_Y) <= BEA_SUPER.range * BEA_SUPER_UNIT) {
+          superCharge = 0;
+          const angle = Math.atan2(player.y - ENEMY_Y, player.x - ENEMY_X);
+          enemyDirectionRef.current = angle;
+          for (const omega of BEA_SUPER.angularSpeeds) {
+            bulletsRef.current.push({
+              x: ENEMY_X, y: ENEMY_Y,
+              vx: Math.cos(angle) * BEA_SUPER.speed * BEA_SUPER_UNIT,
+              vy: Math.sin(angle) * BEA_SUPER.speed * BEA_SUPER_UNIT,
+              traveled: 0, id: bulletIdRef.current++, radius: BEA_SUPER.radius * BEA_SUPER_UNIT,
+              texture: "beaSuper", owner: "enemy",
+              superTrajectory: { originX: ENEMY_X, originY: ENEMY_Y, angle, omega, elapsed: 0 },
+            });
+          }
+        }
+
         // ======== 更新子弹 + 碰撞检测 + 生命周期 + 视野事件 ========
         const bullets = bulletsRef.current;
 
@@ -1402,11 +1458,23 @@ export default function OfflineTrainingGame() {
           const b = bullets[i];
           const previousX = b.x;
           const previousY = b.y;
-          const stepX = b.vx * dt;
-          const stepY = b.vy * dt;
-          b.x += stepX;
-          b.y += stepY;
-          b.traveled += Math.sqrt(stepX * stepX + stepY * stepY);
+          const maxDistance = b.superTrajectory ? BEA_SUPER.range * BEA_SUPER_UNIT : BULLET_MAX_DIST;
+          if (b.superTrajectory) {
+            const trajectory = b.superTrajectory;
+            trajectory.elapsed = Math.min(trajectory.elapsed + dt, BEA_SUPER.range / BEA_SUPER.speed);
+            const local = beaSuperPosition(trajectory.elapsed, trajectory.omega);
+            const cos = Math.cos(trajectory.angle), sin = Math.sin(trajectory.angle);
+            b.x = trajectory.originX + (local.x * cos - local.y * sin) * BEA_SUPER_UNIT;
+            b.y = trajectory.originY + (local.x * sin + local.y * cos) * BEA_SUPER_UNIT;
+            b.vx = Math.cos(trajectory.angle + local.heading) * BEA_SUPER.speed * BEA_SUPER_UNIT;
+            b.vy = Math.sin(trajectory.angle + local.heading) * BEA_SUPER.speed * BEA_SUPER_UNIT;
+            b.traveled = Math.min(maxDistance, trajectory.elapsed * BEA_SUPER.speed * BEA_SUPER_UNIT);
+          } else {
+            const stepTime = Math.min(dt, Math.max(0, maxDistance - b.traveled) / Math.hypot(b.vx, b.vy));
+            b.x += b.vx * stepTime;
+            b.y += b.vy * stepTime;
+            b.traveled = Math.min(maxDistance, b.traveled + Math.hypot(b.vx, b.vy) * stepTime);
+          }
 
           // 进入视野检测（第一次）
           if (!bulletEnteredVision.has(b.id)) {
@@ -1416,17 +1484,10 @@ export default function OfflineTrainingGame() {
             ) {
               bulletEnteredVision.add(b.id);
               const projectileSpeed = Math.hypot(b.vx, b.vy) || bulletSpeed;
-              const remainingLifeMs = ((BULLET_MAX_DIST - b.traveled) / projectileSpeed) * 1000;
+              const remainingLifeMs = ((maxDistance - b.traveled) / projectileSpeed) * 1000;
               const baselineAngle = curSpeed >= tiles(INPUT_DEADZONE_MAG) ? Math.atan2(input.y, input.x) : null;
               profileBulletEnterVision(prof, now, b.id, remainingLifeMs, baselineAngle);
             }
-          }
-
-          // 超出最大飞行距离 → 消失
-          if (b.traveled >= BULLET_MAX_DIST) {
-            bullets.splice(i, 1);
-            profileBulletRemoved(prof, b.id);
-            continue;
           }
 
           // 子弹运动线段 vs 目标圆，避免高速子弹单帧穿透。
@@ -1473,6 +1534,12 @@ export default function OfflineTrainingGame() {
             } else if (b.texture === "beaEnhanced") {
               beaEnhancedShotsRef.current = 0;
             }
+            if (b.texture === "beaSuper") {
+              superSlowRemainingMs = BEA_SUPER.slowMs;
+            }
+            if (isBeaMode && !isAimingMode) {
+              superCharge = chargeBeaSuper(superCharge, b.texture);
+            }
             spawnHitParticles(player.x, player.y);
             hitCountRef.current += 1;
             setHitCount(hitCountRef.current);
@@ -1487,6 +1554,10 @@ export default function OfflineTrainingGame() {
                 setRoundResult("defeat");
               }
             }
+          } else if (b.traveled >= maxDistance) {
+            // 先检查最后一段轨迹的命中，再移除到达射程终点的子弹。
+            bullets.splice(i, 1);
+            profileBulletRemoved(prof, b.id);
           }
         }
 
@@ -1809,90 +1880,31 @@ export default function OfflineTrainingGame() {
         projectY(MAP_HEIGHT) - 8,
       );
 
-      // 贝亚蜂蜜海置于 Canvas 最顶层，覆盖地图、网格、角色、子弹及粒子。
-      if (isBeaMode && !isAimingMode && honeyWaveRemainingMs > 0) {
-        const waveProgress = honeyWaveElapsedMs / BEA_HONEY_WAVE_DURATION_MS;
-        const fadeDurationMs = 300;
-        const fadeIn = Math.min(1, honeyWaveElapsedMs / fadeDurationMs);
-        const fadeOut = Math.min(1, honeyWaveRemainingMs / fadeDurationMs);
-        const honeyLayerAlpha = Math.min(fadeIn, fadeOut);
-        const traceHoneyCircle = (radius: number, wobble = 0) => {
-          ctx.beginPath();
-          for (let i = 0; i <= 96; i++) {
-            const angle = i / 96 * Math.PI * 2;
-            // 多组低频形变缓慢滑动，使圆环边缘像粘稠蜂蜜而非规则水波。
-            const stickyOffset = wobble * (
-              Math.sin(angle * 3 + waveProgress * Math.PI * 1.2) * 0.65 +
-              Math.sin(angle * 7 - waveProgress * Math.PI * 0.7) * 0.35
-            );
-            const stickyRadius = radius * (1 + stickyOffset);
-            const worldX = ENEMY_X + Math.cos(angle) * stickyRadius;
-            const worldY = ENEMY_Y + Math.sin(angle) * stickyRadius;
-            const px = projectX(worldX, worldY);
-            const py = projectY(worldY);
-            if (i === 0) ctx.moveTo(px, py);
-            else ctx.lineTo(px, py);
-          }
-          ctx.closePath();
-        };
-
-        ctx.save();
-        ctx.globalAlpha = honeyLayerAlpha;
-        traceHoneyCircle(ENEMY_RANGE);
-        const seaPulse = 0.16 + Math.sin(waveProgress * Math.PI * 3) * 0.025;
-        ctx.fillStyle = `rgba(255, 179, 0, ${seaPulse})`;
-        ctx.fill();
-        ctx.shadowColor = "rgba(255, 193, 7, 0.9)";
-        ctx.shadowBlur = 10;
-        for (let ring = 0; ring < 4; ring++) {
-          // 每次三秒动画只推进 0.75 轮，较上一版再次减半。
-          const phase = (waveProgress * 0.75 + ring / 4) % 1;
-          const viscousPhase = phase * phase * (3 - 2 * phase);
-          const radius = ENEMY_RANGE * (0.08 + viscousPhase * 0.92);
-          const wobble = 0.014 + (1 - phase) * 0.014;
-          const fade = 1 - phase;
-
-          // 后方宽阔、半透明的浪体，形成蜂蜜海浪的厚重拖尾。
-          traceHoneyCircle(radius * 0.965, wobble * 1.15);
-          ctx.strokeStyle = `rgba(245, 124, 0, ${0.16 * fade})`;
-          ctx.lineWidth = 15 + fade * 8;
-          ctx.stroke();
-
-          // 琥珀色主浪脊。
-          traceHoneyCircle(radius, wobble);
-          ctx.strokeStyle = `rgba(255, 160, 0, ${0.34 * fade})`;
-          ctx.lineWidth = 8 + fade * 5;
-          ctx.stroke();
-
-          // 浪峰内缘的浅金色高光。
-          traceHoneyCircle(radius, wobble);
-          ctx.strokeStyle = `rgba(255, 224, 130, ${0.62 * (1 - phase)})`;
-          ctx.lineWidth = 2.2 + (1 - phase) * 2.8;
-          ctx.stroke();
-
-          // 浪峰前沿增加一条极细亮边，使传递方向更像海浪推进。
-          traceHoneyCircle(radius * 1.012, wobble * 0.8);
-          ctx.strokeStyle = `rgba(255, 248, 225, ${0.34 * fade})`;
-          ctx.lineWidth = 1.2 + fade;
-          ctx.stroke();
+      if (isBeaMode && !isAimingMode) {
+        ctx.fillStyle = "#ffd54f";
+        ctx.font = "bold 13px system-ui";
+        ctx.fillText(`技能充能 ${Math.round(superCharge * 100)}%`, enemyCenterPx + 20, enemyCenterPy - 24);
+        if (superSlowRemainingMs > 0) {
+          ctx.fillText(`减速 40% · ${(superSlowRemainingMs / 1000).toFixed(1)}s`, playerCenterPx + 20, playerCenterPy - 24);
         }
-        ctx.restore();
       }
 
-      // 方向箭头统一置于所有 Canvas 内容的最终前景层，避免被子弹、粒子或蜂蜜海覆盖。
-      const enemyDirection = isAimingMode
-        ? aimingTargetAiRef.current.heading
-        : enemyDirectionRef.current;
-      drawDirectionArrow(
-        renderedEnemy.x, renderedEnemy.y, enemyCenterPx, enemyCenterPy,
-        enemyRadiusPx, enemyRadiusPy, enemyDirection,
-        "#ff5252",
-      );
-      drawDirectionArrow(
-        player.x, player.y, playerCenterPx, playerCenterPy,
-        playerRadiusPx, playerRadiusPy, playerDirectionRef.current,
-        "#4fc3f7",
-      );
+      // 方向箭头置于最终前景层。
+      const enemyDirection = enemyDirectionRef.current;
+      if (!isAimingMode || enemyIsMovingRef.current) {
+        drawDirectionArrow(
+          renderedEnemy.x, renderedEnemy.y, enemyCenterPx, enemyCenterPy,
+          enemyRadiusPx, enemyRadiusPy, enemyDirection,
+          "#ff5252",
+        );
+      }
+      if (isAimingMode || playerIsMovingRef.current) {
+        drawDirectionArrow(
+          player.x, player.y, playerCenterPx, playerCenterPy,
+          playerRadiusPx, playerRadiusPy, playerDirectionRef.current,
+          "#4fc3f7",
+        );
+      }
 
       animationId = requestAnimationFrame(gameLoop);
     };
@@ -1914,7 +1926,7 @@ export default function OfflineTrainingGame() {
       beaEnhancedShotsRef.current = 0;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, bulletSpeed, isSurvivalMode, isAimingMode, isAimingInfinite, aimingReactionSeconds, aimingDodgesProjectiles, restartNonce]);
+  }, [mode, bulletSpeed, isSurvivalMode, isAimingMode, isAimingInfinite, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {

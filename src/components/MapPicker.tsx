@@ -5,7 +5,7 @@ import {
   MAPS,
   type GameMode,
 } from "../../shared/types";
-import { MAP_MAP, MAPS_BASE_URL } from "../../shared/catalog";
+import { MAP_MAP, mapThumbnailUrl, modeIconUrl } from "../../shared/catalog";
 
 interface MapPickerProps {
   gameMode: GameMode | null;
@@ -59,7 +59,7 @@ export default function MapPicker({
             >
               <img
                 className="mode-icon"
-                src={`${MAPS_BASE_URL}${mode.icon}`}
+                src={modeIconUrl(mode)}
                 alt={mode.name}
                 width={28}
                 height={28}
@@ -106,7 +106,7 @@ export default function MapPicker({
             <div className="map-confirmed-preview">
               <img
                 className="map-confirmed-img"
-                src={`${MAPS_BASE_URL}${confirmedMap.thumbnail}`}
+                src={mapThumbnailUrl(confirmedMap)}
                 alt={confirmedMap.name}
               />
               <span className="map-confirmed-name">{confirmedMap.name}</span>
@@ -146,7 +146,7 @@ export default function MapPicker({
                     >
                       <img
                         className="map-thumbnail"
-                        src={`${MAPS_BASE_URL}${map.thumbnail}`}
+                        src={mapThumbnailUrl(map)}
                         alt={map.name}
                         loading="lazy"
                         draggable={false}
@@ -178,7 +178,7 @@ export function MapBanner({ confirmedMapId }: { confirmedMapId: string | null })
     <div className="map-banner">
       <img
         className="map-banner-img"
-        src={`${MAPS_BASE_URL}${map.thumbnail}`}
+        src={mapThumbnailUrl(map)}
         alt={map.name}
         draggable={false}
       />

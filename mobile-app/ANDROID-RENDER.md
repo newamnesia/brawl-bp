@@ -69,4 +69,11 @@ Android Studio 打开 `mobile-app/android`，安装提示的 SDK，使用设备�
 - 卸载/清除数据会删除本机历史；本版本未增加账号云同步。
 
 真机需验证：断网冷启动、双摇杆多指取消、全面屏手势、暂停/继续、重启查看历史、Wi-Fi/蜂窝切换、Render 冷启动。
-没有经过实际 Android 构建或真机测试前，不将源码检查视为 APK 验收通过。
+已于 2026-09-05 完成 Android 调试构建：包名 `com.newam.brawlbp`，最低 API 24，目标 API 36。
+产物位于 `releases/brawl-bp-android-debug.apk`，已通过 APK v2 签名验证并确认包含 236 张本地图片。
+这是 Android Debug 调试签名，适合侧载测试，不能直接作为 Google Play 正式发布包。
+
+手机安装：将 APK 传到 Android 手机，打开文件并允许当前文件管理器“安装未知应用”。
+若以后安装相同包名但签名不同的正式版，Android 会要求先卸载调试版；卸载会清除本机训练历史。
+在线 BP 首次打开时进入“服务器设置”，填写新建 Render 服务的完整 HTTPS 地址。
+尚未进行实体 Android 手机验收，因此仍需按上方真机清单检查触控、横屏、后台恢复与联网。

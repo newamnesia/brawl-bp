@@ -13,6 +13,7 @@
     "build:client": "node scripts/verify-assets.mjs && vite build",
     "android:sync": "npm run build:client && cap sync android",
     "android:open": "cap open android",
+    "android:apk": "powershell -ExecutionPolicy Bypass -File scripts/build-debug-apk.ps1",
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {

@@ -44,4 +44,6 @@
 已生成 Capacitor Android 工程，接入横屏、系统栏、返回键与前后台事件。
 训练历史摘要使用 Preferences 保存；已加入保留席位的重连功能，倒计时不中断。
 类型检查、重连集成测试、前端生产构建、Android 资源同步通过；浏览器验证训练结果保存并刷新读取成功。
-本机缺少 Java/Android SDK，尚未生成 APK，也未进行真机验收。具体工具链见 ANDROID-RENDER.md。
+便携版 JDK 21、Android SDK 36 和 Gradle 已安装在忽略提交的 `.android-tools` 中。
+调试 APK 已成功生成并通过 v2 签名、包信息及内置资源检查；尚未进行实体 Android 手机验收。
+APK 位于 `releases/brawl-bp-android-debug.apk`，具体安装与重建步骤见 ANDROID-RENDER.md。

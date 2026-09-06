@@ -26,7 +26,13 @@ export default function AimingTraining() {
         </div></div>
         <SpeedPicker value={speedTier} onChange={setSpeedTier} />
         <div className="form-group"><label>人机反应速度</label><div className="toggle-group">
-          {(Object.keys(AIM_REACTION_TIERS) as AimReactionTier[]).map((tier) => <Choice key={tier} active={reactionTier === tier} onClick={() => setReactionTier(tier)} title={AIM_REACTION_TIERS[tier].label} />)}
+          {(Object.keys(AIM_REACTION_TIERS) as AimReactionTier[]).map((tier) => {
+            const config = AIM_REACTION_TIERS[tier];
+            const detail = config.dodgesProjectiles
+              ? `${SPEED_TIERS[speedTier].label} · ${Math.round(config.seconds[speedTier] * 1000)} ms`
+              : `${SPEED_TIERS[speedTier].label} · 不躲避子弹`;
+            return <Choice key={tier} active={reactionTier === tier} onClick={() => setReactionTier(tier)} title={config.label} detail={detail} />;
+          })}
         </div></div>
         <div className="tutorial-box" style={{ marginTop: "1rem" }}>拖动右下角攻击摇杆瞄准，松手发射；人机会按照所选等级尝试躲避。</div>
         <button className="btn-primary" onClick={start} style={{ marginTop: "1rem" }}>开始训练</button>

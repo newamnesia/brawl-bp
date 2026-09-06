@@ -21,8 +21,11 @@ export const AIM_REACTION_TIERS: Record<AimReactionTier, {
   label: string;
   dodgesProjectiles: boolean;
   seconds: Record<SpeedTier, number>;
+  joystickRadiusRatio: number;
+  joystickDragSpeed: number;
+  joystickDragExtraSeconds: number;
 }> = {
-  diamond: { label: "钻石", dodgesProjectiles: false, seconds: { high: 0.24, mid: 0.28 } },
-  legendary: { label: "传奇", dodgesProjectiles: true, seconds: { high: 0.28, mid: 0.32 } },
-  master: { label: "Pro", dodgesProjectiles: true, seconds: { high: 0.24, mid: 0.28 } },
+  diamond: { label: "钻石", dodgesProjectiles: false, seconds: { high: 0, mid: 0 }, joystickRadiusRatio: 1, joystickDragSpeed: 0, joystickDragExtraSeconds: 0.08 },
+  legendary: { label: "传奇", dodgesProjectiles: true, seconds: { high: 0.27, mid: 0.34 }, joystickRadiusRatio: 0.70, joystickDragSpeed: 370, joystickDragExtraSeconds: 0.08 },
+  master: { label: "Pro", dodgesProjectiles: true, seconds: { high: 0.18, mid: 0.25 }, joystickRadiusRatio: 0.45, joystickDragSpeed: 480, joystickDragExtraSeconds: 0.08 },
 };

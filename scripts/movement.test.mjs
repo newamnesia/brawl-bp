@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { advanceMovement, normalizedSpeed, resetsMovementOnTurn } from '../src/features/training/movement.ts';
+import { advanceMovement, normalizedSpeed, resetsMovementOnTurn, resolveSquareMovement } from '../src/features/training/movement.ts';
 
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 test('normalized linear startup and cap', () => {
@@ -32,4 +32,25 @@ test('AI single-command turns use shortest angle and strict >120 degrees', () =>
   let elapsed = 0.2;
   if (resetsMovementOnTurn(0, rad(150))) elapsed = 0;
   near(advanceMovement(elapsed, 0.05, true).speed, 0.25);
+});
+test('square body blocks only the wall-facing component and slides on the other axis', () => {
+  const walls = new Set(['2,1']);
+  const moved = resolveSquareMovement({
+    x: 450, y: 450, dx: 100, dy: 60,
+    halfSize: 150, mapWidth: 1200, mapHeight: 1200, tileSize: 300, walls,
+  });
+  assert.deepEqual(moved, { x: 450, y: 510, dx: 0, dy: 60, blockedX: true, blockedY: false });
+});
+test('square body cannot cross map boundary and can move away immediately', () => {
+  const atEdge = resolveSquareMovement({
+    x: 150, y: 450, dx: -20, dy: -30,
+    halfSize: 150, mapWidth: 1200, mapHeight: 1200, tileSize: 300, walls: new Set(),
+  });
+  assert.deepEqual(atEdge, { x: 150, y: 420, dx: 0, dy: -30, blockedX: true, blockedY: false });
+  const away = resolveSquareMovement({
+    x: 150, y: 420, dx: 20, dy: 0,
+    halfSize: 150, mapWidth: 1200, mapHeight: 1200, tileSize: 300, walls: new Set(),
+  });
+  assert.equal(away.x, 170);
+  assert.equal(away.blockedX, false);
 });

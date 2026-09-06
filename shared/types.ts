@@ -148,8 +148,7 @@ export const HEROES: Hero[] = [
   { id: "starr_nova", name: "丝塔诺娃", enName: "Starr Nova", emoji: "⭐", rarity: "mythic", cdnId: 16000105 , stats: { health: 7400, attack: "960×2", reloadMs: 1600, range: 5.67, moveSpeed: 820 }},
   { id: "damian", name: "达米安", enName: "Damian", emoji: "🦹", rarity: "mythic", cdnId: 16000104 , stats: { health: 11200, attack: "1400(拳)/1600(冲拳)/800(爆炸)", reloadMs: 1200, range: 2.67, moveSpeed: 770 }},
   { id: "najia", name: "娜吉亚", enName: "Najia", emoji: "🧵", rarity: "mythic", cdnId: 16000103 , stats: { health: 6800, attack: "600(罐)+720~1200(蛇)+700(毒)", reloadMs: 800, range: 6, moveSpeed: 770 }},
-  // 新角色（暂不可用）
-  { id: "windy", name: "温蒂", enName: "Windy", emoji: "🌪️", rarity: "mythic", cdnId: 16000108, borderless: true, disabled: true },
+  { id: "windy", name: "温蒂", enName: "Wendy", emoji: "🌪️", rarity: "mythic", cdnId: 16000108, borderless: true, stats: { health: 4000, attack: "2000", reloadMs: 1450, range: 8, moveSpeed: 770 }},
   // 传奇
   { id: "spike", name: "斯派克", enName: "Spike", emoji: "🌵", rarity: "legendary", cdnId: 16000005 , stats: { health: 6000, attack: "1080×6", reloadMs: 2000, range: 7.67, moveSpeed: 720 }},
   { id: "crow", name: "黑鸦", enName: "Crow", emoji: "🦅", rarity: "legendary", cdnId: 16000012 , stats: { health: 5600, attack: "640×3+160毒", reloadMs: 1600, range: 8.67, moveSpeed: 820 }},
@@ -164,8 +163,7 @@ export const HEROES: Hero[] = [
   { id: "draco", name: "德拉科", enName: "Draco", emoji: "🐲", rarity: "legendary", cdnId: 16000080 , stats: { health: 11200, attack: "1400(近)/2800(远)", reloadMs: 1000, range: 4, moveSpeed: 720 }},
   { id: "kenji", name: "健次", enName: "Kenji", emoji: "🍣", rarity: "legendary", cdnId: 16000085 , stats: { health: 8000, attack: "1500(冲)/2000(斩)", reloadMs: 1000, range: 2.67, moveSpeed: 820 }},
   { id: "pierce", name: "皮尔斯", enName: "Pierce", emoji: "🏹", rarity: "legendary", cdnId: 16000099 , stats: { health: 6000, attack: "1900/1900/3000", reloadMs: 3000, range: 10, moveSpeed: 720 }},
-  // 新角色（暂不可用）
-  { id: "nori", name: "阿宪", enName: "Nori", emoji: "🍡", rarity: "legendary", cdnId: 16000107, borderless: true, disabled: true , stats: { health: 7600, attack: "2200", reloadMs: 100, range: 8.33, moveSpeed: 820 }},
+  { id: "nori", name: "阿宪", enName: "Nori", emoji: "🍡", rarity: "legendary", cdnId: 16000107, borderless: true, stats: { health: 7600, attack: "2000(近战)/1440(远程)", reloadMs: 100, range: 8, moveSpeed: 820 }},
   // 超凡
   { id: "kaze", name: "风姬", enName: "Kaze", emoji: "🌬️", rarity: "extraordinary", cdnId: 16000094 , stats: { health: 8200, attack: "1500/3000(艺妓)/(750~1500)×2(忍者)", reloadMs: 1900, range: 6.67, moveSpeed: 820 }},
   { id: "sirius", name: "西里乌斯", enName: "Sirius", emoji: "🌟", rarity: "extraordinary", cdnId: 16000102 , stats: { health: 6800, attack: "1200(双投射物)", reloadMs: 1600, range: 7.33, moveSpeed: 720 }},
@@ -175,7 +173,7 @@ export const HEROES: Hero[] = [
  * 综合评级（S/A/B/C/D/E）。
  * 来源：荒野乱斗公开社区评级（如 brawlstars.fandom.com 及各类社区/视频网站的通行评级），
  * 属本游戏常见的社区共识性分级，非 brawlstats.net 原榜复制（后者抓取受反爬封锁，未使用）。
- * 数值与评级以用户后续提供的真实数据为准校准；windy / nori 等不可用角色不参与评级。
+ * 数值与评级以用户后续提供的真实数据为准校准；未评级角色暂不显示评级。
  */
 export const HERO_TIERS: Record<string, Tier> = {
   // S
@@ -199,7 +197,7 @@ export const HERO_TIERS: Record<string, Tier> = {
   bolt: "B",
 };
 
-/** 将评级写回 Hero（不可用的 windy / nori 不参与评级） */
+/** 将评级写回 Hero；未评级角色保持 tier 为空 */
 for (const h of HEROES) {
   if (!h.disabled && HERO_TIERS[h.id]) {
     h.tier = HERO_TIERS[h.id];
