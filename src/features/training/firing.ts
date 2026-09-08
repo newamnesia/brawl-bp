@@ -26,3 +26,8 @@ export function movementShotDelay(
   const jitter = (0.05 + random() * 0.15) / difficulty;
   return { seconds: !isBea && followup ? recover + jitter : ordinary, followup: false };
 }
+
+// Compound reduction, with no gameplay floor. Practice always uses base timings.
+export function movementTimingScale(survival: boolean, seconds: number): number {
+  return survival ? Math.pow(0.95, Math.floor(Math.max(0, seconds) / 10)) : 1;
+}

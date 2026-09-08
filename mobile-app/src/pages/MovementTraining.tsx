@@ -28,7 +28,7 @@ export default function MovementTraining() {
           <label>训练规则</label>
           <div className="toggle-group">
             <Choice active={rule === "practice"} onClick={() => setRule("practice")} title="无限训练" detail="无血量限制，无限练习" />
-            <Choice active={rule === "survival"} onClick={() => setRule("survival")} title="挑战模式" detail="6000 生命，记录坚持时间" />
+            <Choice active={rule === "survival"} onClick={() => setRule("survival")} title="挑战模式" detail="6000 生命，无限时；每 10 秒回弹耗时与射击间隔 ×0.95" />
           </div>
         </div>
         <SpeedPicker value={speedTier} onChange={setSpeedTier} />

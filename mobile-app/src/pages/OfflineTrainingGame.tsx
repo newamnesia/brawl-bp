@@ -1,4 +1,4 @@
-import { FIRE_INTERVAL_MIN, FIRE_INTERVAL_MAX, BEA_FIRE_INTERVAL_MIN, BEA_FIRE_INTERVAL_MAX, canMovementShoot, movementShotDelay } from "../features/training/firing";
+import { FIRE_INTERVAL_MIN, FIRE_INTERVAL_MAX, BEA_FIRE_INTERVAL_MIN, BEA_FIRE_INTERVAL_MAX, canMovementShoot, movementShotDelay, movementTimingScale } from "../features/training/firing";
 import { BEA_SUPER, beaSuperPosition, chargeBeaSuper } from "../features/training/beaSuper";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -57,8 +57,6 @@ const BEA_NORMAL_DAMAGE = 1600;
 const BEA_ENHANCED_DAMAGE = 4400;
 const PIPER_MIN_DAMAGE = 720;
 const PIPER_MAX_DAMAGE = 3600;
-const DIFFICULTY_GROWTH_PER_SECOND = 0.005; // 每存活 1 秒提高 0.5%
-const MAX_DIFFICULTY_MULTIPLIER = 2.5;
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_TEXTURES = {
   beaNormal: "/assets/projectiles/bea-normal-v4.png",
@@ -909,6 +907,7 @@ export default function OfflineTrainingGame() {
   const magazineReloadTimerRef = useRef(magazineReloadSeconds);
   const lastMagazineUiUpdateRef = useRef(0);
   const burstFollowupRef = useRef(false);
+  const timingScaleRef = useRef(1);
   const beaEnhancedShotsRef = useRef(0);
   const hitCountRef = useRef(0); // 与 state 同步，供循环内读取/累加
   const totalDamageRef = useRef(0);
@@ -1043,6 +1042,7 @@ export default function OfflineTrainingGame() {
     playerVelocityRef.current = { x: 0, y: 0 };
     magazineAmmoRef.current = magazineCapacity;
     magazineReloadTimerRef.current = magazineReloadSeconds;
+    timingScaleRef.current = 1;
     burstFollowupRef.current = false;
     beaEnhancedShotsRef.current = 0;
     fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
@@ -1320,11 +1320,16 @@ export default function OfflineTrainingGame() {
           }
         }
 
-        const difficultyMultiplier = isSurvivalMode
-          ? Math.min(MAX_DIFFICULTY_MULTIPLIER, 1 + survivalTimeRef.current * DIFFICULTY_GROWTH_PER_SECOND)
-          : 1;
-        const currentReloadSeconds = magazineReloadSeconds / difficultyMultiplier;
-        const currentBulletSpeed = bulletSpeed * difficultyMultiplier;
+        // 每 10 秒在已有耗时上乘 0.95；只影响回弹与开火节奏。
+        const timingScale = movementTimingScale(isSurvivalMode, survivalTimeRef.current);
+        if (timingScale !== timingScaleRef.current) {
+          const ratio = timingScale / timingScaleRef.current;
+          magazineReloadTimerRef.current *= ratio;
+          fireTimerRef.current *= ratio;
+          timingScaleRef.current = timingScale;
+        }
+        const currentReloadSeconds = magazineReloadSeconds * timingScale;
+        const currentBulletSpeed = bulletSpeed;
 
         // ======== 弹匣恢复 + 随机开火（含最多一次双发追射） ========
         if (magazineAmmoRef.current < magazineCapacity) {
@@ -1391,7 +1396,7 @@ export default function OfflineTrainingGame() {
 
             const nextShot = movementShotDelay(
               isBeaMode, magazineAmmoRef.current, magazineReloadTimerRef.current,
-              currentReloadSeconds, difficultyMultiplier, burstFollowupRef.current,
+              currentReloadSeconds, 1 / timingScale, burstFollowupRef.current,
             );
             burstFollowupRef.current = nextShot.followup;
             fireTimerRef.current = nextShot.seconds;
@@ -1906,6 +1911,7 @@ export default function OfflineTrainingGame() {
       fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
       magazineAmmoRef.current = magazineCapacity;
       magazineReloadTimerRef.current = magazineReloadSeconds;
+      timingScaleRef.current = 1;
       lastMagazineUiUpdateRef.current = 0;
       burstFollowupRef.current = false;
       beaEnhancedShotsRef.current = 0;
