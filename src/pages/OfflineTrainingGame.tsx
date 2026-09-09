@@ -1893,27 +1893,27 @@ export default function OfflineTrainingGame() {
           ? Math.max(0, Math.min(1, 1 - magazineReloadTimerRef.current / Math.max(0.001, magazineReloadSeconds / timingScaleRef.current)))
           : 0;
         ctx.save();
-        ctx.fillStyle = "rgba(255,255,255,0.12)";
+        ctx.fillStyle = "rgba(78, 52, 36, 0.48)";
         ctx.fillRect(ammoLeft, ammoTop, ammoWidth, ammoHeight);
         for (let index = 0; index < magazineCapacity; index++) {
           const fill = index < ammo ? 1 : index === ammo ? reloadFill : 0;
           const x = ammoLeft + index * segmentWidth;
           if (fill > 0) {
-            ctx.fillStyle = "#ff5252";
+            ctx.fillStyle = "#9a6138";
             // 当前段从左向右恢复；填充前沿始终是竖直线。
             ctx.fillRect(x, ammoTop, segmentWidth * fill, ammoHeight);
           }
           if (index > 0) {
-            ctx.strokeStyle = "rgba(255,205,210,0.58)";
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = "rgba(222, 170, 120, 0.78)";
+            ctx.lineWidth = 1.25;
             ctx.beginPath();
             ctx.moveTo(x, ammoTop);
             ctx.lineTo(x, ammoTop + ammoHeight);
             ctx.stroke();
           }
         }
-        ctx.strokeStyle = "rgba(255,205,210,0.72)";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(222, 170, 120, 0.92)";
+        ctx.lineWidth = 1.5;
         ctx.strokeRect(ammoLeft, ammoTop, ammoWidth, ammoHeight);
         ctx.restore();
       }
