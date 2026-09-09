@@ -1,5 +1,7 @@
+import { drawGroundRing, drawMovementIndicator, drawSuperRing } from "../features/training/groundRing";
+import { drawUnitStatusBars } from "../features/training/statusBars";
 import { FIRE_INTERVAL_MIN, FIRE_INTERVAL_MAX, BEA_FIRE_INTERVAL_MIN, BEA_FIRE_INTERVAL_MAX, canMovementShoot, movementShotDelay, movementTimingScale } from "../features/training/firing";
-import { BEA_SUPER, beaSuperPosition, chargeBeaSuper } from "../features/training/beaSuper";
+import { BEA_SUPER, beaSuperPosition, chargeBeaSuper, updateBeaSuperAim } from "../features/training/beaSuper";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AIM_REACTION_TIERS, CHARACTER_MOVE_SPEED, SPEED_TIERS, TILE_SIZE, tiles, type AimReactionTier } from "../features/training/config";
@@ -18,6 +20,7 @@ type TrainingSnapshot = {
   emptyAmmoRatio: number;
   damagePerSecond: number;
   totalDamage: number;
+  hitRate: number;
 };
 
 // 地图常量
@@ -828,7 +831,7 @@ export default function OfflineTrainingGame() {
   const [, forceUpdate] = useState(0);
   const [hitCount, setHitCount] = useState(0);
   const [totalDamage, setTotalDamage] = useState(0);
-  const [health, setHealth] = useState(PLAYER_MAX_HEALTH);
+  const [, setHealth] = useState(PLAYER_MAX_HEALTH);
   const [survivalTime, setSurvivalTime] = useState(0);
   const [roundResult, setRoundResult] = useState<"victory" | "defeat" | "ended" | null>(null);
   const [restartNonce, setRestartNonce] = useState(0);
@@ -868,6 +871,9 @@ export default function OfflineTrainingGame() {
           ? totalDamageRef.current / aimingElapsedSecondsRef.current
           : 0,
         totalDamage: totalDamageRef.current,
+        hitRate: firedShotCountRef.current > 0
+          ? hitCountRef.current / firedShotCountRef.current
+          : 0,
       });
     } else if (!paused) {
       setPauseSnapshot(null);
@@ -929,6 +935,7 @@ export default function OfflineTrainingGame() {
   const timingScaleRef = useRef(1);
   const beaEnhancedShotsRef = useRef(0);
   const hitCountRef = useRef(0); // 与 state 同步，供循环内读取/累加
+  const firedShotCountRef = useRef(0);
   const totalDamageRef = useRef(0);
   const bulletIdRef = useRef(1);
   const healthRef = useRef(PLAYER_MAX_HEALTH);
@@ -1011,6 +1018,9 @@ export default function OfflineTrainingGame() {
     countdownActiveRef.current = true;
     setCountdown(3);
     let superCharge = 0;
+    const superAim = { elapsed: 0, stable: 0, angle: 0 };
+    let superAiming = false;
+    let superRingPhase = 0;
     let aiMovementElapsed = 0;
     let aiDodgeTurn: { start: number; delta: number; elapsed: number; duration: number } | null = null;
     let dodgesSinceTaunt = 0;
@@ -1061,6 +1071,7 @@ export default function OfflineTrainingGame() {
     secondsSinceDamageRef.current = 0;
     survivalTimeRef.current = 0;
     hitCountRef.current = 0;
+    firedShotCountRef.current = 0;
     totalDamageRef.current = 0;
     setHealth(PLAYER_MAX_HEALTH);
     setSurvivalTime(0);
@@ -1478,11 +1489,21 @@ export default function OfflineTrainingGame() {
           }
         }
 
-        // 满充后在射程内自动释放，不消耗普攻弹药；技能每发命中回充 2.5%。
-        if (isBeaMode && !isAimingMode && superCharge >= 1 &&
-            Math.hypot(player.x - ENEMY_X, player.y - ENEMY_Y) <= BEA_SUPER.range * BEA_SUPER_UNIT) {
+        // 满充保持蓝环；进入射程后以金环显示短暂的预判瞄准。
+        if (superAim.elapsed === 0) superAim.angle = enemyDirectionRef.current;
+        const superDecision = updateBeaSuperAim(superAim, dt,
+          isBeaMode && !isAimingMode && superCharge >= 1,
+          (player.x - ENEMY_X) / BEA_SUPER_UNIT, (player.y - ENEMY_Y) / BEA_SUPER_UNIT,
+          playerVelocityRef.current.x / BEA_SUPER_UNIT, playerVelocityRef.current.y / BEA_SUPER_UNIT);
+        superAiming = superDecision.aiming;
+        superRingPhase = (superRingPhase + dt * (superAiming ? 2.4 : 1.8)) % (Math.PI * 2);
+        if (superAiming) enemyDirectionRef.current = superAim.angle;
+        if (superDecision.fire) {
           superCharge = 0;
-          const angle = Math.atan2(player.y - ENEMY_Y, player.x - ENEMY_X);
+          superAiming = false;
+          superAim.elapsed = 0;
+          superAim.stable = 0;
+          const angle = superAim.angle;
           enemyDirectionRef.current = angle;
           for (const omega of BEA_SUPER.angularSpeeds) {
             bulletsRef.current.push({
@@ -1730,85 +1751,6 @@ export default function OfflineTrainingGame() {
       const enemyCenterPy = projectY(renderedEnemy.y);
       const enemyRadiusPx = ENEMY_RADIUS * scale * widthFactorAt(renderedEnemy.y);
       const enemyRadiusPy = ENEMY_RADIUS * scaleY;
-      const drawDirectionArrow = (
-        worldX: number,
-        worldY: number,
-        centerX: number,
-        centerY: number,
-        radiusX: number,
-        radiusY: number,
-        angle: number,
-        color: string,
-      ) => {
-        const probeX = projectX(worldX + tiles(Math.cos(angle)), worldY + tiles(Math.sin(angle)));
-        const probeY = projectY(worldY + tiles(Math.sin(angle)));
-        const screenDx = probeX - centerX;
-        const screenDy = probeY - centerY;
-        const screenLength = Math.hypot(screenDx, screenDy) || 1;
-        const nx = screenDx / screenLength;
-        const ny = screenDy / screenLength;
-        const boundary = 1 / Math.sqrt((nx * nx) / (radiusX * radiusX) + (ny * ny) / (radiusY * radiusY));
-
-        // 从移动方向上的外点向判定椭圆作两条切线，并数值求解使屏幕上的箭尖内角严格为 170°。
-        const tangentGeometry = (distance: number) => {
-          const px = nx * distance;
-          const py = ny * distance;
-          const qx = px / radiusX;
-          const qy = py / radiusY;
-          const qLengthSq = qx * qx + qy * qy;
-          const root = Math.sqrt(Math.max(0, qLengthSq - 1));
-          const baseX = qx / qLengthSq;
-          const baseY = qy / qLengthSq;
-          const offsetX = -qy * root / qLengthSq;
-          const offsetY = qx * root / qLengthSq;
-          const tangent1X = (baseX + offsetX) * radiusX;
-          const tangent1Y = (baseY + offsetY) * radiusY;
-          const tangent2X = (baseX - offsetX) * radiusX;
-          const tangent2Y = (baseY - offsetY) * radiusY;
-          const vector1X = tangent1X - px;
-          const vector1Y = tangent1Y - py;
-          const vector2X = tangent2X - px;
-          const vector2Y = tangent2Y - py;
-          const cosine = Math.max(-1, Math.min(1,
-            (vector1X * vector2X + vector1Y * vector2Y)
-            / (Math.hypot(vector1X, vector1Y) * Math.hypot(vector2X, vector2Y) || 1),
-          ));
-          return { px, py, tangent1X, tangent1Y, tangent2X, tangent2Y, angle: Math.acos(cosine) };
-        };
-
-        const targetAngle = 170 * Math.PI / 180;
-        let nearDistance = boundary * (1 + 1e-7);
-        let farDistance = boundary * 1024;
-        for (let i = 0; i < 48; i++) {
-          const middleDistance = (nearDistance + farDistance) / 2;
-          if (tangentGeometry(middleDistance).angle > targetAngle) nearDistance = middleDistance;
-          else farDistance = middleDistance;
-        }
-        const arrow = tangentGeometry((nearDistance + farDistance) / 2);
-        const tipX = centerX + arrow.px;
-        const tipY = centerY + arrow.py;
-        const tangent1X = centerX + arrow.tangent1X;
-        const tangent1Y = centerY + arrow.tangent1Y;
-        const tangent2X = centerX + arrow.tangent2X;
-        const tangent2Y = centerY + arrow.tangent2Y;
-
-        ctx.save();
-        ctx.globalAlpha = 1;
-        ctx.globalCompositeOperation = "source-over";
-        ctx.strokeStyle = "rgba(5, 8, 12, 0.96)";
-        ctx.lineWidth = 6;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.beginPath();
-        ctx.moveTo(tangent1X, tangent1Y);
-        ctx.lineTo(tipX, tipY);
-        ctx.lineTo(tangent2X, tangent2Y);
-        ctx.stroke();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        ctx.restore();
-      };
       ctx.save();
       ctx.strokeStyle = "rgba(255, 82, 82, 0.25)";
       ctx.lineWidth = 1;
@@ -1828,39 +1770,21 @@ export default function OfflineTrainingGame() {
       ctx.stroke();
       ctx.restore();
 
-      // 绘制敌人（红色圆形）
-      ctx.shadowColor = "#ff5252";
-      ctx.shadowBlur = enemyRadiusPx * 0.8;
-      ctx.fillStyle = "#ff5252";
-      ctx.beginPath();
-      ctx.ellipse(enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = "#ff8a80";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.ellipse(enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, 0, 0, Math.PI * 2);
-      ctx.stroke();
-
-      if (isAimingMode && !isAimingInfinite) {
-        const barWidth = Math.min(110, Math.max(48, scale * tiles(2.2)));
-        const barHeight = 8;
-        const barX = enemyCenterPx - barWidth / 2;
-        const barY = projectY(renderedEnemy.y - tiles(0.85)) - barHeight;
-        const healthRatio = Math.max(0, aimingTargetHealthRef.current / PLAYER_MAX_HEALTH);
-        ctx.fillStyle = "rgba(8, 12, 18, 0.82)";
-        ctx.fillRect(barX - 1, barY - 1, barWidth + 2, barHeight + 2);
-        ctx.fillStyle = "#43a047";
-        ctx.fillRect(barX, barY, barWidth * healthRatio, barHeight);
-        ctx.strokeStyle = "rgba(255,255,255,0.72)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(barX, barY, barWidth, barHeight);
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "700 10px 'Nunito', system-ui, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(`${Math.ceil(aimingTargetHealthRef.current)} / ${PLAYER_MAX_HEALTH}`, enemyCenterPx, barY - 4);
-        ctx.textAlign = "start";
+      // 地面阵营圈：中心透明，外缘浓色；物理半径不变。
+      drawGroundRing(ctx, enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, "enemy");
+      if (isBeaMode && !isAimingMode && superCharge >= 1) {
+        drawSuperRing(ctx, enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, superRingPhase, superAiming);
       }
+
+      drawUnitStatusBars(ctx, {
+        centerX: enemyCenterPx,
+        centerY: enemyCenterPy,
+        radiusY: enemyRadiusPy,
+        width: TILE_SIZE * scale * widthFactorAt(renderedEnemy.y),
+        health: isAimingMode ? aimingTargetHealthRef.current : PLAYER_MAX_HEALTH,
+        maxHealth: PLAYER_MAX_HEALTH,
+        relation: "enemy",
+      });
 
       // 绘制玩家（圆）
       const playerCenterPx = projectX(player.x, player.y);
@@ -1868,55 +1792,22 @@ export default function OfflineTrainingGame() {
       const playerRadiusPx = PLAYER_RADIUS * scale * widthFactorAt(player.y);
       const playerRadiusPy = PLAYER_RADIUS * scaleY;
 
-      ctx.shadowColor = "#4fc3f7";
-      ctx.shadowBlur = playerRadiusPx * 0.8;
-      ctx.fillStyle = "#4fc3f7";
-      ctx.beginPath();
-      ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = "#81d4fa";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
-      ctx.stroke();
+      drawGroundRing(ctx, playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, "player");
 
-      // 瞄准训练弹匣：总宽 1 格（300 世界单位）、高 15 px，按角色弹量等分。
-      if (isAimingMode) {
-        const ammo = magazineAmmoRef.current;
-        const ammoWidth = TILE_SIZE * scale * widthFactorAt(player.y);
-        const ammoHeight = 15;
-        const segmentWidth = ammoWidth / magazineCapacity;
-        const ammoLeft = playerCenterPx - ammoWidth / 2;
-        const ammoTop = playerCenterPy + playerRadiusPy + 8;
-        const reloadFill = magazineCapacity > ammo
-          ? Math.max(0, Math.min(1, 1 - magazineReloadTimerRef.current / Math.max(0.001, magazineReloadSeconds / timingScaleRef.current)))
-          : 0;
-        ctx.save();
-        ctx.fillStyle = "rgba(78, 52, 36, 0.48)";
-        ctx.fillRect(ammoLeft, ammoTop, ammoWidth, ammoHeight);
-        for (let index = 0; index < magazineCapacity; index++) {
-          const fill = index < ammo ? 1 : index === ammo ? reloadFill : 0;
-          const x = ammoLeft + index * segmentWidth;
-          if (fill > 0) {
-            ctx.fillStyle = "#9a6138";
-            // 当前段从左向右恢复；填充前沿始终是竖直线。
-            ctx.fillRect(x, ammoTop, segmentWidth * fill, ammoHeight);
-          }
-          if (index > 0) {
-            ctx.strokeStyle = "rgba(222, 170, 120, 0.78)";
-            ctx.lineWidth = 1.25;
-            ctx.beginPath();
-            ctx.moveTo(x, ammoTop);
-            ctx.lineTo(x, ammoTop + ammoHeight);
-            ctx.stroke();
-          }
-        }
-        ctx.strokeStyle = "rgba(222, 170, 120, 0.92)";
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(ammoLeft, ammoTop, ammoWidth, ammoHeight);
-        ctx.restore();
-      }
+      const ammo = magazineAmmoRef.current;
+      const reloadProgress = magazineCapacity > ammo
+        ? Math.max(0, Math.min(1, 1 - magazineReloadTimerRef.current / Math.max(0.001, magazineReloadSeconds / timingScaleRef.current)))
+        : 0;
+      drawUnitStatusBars(ctx, {
+        centerX: playerCenterPx,
+        centerY: playerCenterPy,
+        radiusY: playerRadiusPy,
+        width: TILE_SIZE * scale * widthFactorAt(player.y),
+        health: healthRef.current,
+        maxHealth: PLAYER_MAX_HEALTH,
+        relation: "self",
+        ammo: isAimingMode ? { current: ammo, capacity: magazineCapacity, reloadProgress } : undefined,
+      });
 
       if (isAimingMode && aimJoystickRef.current.active) {
         const aim = aimJoystickRef.current;
@@ -1990,26 +1881,25 @@ export default function OfflineTrainingGame() {
         projectY(MAP_HEIGHT) - 8,
       );
 
-      if (isBeaMode && !isAimingMode) {
-        ctx.fillStyle = "#ffd54f";
-        ctx.font = "bold 13px system-ui";
-        ctx.fillText(`技能充能 ${Math.round(superCharge * 100)}%`, enemyCenterPx + 20, enemyCenterPy - 24);
-      }
-
-      // 方向箭头置于最终前景层。
+      // 移动方向圆点置于最终前景层；位置按移动摇杆推杆比例映射。
       const enemyDirection = enemyDirectionRef.current;
-      if (!isAimingMode || enemyIsMovingRef.current) {
-        drawDirectionArrow(
-          renderedEnemy.x, renderedEnemy.y, enemyCenterPx, enemyCenterPy,
-          enemyRadiusPx, enemyRadiusPy, enemyDirection,
-          "#ff5252",
+      if (isAimingMode && enemyIsMovingRef.current) {
+        drawMovementIndicator(
+          ctx, enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy,
+          Math.cos(enemyDirection), Math.sin(enemyDirection), 1,
         );
       }
-      if (isAimingMode || playerIsMovingRef.current) {
-        drawDirectionArrow(
-          player.x, player.y, playerCenterPx, playerCenterPy,
-          playerRadiusPx, playerRadiusPy, playerDirectionRef.current,
-          "#4fc3f7",
+      const movementStick = joystickRef.current;
+      const showPlayerIndicator = !isAimingMode && (mode === "joystick"
+        ? movementStick.active
+        : playerIsMovingRef.current);
+      if (showPlayerIndicator) {
+        const directionX = mode === "joystick" ? movementStick.knobX : playerVelocityRef.current.x;
+        const directionY = mode === "joystick" ? movementStick.knobY : playerVelocityRef.current.y;
+        const magnitude = mode === "joystick" ? movementStick.rawMagnitude : 1;
+        drawMovementIndicator(
+          ctx, playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy,
+          directionX, directionY, magnitude,
         );
       }
 
@@ -2182,6 +2072,7 @@ export default function OfflineTrainingGame() {
         texture: isBeaMode ? (isEnhancedBeaShot ? "beaEnhanced" : "beaNormal") : "high",
         owner: "player",
       });
+      firedShotCountRef.current += 1;
       if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
       magazineAmmoRef.current -= 1;
       setMagazineAmmo(magazineAmmoRef.current);
@@ -2213,6 +2104,9 @@ export default function OfflineTrainingGame() {
       ? totalDamageRef.current / aimingElapsedSecondsRef.current
       : 0,
     totalDamage: totalDamageRef.current,
+    hitRate: firedShotCountRef.current > 0
+      ? hitCountRef.current / firedShotCountRef.current
+      : 0,
   };
   const aimingMaxLeadDeg = Math.floor(Math.asin(Math.min(0.999, MOVE_SPEED / bulletSpeed)) * 180 / Math.PI * 10) / 10;
 
@@ -2239,12 +2133,6 @@ export default function OfflineTrainingGame() {
       {isSurvivalMode && (
         <div className="training-survival-status" aria-live="polite">
           <div className="training-survival-time">{survivalTime.toFixed(1)}s</div>
-          <>
-            <div className="training-health-bar" aria-label={`生命值 ${health}/${PLAYER_MAX_HEALTH}`}>
-              <span style={{ width: `${Math.max(0, health / PLAYER_MAX_HEALTH) * 100}%` }} />
-            </div>
-            <div className="training-health-text">{health} / {PLAYER_MAX_HEALTH}</div>
-          </>
         </div>
       )}
 
@@ -2575,9 +2463,15 @@ function TrainingStatsGrid({ snapshot, aiming, mode, reactionWindowMaxMs, aiming
           <div className="training-ratio-value">{snapshot.damagePerSecond.toFixed(1)}</div>
           <div className="training-ratio-note">累计造成伤害 ÷ 本局有效训练时间（暂停时间不计入）</div>
         </div>
+        <div className="training-ratio-card">
+          <div className="training-ratio-title">数据4 · 命中率</div>
+          <div className="training-ratio-value">{(snapshot.hitRate * 100).toFixed(1)}%</div>
+          <div className="training-ratio-track"><span style={{ width: `${Math.min(100, snapshot.hitRate * 100)}%` }} /></div>
+          <div className="training-ratio-note">命中子弹数 ÷ 发射子弹数；仅在暂停或本局结束后展示</div>
+        </div>
         {showEmptyAmmoRatio && (
           <div className="training-ratio-card">
-            <div className="training-ratio-title">数据4 · 零子弹状态时长占比</div>
+            <div className="training-ratio-title">数据5 · 零子弹状态时长占比</div>
             <div className="training-ratio-value">{(snapshot.emptyAmmoRatio * 100).toFixed(1)}%</div>
             <div className="training-ratio-track"><span style={{ width: `${Math.min(100, snapshot.emptyAmmoRatio * 100)}%` }} /></div>
             <div className="training-ratio-note">仅佩佩：玩家持有子弹量小于 1 的时间 ÷ 本局有效训练时间</div>

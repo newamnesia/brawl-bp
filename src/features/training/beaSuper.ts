@@ -23,3 +23,37 @@ export function beaSuperPosition(seconds: number, omega: number) {
     heading: omega * u,
   };
 }
+
+export type BeaSuperAim = { elapsed: number; stable: number; angle: number };
+export const BEA_SUPER_AIM_SECONDS = 0.45;
+
+// 输入采用格和格/秒。以中央弹的恒速截击解预判，不保证玩家之后变向仍会命中。
+export function updateBeaSuperAim(state: BeaSuperAim, dt: number, ready: boolean,
+  x: number, y: number, vx: number, vy: number) {
+  const inRange = Math.hypot(x, y) <= BEA_SUPER.range;
+  if (!ready || !inRange) {
+    state.elapsed = 0;
+    state.stable = 0;
+    return { aiming: false, fire: false };
+  }
+  const a = vx * vx + vy * vy - BEA_SUPER.speed ** 2;
+  const b = 2 * (x * vx + y * vy);
+  const c = x * x + y * y;
+  const discriminant = b * b - 4 * a * c;
+  let flight = c === 0 ? 0 : Infinity;
+  if (c > 0 && Math.abs(a) < 1e-9) {
+    if (b < 0) flight = -c / b;
+  } else if (c > 0 && discriminant >= 0) {
+    const roots = [(-b + Math.sqrt(discriminant)) / (2 * a),
+      (-b - Math.sqrt(discriminant)) / (2 * a)].filter(t => t >= 0);
+    flight = Math.min(...roots);
+  }
+  const reachable = flight <= BEA_SUPER.range / BEA_SUPER.speed;
+  const desired = reachable ? Math.atan2(y + vy * flight, x + vx * flight) : Math.atan2(y, x);
+  const delta = Math.atan2(Math.sin(desired - state.angle), Math.cos(desired - state.angle));
+  state.angle += Math.max(-6 * dt, Math.min(6 * dt, delta));
+  state.elapsed += dt;
+  const error = Math.atan2(Math.sin(desired - state.angle), Math.cos(desired - state.angle));
+  state.stable = reachable && Math.abs(error) < 0.035 ? state.stable + dt : 0;
+  return { aiming: true, fire: state.elapsed >= BEA_SUPER_AIM_SECONDS && state.stable >= 0.12 };
+}

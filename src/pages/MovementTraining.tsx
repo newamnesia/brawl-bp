@@ -50,7 +50,7 @@ export function TrainingGuide() {
 }
 
 export function LandscapeExperienceNotice() {
-  return <aside className="training-landscape-notice" role="note" aria-label="横屏体验提示"><span className="training-landscape-icon" aria-hidden="true">📱↻</span><div><strong>请提前开启横屏</strong><p>横屏可获得更完整的战场视野和更舒适的摇杆操作体验</p></div></aside>;
+  return <aside className="training-landscape-notice" role="note" aria-label="横屏体验提示"><span className="training-landscape-icon" aria-hidden="true">📱↻</span><div><strong>请提前开启横屏</strong><p>非常推荐复制当前页面链接到系统浏览器中打开，以便正常切换横屏并获得更完整的战场视野和更舒适的摇杆操作体验。</p><p>本网站仅针对横屏进行适配；竖屏下可能出现动画比例、位置或显示效果不合适的问题，此类竖屏显示问题暂不处理。</p></div></aside>;
 }
 
 export function SpeedPicker({ value, onChange }: { value: SpeedTier; onChange: (tier: SpeedTier) => void }) {
