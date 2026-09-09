@@ -823,6 +823,8 @@ export default function OfflineTrainingGame() {
   // 暂停状态
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
+  const [countdown, setCountdown] = useState<number | null>(3);
+  const countdownActiveRef = useRef(true);
 
   useEffect(() => {
     const updateControlViewport = () => setControlViewport({ width: window.innerWidth, height: window.innerHeight });
@@ -988,6 +990,10 @@ export default function OfflineTrainingGame() {
     let animationId: number;
     let lastTime = performance.now();
     const nowStart = lastTime;
+    let countdownRemainingMs = 3000;
+    let countdownShown = 3;
+    countdownActiveRef.current = true;
+    setCountdown(3);
     let superCharge = 0;
     let aiMovementElapsed = 0;
     let aiDodgeTurn: { start: number; delta: number; elapsed: number; duration: number } | null = null;
@@ -1117,7 +1123,21 @@ export default function OfflineTrainingGame() {
       lastTime = now;
       const dtMs = dt * 1000;
 
-      if (!pausedRef.current) {
+      if (!pausedRef.current && countdownRemainingMs > 0) {
+        countdownRemainingMs = Math.max(0, countdownRemainingMs - dtMs);
+        const nextShown = Math.ceil(countdownRemainingMs / 1000);
+        if (nextShown !== countdownShown) {
+          countdownShown = nextShown;
+          setCountdown(nextShown > 0 ? nextShown : null);
+        }
+        if (countdownRemainingMs === 0) {
+          countdownActiveRef.current = false;
+          // 所有分析计时从正式开局时刻起算，不把倒计时算入反应或稳定移动时间。
+          profilerRef.current = createProfiler(now);
+        }
+      }
+
+      if (!pausedRef.current && !countdownActiveRef.current) {
         // —— 逻辑更新（暂停时跳过） ——
         // 更新玩家位置
         const input = inputRef.current;
@@ -2043,7 +2063,7 @@ export default function OfflineTrainingGame() {
     if (!isAimingMode || aim.touchId !== e.pointerId) return;
     e.preventDefault();
     const directionLength = Math.hypot(aim.knobX, aim.knobY);
-    if (!pausedRef.current && directionLength > 8 && magazineAmmoRef.current > 0) {
+    if (!pausedRef.current && !countdownActiveRef.current && directionLength > 8 && magazineAmmoRef.current > 0) {
       const player = playerRef.current;
       const target = aimingTargetRef.current;
       const shotAngle = Math.atan2(aim.knobY, aim.knobX);
@@ -2113,6 +2133,12 @@ export default function OfflineTrainingGame() {
       }}
     >
       <canvas ref={canvasRef} style={{ display: "block" }} />
+
+      {countdown !== null && !roundResult && (
+        <div className="training-countdown" role="status" aria-live="assertive" aria-label={`训练将在 ${countdown} 秒后开始`}>
+          <span key={countdown}>{countdown}</span>
+        </div>
+      )}
 
       {isSurvivalMode && (
         <div className="training-survival-status" aria-live="polite">

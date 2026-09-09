@@ -11,6 +11,8 @@ import {
   BANS_PER_PLAYER,
   DISABLED_HERO_IDS,
   HEROES,
+  MAX_TURN_DURATION_SECONDS,
+  MIN_TURN_DURATION_SECONDS,
   PICKS_PER_TEAM,
   PICK_TURNS,
 } from "../../shared/types";
@@ -34,6 +36,8 @@ export default function Room() {
   const [localBans, setLocalBans] = useState<string[]>([]);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [banSecondsInput, setBanSecondsInput] = useState("30");
+  const [pickSecondsInput, setPickSecondsInput] = useState("30");
   const [connectTimedOut, setConnectTimedOut] = useState(false);
   const socket = getSocket();
 
@@ -105,6 +109,12 @@ export default function Room() {
   useEffect(() => {
     setLocalBans(state?.myBans ?? []);
   }, [state?.myBans]);
+
+  useEffect(() => {
+    if (!state) return;
+    setBanSecondsInput(String(state.banDurationSeconds));
+    setPickSecondsInput(String(state.pickDurationSeconds));
+  }, [state?.banDurationSeconds, state?.pickDurationSeconds]);
 
   // 乐观更新：点击后立即反映到 UI，避免因网络往返导致重复点击 toggle off
   const handleToggleBan = (heroId: string) => {
@@ -191,6 +201,19 @@ export default function Room() {
   };
   const handleSetMap = (mapId: string | null) => {
     socket.emit("set_map", mapId);
+  };
+  const banSeconds = Number(banSecondsInput);
+  const pickSeconds = Number(pickSecondsInput);
+  const validTimeLimits =
+    Number.isInteger(banSeconds) &&
+    Number.isInteger(pickSeconds) &&
+    banSeconds >= MIN_TURN_DURATION_SECONDS &&
+    banSeconds <= MAX_TURN_DURATION_SECONDS &&
+    pickSeconds >= MIN_TURN_DURATION_SECONDS &&
+    pickSeconds <= MAX_TURN_DURATION_SECONDS;
+  const saveTimeLimits = () => {
+    if (!validTimeLimits) return;
+    socket.emit("set_time_limits", { banSeconds, pickSeconds });
   };
 
   const allMembers = [...state.players, ...state.spectators];
@@ -398,6 +421,44 @@ export default function Room() {
               </small>
             </p>
           )}
+
+          <div className="time-limit-settings">
+            <p className="time-limit-title">BP 时间限制</p>
+            {isHost ? (
+              <div className="time-limit-form">
+                <label>
+                  Ban 阶段（秒）
+                  <input
+                    type="number"
+                    min={MIN_TURN_DURATION_SECONDS}
+                    max={MAX_TURN_DURATION_SECONDS}
+                    step={1}
+                    value={banSecondsInput}
+                    onChange={(event) => setBanSecondsInput(event.target.value)}
+                  />
+                </label>
+                <label>
+                  每次选角（秒）
+                  <input
+                    type="number"
+                    min={MIN_TURN_DURATION_SECONDS}
+                    max={MAX_TURN_DURATION_SECONDS}
+                    step={1}
+                    value={pickSecondsInput}
+                    onChange={(event) => setPickSecondsInput(event.target.value)}
+                  />
+                </label>
+                <button className="btn-secondary" disabled={!validTimeLimits} onClick={saveTimeLimits}>
+                  保存时限
+                </button>
+              </div>
+            ) : (
+              <p className="time-limit-summary">
+                Ban {state.banDurationSeconds} 秒 · 每次选角 {state.pickDurationSeconds} 秒
+              </p>
+            )}
+            <small>可设置 {MIN_TURN_DURATION_SECONDS}–{MAX_TURN_DURATION_SECONDS} 秒；修改后双方需重新准备。</small>
+          </div>
 
           {isHost && bothJoined && (
             <>
@@ -615,6 +676,7 @@ export default function Room() {
               </p>
               <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "1rem" }}>
                 选秀顺序：{PICK_TURNS.map((t, i) => `${i + 1}.${t === "first" ? "先" : "后"}`).join(" → ")}
+                <br />结果将在 BP 结束 30 秒后自动销毁
               </p>
               <button className="btn-primary" onClick={leave}>
                 退出房间

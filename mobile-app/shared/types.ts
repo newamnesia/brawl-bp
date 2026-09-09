@@ -232,6 +232,8 @@ export const PICK_TURNS: TeamSide[] = [
 
 export const BAN_DURATION_MS = 30_000;
 export const PICK_DURATION_MS = 30_000;
+export const MIN_TURN_DURATION_SECONDS = 5;
+export const MAX_TURN_DURATION_SECONDS = 300;
 export const BAN_REVEAL_MS = 4_000;
 export const BANS_PER_PLAYER = 3;
 export const PICKS_PER_TEAM = 3;
@@ -253,6 +255,10 @@ export interface RoomState {
   firstPicker: PlayerRole | null;
   pickStep: number;
   phaseEndsAt: number | null;
+  /** 双方同时禁用角色的总时限（秒） */
+  banDurationSeconds: number;
+  /** 每一手选择角色的时限（秒） */
+  pickDurationSeconds: number;
   myBans: string[];
   opponentBanCount: number;
   hostBans: string[] | null;

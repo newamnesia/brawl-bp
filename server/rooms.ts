@@ -8,6 +8,8 @@ import {
   HEROES,
   type GameMode,
   MAPS,
+  MAX_TURN_DURATION_SECONDS,
+  MIN_TURN_DURATION_SECONDS,
   PICK_DURATION_MS,
   PICK_TURNS,
   type Phase,
@@ -46,6 +48,8 @@ interface Room {
   secondPicks: string[];
   pickStep: number;
   phaseEndsAt: number | null;
+  banDurationMs: number;
+  pickDurationMs: number;
   banTimer: ReturnType<typeof setTimeout> | null;
   revealTimer: ReturnType<typeof setTimeout> | null;
   pickTimer: ReturnType<typeof setTimeout> | null;
@@ -61,7 +65,7 @@ interface Room {
 const rooms = new Map<string, Room>();
 const socketToRoom = new Map<string, string>();
 const RECONNECT_GRACE_MS = 120_000;
-const COMPLETED_ROOM_TTL_MS = 30 * 60_000;
+const COMPLETED_ROOM_TTL_MS = 30_000;
 
 function generateResumeToken(): string {
   return randomBytes(24).toString("hex");
@@ -170,6 +174,8 @@ function buildRoomState(room: Room, viewer: Player): RoomState {
     firstPicker: room.firstPicker,
     pickStep: room.pickStep,
     phaseEndsAt: room.phaseEndsAt,
+    banDurationSeconds: room.banDurationMs / 1000,
+    pickDurationSeconds: room.pickDurationMs / 1000,
     myBans: [...myBans],
     opponentBanCount: opponentBans.length,
     hostBans: showBans ? [...room.hostBans] : null,
@@ -215,8 +221,8 @@ function startBanPhase(io: Server, room: Room) {
   room.firstPicks = [];
   room.secondPicks = [];
   room.pickStep = 0;
-  room.phaseEndsAt = Date.now() + BAN_DURATION_MS;
-  room.banTimer = setTimeout(() => endBanPhase(io, room), BAN_DURATION_MS);
+  room.phaseEndsAt = Date.now() + room.banDurationMs;
+  room.banTimer = setTimeout(() => endBanPhase(io, room), room.banDurationMs);
   broadcastRoom(io, room);
 }
 
@@ -239,8 +245,8 @@ function startPickPhase(io: Server, room: Room) {
 
 function schedulePickTimer(io: Server, room: Room) {
   if (room.pickTimer) clearTimeout(room.pickTimer);
-  room.phaseEndsAt = Date.now() + PICK_DURATION_MS;
-  room.pickTimer = setTimeout(() => handlePickTimeout(io, room), PICK_DURATION_MS);
+  room.phaseEndsAt = Date.now() + room.pickDurationMs;
+  room.pickTimer = setTimeout(() => handlePickTimeout(io, room), room.pickDurationMs);
 }
 
 // 选角时间结束仍未选定 → 判定当前方超时，直接终止 BP
@@ -365,6 +371,8 @@ export function registerRoomHandlers(io: Server) {
           secondPicks: [],
           pickStep: 0,
           phaseEndsAt: null,
+          banDurationMs: BAN_DURATION_MS,
+          pickDurationMs: PICK_DURATION_MS,
           banTimer: null,
           revealTimer: null,
           pickTimer: null,
@@ -602,6 +610,29 @@ export function registerRoomHandlers(io: Server) {
       broadcastRoom(io, room);
     });
 
+    socket.on("set_time_limits", (payload: { banSeconds: number; pickSeconds: number }) => {
+      const code = socketToRoom.get(socket.id);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room || room.phase !== "lobby") return;
+      const player = room.players.get(socket.id);
+      if (!player || player.role !== "host") return;
+      const banSeconds = Number(payload?.banSeconds);
+      const pickSeconds = Number(payload?.pickSeconds);
+      if (
+        !Number.isInteger(banSeconds) ||
+        !Number.isInteger(pickSeconds) ||
+        banSeconds < MIN_TURN_DURATION_SECONDS ||
+        banSeconds > MAX_TURN_DURATION_SECONDS ||
+        pickSeconds < MIN_TURN_DURATION_SECONDS ||
+        pickSeconds > MAX_TURN_DURATION_SECONDS
+      ) return;
+      room.banDurationMs = banSeconds * 1000;
+      room.pickDurationMs = pickSeconds * 1000;
+      for (const member of room.players.values()) member.ready = false;
+      broadcastRoom(io, room);
+    });
+
     // 客户端挂载后主动拉取当前房间状态，避免初始 room_state 在监听器注册前到达而丢失
     socket.on("request_state", () => {
       const code = socketToRoom.get(socket.id);
@@ -694,13 +725,9 @@ export function registerRoomHandlers(io: Server) {
     socketToRoom.delete(socket.id);
     socket.leave(code);
 
-    // BP 已结束：保留结果，直到所有人（选手+观战席）都退出才销毁
+    // BP 已结束：销毁时间只由完成后的固定保留期决定，成员退出不提前销毁。
     if (room.phase === "complete") {
-      if (room.players.size === 0 && room.spectators.size === 0) {
-        destroyRoom(code);
-      } else {
-        broadcastRoom(io, room);
-      }
+      broadcastRoom(io, room);
       return;
     }
 
