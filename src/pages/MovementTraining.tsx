@@ -20,6 +20,7 @@ export default function MovementTraining() {
     <div className="app-shell">
       <h1 className="page-title">离线走位训练</h1>
       <p className="page-subtitle">选择训练规则与操作方式</p>
+      <LandscapeExperienceNotice />
       <TrainingGuide />
       <div className="card">
         <div className="form-group">
@@ -45,7 +46,11 @@ export default function MovementTraining() {
 }
 
 export function TrainingGuide() {
-  return <div className="tutorial-box"><p className="tutorial-intro">使用教程</p><ul className="tutorial-list"><li>手机建议使用<strong>横屏</strong>，可获得更完整的训练视野。</li><li>进入训练后可点击<strong>“全屏”</strong>开启沉浸式训练。</li><li>具体速度、伤害和反应数值沿用原训练设置。</li></ul></div>;
+  return <div className="tutorial-box"><p className="tutorial-intro">使用教程</p><ul className="tutorial-list"><li>进入训练后可点击<strong>“全屏”</strong>开启沉浸式训练。</li><li>具体速度、伤害和反应数值沿用原训练设置。</li></ul></div>;
+}
+
+export function LandscapeExperienceNotice() {
+  return <aside className="training-landscape-notice" role="note" aria-label="横屏体验提示"><span className="training-landscape-icon" aria-hidden="true">📱↻</span><div><strong>请提前开启横屏</strong><p>横屏可获得更完整的战场视野和更舒适的摇杆操作体验</p></div></aside>;
 }
 
 export function SpeedPicker({ value, onChange }: { value: SpeedTier; onChange: (tier: SpeedTier) => void }) {

@@ -17,6 +17,7 @@ type TrainingSnapshot = {
   aimLeadDeg: number[];
   emptyAmmoRatio: number;
   damagePerSecond: number;
+  totalDamage: number;
 };
 
 // 地图常量
@@ -866,6 +867,7 @@ export default function OfflineTrainingGame() {
         damagePerSecond: aimingElapsedSecondsRef.current > 0
           ? totalDamageRef.current / aimingElapsedSecondsRef.current
           : 0,
+        totalDamage: totalDamageRef.current,
       });
     } else if (!paused) {
       setPauseSnapshot(null);
@@ -1879,6 +1881,33 @@ export default function OfflineTrainingGame() {
       ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
 
+      // 瞄准训练弹匣跟随玩家模型，使用原 HUD 的 7 × 15 px 弹药图标尺寸。
+      if (isAimingMode) {
+        const ammo = magazineAmmoRef.current;
+        const ammoWidth = 7;
+        const ammoHeight = 15;
+        const ammoGap = 4;
+        const totalAmmoWidth = magazineCapacity * ammoWidth + (magazineCapacity - 1) * ammoGap;
+        const ammoLeft = playerCenterPx - totalAmmoWidth / 2;
+        const ammoTop = playerCenterPy + playerRadiusPy + 8;
+        const reloadFill = magazineCapacity > ammo
+          ? Math.max(0, Math.min(1, 1 - magazineReloadTimerRef.current / Math.max(0.001, magazineReloadSeconds / timingScaleRef.current)))
+          : 0;
+        for (let index = 0; index < magazineCapacity; index++) {
+          const fill = index < ammo ? 1 : index === ammo ? reloadFill : 0;
+          const x = ammoLeft + index * (ammoWidth + ammoGap);
+          ctx.fillStyle = "rgba(255,255,255,0.12)";
+          ctx.fillRect(x, ammoTop, ammoWidth, ammoHeight);
+          if (fill > 0) {
+            ctx.fillStyle = "#ff5252";
+            ctx.fillRect(x, ammoTop + ammoHeight * (1 - fill), ammoWidth, ammoHeight * fill);
+          }
+          ctx.strokeStyle = "rgba(255,205,210,0.42)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x, ammoTop, ammoWidth, ammoHeight);
+        }
+      }
+
       if (isAimingMode && aimJoystickRef.current.active) {
         const aim = aimJoystickRef.current;
         const aimLength = Math.hypot(aim.knobX, aim.knobY);
@@ -1955,9 +1984,6 @@ export default function OfflineTrainingGame() {
         ctx.fillStyle = "#ffd54f";
         ctx.font = "bold 13px system-ui";
         ctx.fillText(`技能充能 ${Math.round(superCharge * 100)}%`, enemyCenterPx + 20, enemyCenterPy - 24);
-        if (superSlowRemainingMs > 0) {
-          ctx.fillText(`减速 40% · ${(superSlowRemainingMs / 1000).toFixed(1)}s`, playerCenterPx + 20, playerCenterPy - 24);
-        }
       }
 
       // 方向箭头置于最终前景层。
@@ -2165,8 +2191,6 @@ export default function OfflineTrainingGame() {
   js.maxRadius = joystickDiameter(movementLayout, controlViewport.width, controlViewport.height) * 0.39;
   aimJs.maxRadius = joystickDiameter(attackLayout, controlViewport.width, controlViewport.height) * 0.39;
 
-  const speedTierLabel =
-    speedTier === "high" ? "佩佩" : "贝亚";
   const endSnapshot: TrainingSnapshot = {
     stickMag: profilerRef.current?.samplesStickMag ?? [],
     reactionMs: profilerRef.current?.samplesReactionMs ?? [],
@@ -2178,6 +2202,7 @@ export default function OfflineTrainingGame() {
     damagePerSecond: aimingElapsedSecondsRef.current > 0
       ? totalDamageRef.current / aimingElapsedSecondsRef.current
       : 0,
+    totalDamage: totalDamageRef.current,
   };
   const aimingMaxLeadDeg = Math.floor(Math.asin(Math.min(0.999, MOVE_SPEED / bulletSpeed)) * 180 / Math.PI * 10) / 10;
 
@@ -2233,11 +2258,8 @@ export default function OfflineTrainingGame() {
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-            <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#4fc3f7" }}>
-              {isAimingMode ? "离线瞄准训练" : "离线走位训练"}
-            </div>
             {/* 受击计数器（左上角） */}
-            <div
+            {!isAimingMode && <div
               style={{
                 background: "rgba(255, 82, 82, 0.15)",
                 border: "1px solid rgba(255, 82, 82, 0.45)",
@@ -2249,27 +2271,9 @@ export default function OfflineTrainingGame() {
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {isAimingMode ? "命中次数" : "受击次数"}: {hitCount}
-            </div>
-            {isAimingInfinite && (
-              <div style={{ color: "#ffee58", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-                总伤害: {totalDamage}
-              </div>
-            )}
-            <div
-              style={{
-                background: "rgba(255, 167, 38, 0.12)",
-                border: "1px solid rgba(255, 167, 38, 0.4)",
-                color: "#ffb74d",
-                fontWeight: 700,
-                padding: "0.3rem 0.75rem",
-                borderRadius: "999px",
-                fontSize: "0.82rem",
-              }}
-            >
-              {isAimingMode ? "玩家角色" : "敌方角色"}: {speedTierLabel}
-            </div>
-            <div
+              受击次数: {hitCount}
+            </div>}
+            {!isAimingMode && <div
               aria-label={`敌方弹匣 ${magazineAmmo}/${magazineCapacity}`}
               style={{
                 display: "flex",
@@ -2284,7 +2288,7 @@ export default function OfflineTrainingGame() {
                 fontSize: "0.82rem",
               }}
             >
-              <span>{isAimingMode ? "玩家弹匣" : "敌方弹匣"}</span>
+              <span>敌方弹匣</span>
               <span style={{ display: "flex", gap: "0.25rem" }}>
                 {Array.from({ length: magazineCapacity }, (_, index) => (
                   <span
@@ -2311,7 +2315,7 @@ export default function OfflineTrainingGame() {
                 ))}
               </span>
               <span style={{ color: "#ef9a9a", fontVariantNumeric: "tabular-nums" }}>{magazineAmmo}/{magazineCapacity}</span>
-            </div>
+            </div>}
           </div>
         </div>
 
@@ -2371,37 +2375,6 @@ export default function OfflineTrainingGame() {
             }}
           >
             结束本局
-          </button>
-          <button
-            onClick={() => navigate(isAimingMode ? "/offline-aiming" : "/offline-training")}
-            style={{
-              background: "var(--surface2)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              padding: "0.4rem 0.8rem",
-              borderRadius: "8px",
-              fontWeight: 700,
-              fontSize: "0.85rem",
-              pointerEvents: "auto",
-            }}
-          >
-            返回
-          </button>
-          <button
-            onClick={() => navigate("/")}
-            style={{
-              background: "rgba(255, 255, 255, 0.08)",
-              color: "var(--text)",
-              border: "1px solid var(--border)",
-              padding: "0.4rem 0.8rem",
-              borderRadius: "8px",
-              fontWeight: 700,
-              fontSize: "0.85rem",
-              pointerEvents: "auto",
-              whiteSpace: "nowrap",
-            }}
-          >
-            返回主菜单
           </button>
         </div>
       </div>
@@ -2626,13 +2599,18 @@ function TrainingStatsGrid({ snapshot, aiming, mode, reactionWindowMaxMs, aiming
           decimals={1}
         />
         <div className="training-ratio-card">
-          <div className="training-ratio-title">数据2 · DPS</div>
+          <div className="training-ratio-title">数据2 · 总伤害</div>
+          <div className="training-ratio-value">{Math.round(snapshot.totalDamage)}</div>
+          <div className="training-ratio-note">仅在暂停或本局结束后的数据面板中展示</div>
+        </div>
+        <div className="training-ratio-card">
+          <div className="training-ratio-title">数据3 · DPS</div>
           <div className="training-ratio-value">{snapshot.damagePerSecond.toFixed(1)}</div>
           <div className="training-ratio-note">累计造成伤害 ÷ 本局有效训练时间（暂停时间不计入）</div>
         </div>
         {showEmptyAmmoRatio && (
           <div className="training-ratio-card">
-            <div className="training-ratio-title">数据3 · 零子弹状态时长占比</div>
+            <div className="training-ratio-title">数据4 · 零子弹状态时长占比</div>
             <div className="training-ratio-value">{(snapshot.emptyAmmoRatio * 100).toFixed(1)}%</div>
             <div className="training-ratio-track"><span style={{ width: `${Math.min(100, snapshot.emptyAmmoRatio * 100)}%` }} /></div>
             <div className="training-ratio-note">仅佩佩：玩家持有子弹量小于 1 的时间 ÷ 本局有效训练时间</div>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AIM_REACTION_TIERS, SPEED_TIERS, type AimReactionTier, type AimingRule, type SpeedTier } from "../features/training/config";
-import { BackButton, Choice, SpeedPicker, TrainingGuide } from "./MovementTraining";
+import { BackButton, Choice, LandscapeExperienceNotice, SpeedPicker, TrainingGuide } from "./MovementTraining";
 
 export default function AimingTraining() {
   const navigate = useNavigate();
@@ -17,6 +17,7 @@ export default function AimingTraining() {
     <div className="app-shell">
       <h1 className="page-title">离线瞄准训练</h1>
       <p className="page-subtitle">练习移动目标预判与攻击摇杆控制</p>
+      <LandscapeExperienceNotice />
       <TrainingGuide />
       <div className="card">
         <div className="form-group"><label>训练规则</label><div className="toggle-group">
