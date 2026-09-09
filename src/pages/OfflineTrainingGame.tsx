@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AIM_REACTION_TIERS, CHARACTER_MOVE_SPEED, SPEED_TIERS, TILE_SIZE, tiles, type AimReactionTier } from "../features/training/config";
 import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, type WallCell } from "../features/training/movement";
+import { AdjustableJoystick } from "../components/AdjustableJoystick";
+import { clampJoystick, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
@@ -751,6 +753,8 @@ export default function OfflineTrainingGame() {
   const reactionWindowMaxMs = Math.min(REACTION_MAX_MS, (BULLET_MAX_DIST / bulletSpeed) * 1000);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const controlLayoutRef = useRef(loadControlLayout());
+  const [controlViewport, setControlViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const playerMovementElapsedRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -819,6 +823,12 @@ export default function OfflineTrainingGame() {
   // 暂停状态
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
+
+  useEffect(() => {
+    const updateControlViewport = () => setControlViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", updateControlViewport);
+    return () => window.removeEventListener("resize", updateControlViewport);
+  }, []);
   const [isFullscreen, setIsFullscreen] = useState(false);
   // 暂停时的三大样本快照（传给面板绘图）
   const [pauseSnapshot, setPauseSnapshot] = useState<TrainingSnapshot | null>(null);
@@ -1926,12 +1936,11 @@ export default function OfflineTrainingGame() {
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (mode !== "joystick") return;
     e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
     const js = joystickRef.current;
     js.active = true;
     js.touchId = e.pointerId;
-    js.baseX = e.clientX - rect.left;
-    js.baseY = e.clientY - rect.top;
+    js.baseX = e.currentTarget.clientWidth / 2;
+    js.baseY = e.currentTarget.clientHeight / 2;
     js.knobX = 0;
     js.knobY = 0;
     (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
@@ -1948,8 +1957,8 @@ export default function OfflineTrainingGame() {
     if (!js.active || js.touchId !== e.pointerId) return;
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
-    let dx = e.clientX - rect.left - js.baseX;
-    let dy = e.clientY - rect.top - js.baseY;
+    let dx = e.clientX - rect.left - rect.width / 2;
+    let dy = e.clientY - rect.top - rect.height / 2;
     let dist = Math.sqrt(dx * dx + dy * dy);
 
     // 钳制到 maxRadius 内，并同步更新 dist，保证 dx/dist 为单位向量
@@ -2000,8 +2009,8 @@ export default function OfflineTrainingGame() {
     const aim = aimJoystickRef.current;
     aim.active = true;
     aim.touchId = e.pointerId;
-    aim.baseX = e.clientX - rect.left;
-    aim.baseY = e.clientY - rect.top;
+    aim.baseX = rect.width / 2;
+    aim.baseY = rect.height / 2;
     aim.knobX = 0;
     aim.knobY = 0;
     aim.rawMagnitude = 0;
@@ -2014,8 +2023,8 @@ export default function OfflineTrainingGame() {
     if (!isAimingMode || !aim.active || aim.touchId !== e.pointerId) return;
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
-    let dx = e.clientX - rect.left - aim.baseX;
-    let dy = e.clientY - rect.top - aim.baseY;
+    let dx = e.clientX - rect.left - rect.width / 2;
+    let dy = e.clientY - rect.top - rect.height / 2;
     let distance = Math.hypot(dx, dy);
     if (distance > aim.maxRadius) {
       dx = (dx / distance) * aim.maxRadius;
@@ -2070,6 +2079,10 @@ export default function OfflineTrainingGame() {
 
   const js = joystickRef.current;
   const aimJs = aimJoystickRef.current;
+  const movementLayout = clampJoystick(controlLayoutRef.current.joysticks.movement, controlViewport.width, controlViewport.height);
+  const attackLayout = clampJoystick(controlLayoutRef.current.joysticks.attack, controlViewport.width, controlViewport.height);
+  js.maxRadius = joystickDiameter(movementLayout, controlViewport.width, controlViewport.height) * 0.39;
+  aimJs.maxRadius = joystickDiameter(attackLayout, controlViewport.width, controlViewport.height) * 0.39;
 
   const speedTierLabel =
     speedTier === "high" ? "佩佩" : "贝亚";
@@ -2344,97 +2357,31 @@ export default function OfflineTrainingGame() {
 
       {/* 摇杆区 */}
       {mode === "joystick" && !isAimingMode && (
-        <div
-          className="training-joystick-zone"
+        <AdjustableJoystick
+          id="movement"
+          layout={movementLayout}
+          viewport={controlViewport}
+          selected={false}
+          knob={{ x: js.knobX, y: js.knobY }}
+          active={js.active}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          style={{
-            position: "absolute",
-            left: 0,
-            bottom: 0,
-            width: "50%",
-            height: "45%",
-            touchAction: "none",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              left: js.active ? js.baseX - 70 : "clamp(1rem, 15%, 4rem)",
-              top: js.active ? js.baseY - 70 : "auto",
-              bottom: js.active ? "auto" : "clamp(1rem, 15%, 4rem)",
-              width: 140,
-              height: 140,
-              borderRadius: "50%",
-              background: "rgba(26, 35, 50, 0.75)",
-              border: "3px solid rgba(79, 195, 247, 0.3)",
-              backdropFilter: "blur(8px)",
-              transition: js.active ? "none" : "left 0.2s, top 0.2s, bottom 0.2s",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                left: 10,
-                top: 10,
-                width: 120,
-                height: 120,
-                borderRadius: "50%",
-                border: "1px dashed rgba(79, 195, 247, 0.2)",
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: 70 + js.knobX - 28,
-                top: 70 + js.knobY - 28,
-                width: 56,
-                height: 56,
-                borderRadius: "50%",
-                background: js.active
-                  ? "linear-gradient(135deg, #4fc3f7, #29b6f6)"
-                  : "linear-gradient(135deg, #2d3f55, #243044)",
-                border: `3px solid ${js.active ? "#81d4fa" : "#3d5270"}`,
-                boxShadow: js.active
-                  ? "0 0 20px rgba(79, 195, 247, 0.5), inset 0 2px 4px rgba(255,255,255,0.2)"
-                  : "inset 0 2px 4px rgba(255,255,255,0.05)",
-                transition: js.active ? "none" : "all 0.15s",
-              }}
-            />
-          </div>
-        </div>
+        />
       )}
 
       {isAimingMode && (
-        <div
-          className="training-aim-joystick-zone"
+        <AdjustableJoystick
+          id="attack"
+          layout={attackLayout}
+          viewport={controlViewport}
+          selected={false}
+          knob={{ x: aimJs.knobX, y: aimJs.knobY }}
+          active={aimJs.active}
           onPointerDown={handleAimPointerDown}
           onPointerMove={handleAimPointerMove}
           onPointerUp={handleAimPointerUp}
-          onPointerCancel={handleAimPointerUp}
-        >
-          <div
-            className="training-aim-joystick"
-            style={{
-              left: aimJs.active ? aimJs.baseX - 70 : "auto",
-              right: aimJs.active ? "auto" : "clamp(1rem, 15%, 4rem)",
-              top: aimJs.active ? aimJs.baseY - 70 : "auto",
-              bottom: aimJs.active ? "auto" : "clamp(1rem, 15%, 4rem)",
-            }}
-          >
-            <div className="training-aim-joystick-ring" />
-            <div
-              className="training-aim-joystick-knob"
-              style={{
-                left: 70 + aimJs.knobX - 28,
-                top: 70 + aimJs.knobY - 28,
-              }}
-            />
-          </div>
-        </div>
+        />
       )}
 
       {/* 键盘操作提示 */}

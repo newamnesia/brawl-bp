@@ -35,6 +35,7 @@ export default function AimingTraining() {
         </div></div>
         <div className="tutorial-box" style={{ marginTop: "1rem" }}>拖动右下角攻击摇杆瞄准，松手发射；人机会按照所选等级尝试躲避。</div>
         <button className="btn-primary" onClick={start} style={{ marginTop: "1rem" }}>开始训练</button>
+        <button className="btn-secondary" onClick={() => navigate("/control-layout/aiming")} style={{ marginTop: "0.5rem", width: "100%" }}>调整键位布置</button>
         <BackButton />
       </div>
     </div>

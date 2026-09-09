@@ -36,6 +36,7 @@ export default function MovementTraining() {
           <Choice active={controlMode === "keyboard"} onClick={() => setControlMode("keyboard")} title="⌨️ 键盘 WASD" detail="W 上 / A 左 / S 下 / D 右，适合桌面设备" align="left" />
         </div>
         <button className="btn-primary" disabled={!controlMode} onClick={start} style={{ marginTop: "1rem" }}>开始训练</button>
+        <button className="btn-secondary" onClick={() => navigate("/control-layout/movement")} style={{ marginTop: "0.5rem", width: "100%" }}>调整键位布置</button>
         <BackButton />
       </div>
       <MapGuide />

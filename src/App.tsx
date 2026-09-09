@@ -9,6 +9,7 @@ const MapPreview = lazy(() => import("./pages/MapPreview"));
 const MovementTraining = lazy(() => import("./pages/MovementTraining"));
 const AimingTraining = lazy(() => import("./pages/AimingTraining"));
 const OfflineTrainingGame = lazy(() => import("./pages/OfflineTrainingGame"));
+const ControlLayoutEditor = lazy(() => import("./pages/ControlLayoutEditor"));
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/offline-training" element={<MovementTraining />} />
           <Route path="/offline-aiming" element={<AimingTraining />} />
           <Route path="/offline-training/game" element={<OfflineTrainingGame />} />
+          <Route path="/control-layout/:kind" element={<ControlLayoutEditor />} />
         </Routes>
       </Suspense>
     </>
