@@ -4,7 +4,17 @@ export type AimingRule = "infinite" | "challenge";
 
 // 战斗世界坐标以基础长度单位计量；格数仅用于地图布局和说明。
 export const TILE_SIZE = 300;
-export const CHARACTER_MOVE_SPEED = 770; // 单位/秒
+// 来源：用户于 2026-09-09 提供的移速截图；单位/秒，除以 300 为格/秒。
+export const MOVEMENT_SPEED_TIERS = {
+  bolt: { previous: 540, value: 545 },
+  eightBit: { previous: 580, value: 600 },
+  bonnie: { previous: 620, value: 630 },
+  surge: { previous: 680, value: 705 },
+  normal: { previous: 720, value: 750 },
+  fast: { previous: 770, value: 800 },
+  veryFast: { previous: 820, value: 855 },
+} as const;
+export const CHARACTER_MOVE_SPEED = MOVEMENT_SPEED_TIERS.fast.value;
 export const tiles = (count: number) => count * TILE_SIZE;
 
 export const SPEED_TIERS: Record<SpeedTier, {

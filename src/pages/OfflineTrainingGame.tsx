@@ -62,6 +62,20 @@ const BULLET_TEXTURES = {
   beaSuper: "", // 技能弹由 Canvas 绘制
   high: "/assets/projectiles/bullet-17-5-v4.png",
 } as const;
+const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
+const TAUNT_DURATION_MS = 3000;
+const TAUNT_DODGES_MIN = 2;
+const TAUNT_DODGES_MAX = 5;
+const TAUNT_DELAY_MIN_MS = 500;
+const TAUNT_DELAY_MAX_MS = 2000;
+
+function randomTauntDodgeGoal(): number {
+  return TAUNT_DODGES_MIN + Math.floor(Math.random() * (TAUNT_DODGES_MAX - TAUNT_DODGES_MIN + 1));
+}
+
+function randomTauntDelayMs(): number {
+  return TAUNT_DELAY_MIN_MS + Math.random() * (TAUNT_DELAY_MAX_MS - TAUNT_DELAY_MIN_MS);
+}
 
 function projectileDamage(texture: keyof typeof BULLET_TEXTURES, traveled: number): number {
   if (texture === "beaSuper") return BEA_SUPER.damage;
@@ -997,6 +1011,10 @@ export default function OfflineTrainingGame() {
     let superCharge = 0;
     let aiMovementElapsed = 0;
     let aiDodgeTurn: { start: number; delta: number; elapsed: number; duration: number } | null = null;
+    let dodgesSinceTaunt = 0;
+    let tauntDodgeGoal = randomTauntDodgeGoal();
+    let tauntDelayRemainingMs: number | null = null;
+    let tauntVisibleRemainingMs = 0;
     playerMovementElapsedRef.current = 0;
 
     // 只在新方向指令出现时判断，不能用每帧平滑转向的小角度代替单次转向。
@@ -1065,7 +1083,16 @@ export default function OfflineTrainingGame() {
       projectileImages.high = new Image();
       projectileImages.high.src = BULLET_TEXTURES.high;
     }
+    const tauntEmoteImage = new Image();
+    tauntEmoteImage.src = TAUNT_EMOTE_TEXTURE;
     const hitParticles: HitParticle[] = [];
+
+    const recordDodgedProjectile = () => {
+      dodgesSinceTaunt += 1;
+      if (dodgesSinceTaunt >= tauntDodgeGoal && tauntDelayRemainingMs === null && tauntVisibleRemainingMs <= 0) {
+        tauntDelayRemainingMs = randomTauntDelayMs();
+      }
+    };
 
     const spawnHitParticles = (x: number, y: number) => {
       const count = 7 + Math.floor(Math.random() * 4);
@@ -1139,6 +1166,18 @@ export default function OfflineTrainingGame() {
 
       if (!pausedRef.current && !countdownActiveRef.current) {
         // —— 逻辑更新（暂停时跳过） ——
+        if (tauntVisibleRemainingMs > 0) {
+          tauntVisibleRemainingMs = Math.max(0, tauntVisibleRemainingMs - dtMs);
+        } else if (tauntDelayRemainingMs !== null) {
+          tauntDelayRemainingMs -= dtMs;
+          if (tauntDelayRemainingMs <= 0) {
+            tauntDelayRemainingMs = null;
+            tauntVisibleRemainingMs = TAUNT_DURATION_MS;
+            dodgesSinceTaunt = 0;
+            tauntDodgeGoal = randomTauntDodgeGoal();
+          }
+        }
+
         // 更新玩家位置
         const input = inputRef.current;
         const player = playerRef.current;
@@ -1530,6 +1569,7 @@ export default function OfflineTrainingGame() {
           if (ddx * ddx + ddy * ddy <= rSum2) {
             bullets.splice(i, 1);
             profileBulletRemoved(prof, b.id);
+            aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
             if (b.owner === "player") {
               spawnHitParticles(collisionTarget.x, collisionTarget.y);
               hitCountRef.current += 1;
@@ -1579,8 +1619,16 @@ export default function OfflineTrainingGame() {
             }
           } else if (b.traveled >= maxDistance) {
             // 先检查最后一段轨迹的命中，再移除到达射程终点的子弹。
+            if (
+              isAimingMode &&
+              b.owner === "player" &&
+              aimingTargetAiRef.current.reactedBulletIds.has(b.id)
+            ) {
+              recordDodgedProjectile();
+            }
             bullets.splice(i, 1);
             profileBulletRemoved(prof, b.id);
+            aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
           }
         }
 
@@ -1927,6 +1975,19 @@ export default function OfflineTrainingGame() {
           playerRadiusPx, playerRadiusPy, playerDirectionRef.current,
           "#4fc3f7",
         );
+      }
+
+      if (
+        isAimingMode &&
+        tauntVisibleRemainingMs > 0 &&
+        tauntEmoteImage.complete &&
+        tauntEmoteImage.naturalWidth > 0
+      ) {
+        const drawWidth = enemyRadiusPx * 1.75;
+        const drawHeight = drawWidth * tauntEmoteImage.naturalHeight / tauntEmoteImage.naturalWidth;
+        const drawX = enemyCenterPx + enemyRadiusPx * 0.35;
+        const drawY = enemyCenterPy - drawHeight - enemyRadiusPy * 0.65;
+        ctx.drawImage(tauntEmoteImage, drawX, drawY, drawWidth, drawHeight);
       }
 
       animationId = requestAnimationFrame(gameLoop);

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { CHARACTER_MOVE_SPEED } from '../src/features/training/config.ts';
 import { advanceMovement, normalizedSpeed, resetsMovementOnTurn, resolveSquareMovement } from '../src/features/training/movement.ts';
 
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 test('normalized linear startup and cap', () => {
   for (const [t, v] of [[0, 0], [0.05, 0.25], [0.1, 0.5], [0.2, 1], [1, 1]]) near(normalizedSpeed(t), v);
-  near(normalizedSpeed(0.1) * 770, 385);
+  near(normalizedSpeed(0.1) * CHARACTER_MOVE_SPEED, 400);
   near(normalizedSpeed(0.1) * 900, 450);
 });
 test('deadzone stops immediately and restarts from zero', () => {
@@ -21,7 +22,7 @@ test('startup distance is frame-rate independent, including crossing 0.2s', () =
       elapsed = step.elapsed;
       distance += step.distance;
     }
-    near(distance * 770, 693); // 77 units accelerating + 616 at full speed
+    near(distance * CHARACTER_MOVE_SPEED, 720); // 80 units accelerating + 640 at full speed
   }
 });
 test('AI single-command turns use shortest angle and strict >120 degrees', () => {

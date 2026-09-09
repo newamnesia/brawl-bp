@@ -2,7 +2,7 @@ import { FIRE_INTERVAL_MIN, FIRE_INTERVAL_MAX, BEA_FIRE_INTERVAL_MIN, BEA_FIRE_I
 import { BEA_SUPER, beaSuperPosition, chargeBeaSuper } from "../features/training/beaSuper";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AIM_REACTION_TIERS, type AimReactionTier, type SpeedTier } from "../features/training/config";
+import { CHARACTER_MOVE_SPEED, TILE_SIZE, AIM_REACTION_TIERS, type AimReactionTier, type SpeedTier } from "../features/training/config";
 import { Capacitor } from '@capacitor/core';
 import { mean, saveTraining } from '../features/training/history';
 
@@ -28,9 +28,9 @@ const MIN_UPWARD_VIEW_UNITS = 9.8;
 const MIN_VERTICAL_VIEW_UNITS = MIN_UPWARD_VIEW_UNITS * 2;
 const PERSPECTIVE_WIDTH_STRENGTH = 0.16; // 上沿约窄 8%，下沿约宽 8%
 const PLAYER_RADIUS = 0.5; // 玩家半径 0.5 单位
-const MOVE_SPEED = 3;  // 移动速度 3 单位/秒
+const MOVE_SPEED = CHARACTER_MOVE_SPEED / TILE_SIZE; // 移动端世界坐标为格
 const MOVE_ACCELERATION_TIME = 0.1;
-const MOVE_ACCELERATION = MOVE_SPEED / MOVE_ACCELERATION_TIME; // 30 单位/秒²
+const MOVE_ACCELERATION = MOVE_SPEED / MOVE_ACCELERATION_TIME; // 格/秒²，随基础移速适配
 
 // 敌人 + 子弹常量
 // 第10行（1-indexed）正中间方格：行9（0-indexed）中心 y=9.5；列10（0-indexed，21列正中）中心 x=10.5
@@ -64,6 +64,20 @@ const BULLET_TEXTURES = {
   beaSuper: "", // 技能弹由 Canvas 绘制
   high: "/assets/projectiles/bullet-17-5-v4.png",
 } as const;
+const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
+const TAUNT_DURATION_MS = 3000;
+const TAUNT_DODGES_MIN = 2;
+const TAUNT_DODGES_MAX = 5;
+const TAUNT_DELAY_MIN_MS = 500;
+const TAUNT_DELAY_MAX_MS = 2000;
+
+function randomTauntDodgeGoal(): number {
+  return TAUNT_DODGES_MIN + Math.floor(Math.random() * (TAUNT_DODGES_MAX - TAUNT_DODGES_MIN + 1));
+}
+
+function randomTauntDelayMs(): number {
+  return TAUNT_DELAY_MIN_MS + Math.random() * (TAUNT_DELAY_MAX_MS - TAUNT_DELAY_MIN_MS);
+}
 
 function projectileDamage(texture: keyof typeof BULLET_TEXTURES, traveled: number): number {
   if (texture === "beaSuper") return BEA_SUPER.damage;
@@ -1017,6 +1031,10 @@ export default function OfflineTrainingGame() {
     let superCharge = 0;
     let superSlowRemainingMs = 0;
     let aiDodgeTurn: { start: number; delta: number; elapsed: number; duration: number } | null = null;
+    let dodgesSinceTaunt = 0;
+    let tauntDodgeGoal = randomTauntDodgeGoal();
+    let tauntDelayRemainingMs: number | null = null;
+    let tauntVisibleRemainingMs = 0;
 
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
@@ -1074,7 +1092,16 @@ export default function OfflineTrainingGame() {
       projectileImages.high = new Image();
       projectileImages.high.src = BULLET_TEXTURES.high;
     }
+    const tauntEmoteImage = new Image();
+    tauntEmoteImage.src = TAUNT_EMOTE_TEXTURE;
     const hitParticles: HitParticle[] = [];
+
+    const recordDodgedProjectile = () => {
+      dodgesSinceTaunt += 1;
+      if (dodgesSinceTaunt >= tauntDodgeGoal && tauntDelayRemainingMs === null && tauntVisibleRemainingMs <= 0) {
+        tauntDelayRemainingMs = randomTauntDelayMs();
+      }
+    };
 
     const spawnHitParticles = (x: number, y: number) => {
       const count = 7 + Math.floor(Math.random() * 4);
@@ -1135,6 +1162,18 @@ export default function OfflineTrainingGame() {
       if (!pausedRef.current) {
         trainingSecondsRef.current += dt;
         // —— 逻辑更新（暂停时跳过） ——
+        if (tauntVisibleRemainingMs > 0) {
+          tauntVisibleRemainingMs = Math.max(0, tauntVisibleRemainingMs - dtMs);
+        } else if (tauntDelayRemainingMs !== null) {
+          tauntDelayRemainingMs -= dtMs;
+          if (tauntDelayRemainingMs <= 0) {
+            tauntDelayRemainingMs = null;
+            tauntVisibleRemainingMs = TAUNT_DURATION_MS;
+            dodgesSinceTaunt = 0;
+            tauntDodgeGoal = randomTauntDodgeGoal();
+          }
+        }
+
         // 更新玩家位置
         const input = inputRef.current;
         const player = playerRef.current;
@@ -1499,6 +1538,7 @@ export default function OfflineTrainingGame() {
           if (ddx * ddx + ddy * ddy <= rSum2) {
             bullets.splice(i, 1);
             profileBulletRemoved(prof, b.id);
+            aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
             if (b.owner === "player") {
               spawnHitParticles(collisionTarget.x, collisionTarget.y);
               hitCountRef.current += 1;
@@ -1548,8 +1588,16 @@ export default function OfflineTrainingGame() {
             }
           } else if (b.traveled >= maxDistance) {
             // 先检查最后一段轨迹的命中，再移除到达射程终点的子弹。
+            if (
+              isAimingMode &&
+              b.owner === "player" &&
+              aimingTargetAiRef.current.reactedBulletIds.has(b.id)
+            ) {
+              recordDodgedProjectile();
+            }
             bullets.splice(i, 1);
             profileBulletRemoved(prof, b.id);
+            aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
           }
         }
 
@@ -1895,6 +1943,19 @@ export default function OfflineTrainingGame() {
         playerRadiusPx, playerRadiusPy, playerDirectionRef.current,
         "#4fc3f7",
       );
+
+      if (
+        isAimingMode &&
+        tauntVisibleRemainingMs > 0 &&
+        tauntEmoteImage.complete &&
+        tauntEmoteImage.naturalWidth > 0
+      ) {
+        const drawWidth = enemyRadiusPx * 1.75;
+        const drawHeight = drawWidth * tauntEmoteImage.naturalHeight / tauntEmoteImage.naturalWidth;
+        const drawX = enemyCenterPx + enemyRadiusPx * 0.35;
+        const drawY = enemyCenterPy - drawHeight - enemyRadiusPy * 0.65;
+        ctx.drawImage(tauntEmoteImage, drawX, drawY, drawWidth, drawHeight);
+      }
 
       animationId = requestAnimationFrame(gameLoop);
     };

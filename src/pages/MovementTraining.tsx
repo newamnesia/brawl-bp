@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SPEED_TIERS, type SpeedTier } from "../features/training/config";
+import { CHARACTER_MOVE_SPEED, SPEED_TIERS, type SpeedTier } from "../features/training/config";
 
 type ControlMode = "joystick" | "keyboard";
 type MovementRule = "practice" | "survival";
@@ -62,5 +62,5 @@ export function BackButton() {
 }
 
 function MapGuide() {
-  return <div className="tutorial-box"><p className="tutorial-intro">地图说明</p><ul className="tutorial-list"><li>每格 <strong>300 × 300</strong> 单位；地图 <strong>21 × 33</strong> 格（6300 × 9900 单位）</li><li>玩家体积：半径 <strong>150</strong> 单位圆形（0.5 格）</li><li>移动速度：最高 <strong>770 单位/秒</strong>；每次起步按 v = min(5t, 1) × 移速，在 <strong>0.2 秒</strong>内线性加速，摇杆回到中心死区立即静止并重置</li><li>人机单次方向指令变化超过 <strong>120°</strong> 时重新起步；其余转向不重置加速</li><li>子弹射程 <strong>3000</strong> 单位（10 格）；挑战模式每 10 秒将当前回弹耗时与射击间隔乘以 0.95，无下限，弹速固定；离开射程计时与难度归零</li><li>视野横向至少 <strong>31.2</strong> 格、玩家正上方至少 <strong>9.8</strong> 格，地图居中显示</li></ul></div>;
+  return <div className="tutorial-box"><p className="tutorial-intro">地图说明</p><ul className="tutorial-list"><li>每格 <strong>300 × 300</strong> 单位；地图 <strong>21 × 33</strong> 格（6300 × 9900 单位）</li><li>玩家体积：半径 <strong>150</strong> 单位圆形（0.5 格）</li><li>移动速度：最高 <strong>{CHARACTER_MOVE_SPEED} 单位/秒</strong>；每次起步按 v = min(5t, 1) × 移速，在 <strong>0.2 秒</strong>内线性加速，摇杆回到中心死区立即静止并重置</li><li>人机单次方向指令变化超过 <strong>120°</strong> 时重新起步；其余转向不重置加速</li><li>子弹射程 <strong>3000</strong> 单位（10 格）；挑战模式每 10 秒将当前回弹耗时与射击间隔乘以 0.95，无下限，弹速固定；离开射程计时与难度归零</li><li>视野横向至少 <strong>31.2</strong> 格、玩家正上方至少 <strong>9.8</strong> 格，地图居中显示</li></ul></div>;
 }
