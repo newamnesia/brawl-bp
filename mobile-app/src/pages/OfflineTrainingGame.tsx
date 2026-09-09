@@ -1950,7 +1950,7 @@ export default function OfflineTrainingGame() {
         tauntEmoteImage.complete &&
         tauntEmoteImage.naturalWidth > 0
       ) {
-        const drawWidth = enemyRadiusPx * 1.75;
+        const drawWidth = enemyRadiusPx * 3.5;
         const drawHeight = drawWidth * tauntEmoteImage.naturalHeight / tauntEmoteImage.naturalWidth;
         const drawX = enemyCenterPx + enemyRadiusPx * 0.35;
         const drawY = enemyCenterPy - drawHeight - enemyRadiusPy * 0.65;
