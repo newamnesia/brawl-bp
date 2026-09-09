@@ -61,10 +61,10 @@ const BEA_ENHANCED_DAMAGE = 4400;
 const PIPER_MIN_DAMAGE = 720;
 const PIPER_MAX_DAMAGE = 3600;
 const BULLET_TEXTURES = {
-  beaNormal: "/assets/projectiles/bea-normal-v4.png",
-  beaEnhanced: "/assets/projectiles/bea-enhanced-v4.png",
+  beaNormal: "/assets/projectiles/bea-normal-v6.png",
+  beaEnhanced: "/assets/projectiles/bea-enhanced-v6.png",
   beaSuper: "", // 技能弹由 Canvas 绘制
-  high: "/assets/projectiles/bullet-17-5-v4.png",
+  high: "/assets/projectiles/piper-normal-v5.png",
 } as const;
 const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
 const TAUNT_DURATION_MS = 3000;
@@ -1838,7 +1838,6 @@ export default function OfflineTrainingGame() {
           const headingX = projectX(b.x + b.vx * 0.05, b.y + b.vy * 0.05);
           const headingY = projectY(b.y + b.vy * 0.05);
           const angle = Math.atan2(headingY - by, headingX - bx);
-          // 素材包含透明发光留白，绘制范围放大到碰撞直径的 3 倍。
           const drawWidth = radiusX * 6;
           const drawHeight = radiusY * 6;
           ctx.save();

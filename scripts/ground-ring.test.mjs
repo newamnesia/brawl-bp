@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  GROUND_RING,
   MOVEMENT_INDICATOR,
   movementIndicatorPosition,
 } from '../src/features/training/groundRing.ts';
@@ -23,6 +24,13 @@ test('movement indicator maps joystick magnitude to the super-ring radius', () =
   near(full.y, 80 - 20 * MOVEMENT_INDICATOR.maxOffsetRatio);
 });
 
+test('collision circle stays transparent inside the larger visual ground ring', () => {
+  near(GROUND_RING.collisionRadiusRatio, 0.66);
+  near(GROUND_RING.outerRadiusRatio * 150, 150 / 0.66);
+  near(MOVEMENT_INDICATOR.maxOffsetRatio, GROUND_RING.superRingRadiusRatio);
+  assert.ok(GROUND_RING.superRingRadiusRatio > GROUND_RING.outerRadiusRatio);
+});
+
 test('movement indicator normalizes direction and clamps magnitude', () => {
   const diagonal = movementIndicatorPosition(0, 0, 30, 20, 3, 4, 2);
   near(diagonal.x, 30 * MOVEMENT_INDICATOR.maxOffsetRatio * 3 / 5);
@@ -31,6 +39,7 @@ test('movement indicator normalizes direction and clamps magnitude', () => {
 
 test('mobile and web share movement-indicator geometry', async () => {
   const mobile = await import('../mobile-app/src/features/training/groundRing.ts');
+  assert.deepEqual(mobile.GROUND_RING, GROUND_RING);
   assert.deepEqual(mobile.MOVEMENT_INDICATOR, MOVEMENT_INDICATOR);
   assert.deepEqual(
     mobile.movementIndicatorPosition(5, 9, 14, 8, -2, 3, 0.37),

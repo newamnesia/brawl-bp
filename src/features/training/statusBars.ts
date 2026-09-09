@@ -48,12 +48,13 @@ export function drawUnitStatusBars(ctx: CanvasRenderingContext2D, options: Statu
   }
 
   const healthText = String(Math.ceil(options.health));
-  ctx.font = "900 10px 'Nunito', system-ui, sans-serif";
+  // 参考游戏比例：数字略低于血条高度，描边不压迫细节。
+  ctx.font = "900 9px 'Nunito', system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
   ctx.strokeStyle = "rgba(12, 8, 10, 0.96)";
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2.5;
   ctx.strokeText(healthText, options.centerX, healthTop + healthHeight / 2);
   ctx.fillStyle = "#ffffff";
   ctx.fillText(healthText, options.centerX, healthTop + healthHeight / 2);
