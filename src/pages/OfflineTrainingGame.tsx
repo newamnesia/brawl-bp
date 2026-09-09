@@ -832,8 +832,8 @@ export default function OfflineTrainingGame() {
   const [survivalTime, setSurvivalTime] = useState(0);
   const [roundResult, setRoundResult] = useState<"victory" | "defeat" | "ended" | null>(null);
   const [restartNonce, setRestartNonce] = useState(0);
-  const [magazineAmmo, setMagazineAmmo] = useState(magazineCapacity);
-  const [magazineReloadProgress, setMagazineReloadProgress] = useState(0);
+  const [, setMagazineAmmo] = useState(magazineCapacity);
+  const [, setMagazineReloadProgress] = useState(0);
 
   // 暂停状态
   const [paused, setPaused] = useState(false);
@@ -1881,31 +1881,41 @@ export default function OfflineTrainingGame() {
       ctx.ellipse(playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy, 0, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 瞄准训练弹匣跟随玩家模型，使用原 HUD 的 7 × 15 px 弹药图标尺寸。
+      // 瞄准训练弹匣：总宽 1 格（300 世界单位）、高 15 px，按角色弹量等分。
       if (isAimingMode) {
         const ammo = magazineAmmoRef.current;
-        const ammoWidth = 7;
+        const ammoWidth = TILE_SIZE * scale * widthFactorAt(player.y);
         const ammoHeight = 15;
-        const ammoGap = 4;
-        const totalAmmoWidth = magazineCapacity * ammoWidth + (magazineCapacity - 1) * ammoGap;
-        const ammoLeft = playerCenterPx - totalAmmoWidth / 2;
+        const segmentWidth = ammoWidth / magazineCapacity;
+        const ammoLeft = playerCenterPx - ammoWidth / 2;
         const ammoTop = playerCenterPy + playerRadiusPy + 8;
         const reloadFill = magazineCapacity > ammo
           ? Math.max(0, Math.min(1, 1 - magazineReloadTimerRef.current / Math.max(0.001, magazineReloadSeconds / timingScaleRef.current)))
           : 0;
+        ctx.save();
+        ctx.fillStyle = "rgba(255,255,255,0.12)";
+        ctx.fillRect(ammoLeft, ammoTop, ammoWidth, ammoHeight);
         for (let index = 0; index < magazineCapacity; index++) {
           const fill = index < ammo ? 1 : index === ammo ? reloadFill : 0;
-          const x = ammoLeft + index * (ammoWidth + ammoGap);
-          ctx.fillStyle = "rgba(255,255,255,0.12)";
-          ctx.fillRect(x, ammoTop, ammoWidth, ammoHeight);
+          const x = ammoLeft + index * segmentWidth;
           if (fill > 0) {
             ctx.fillStyle = "#ff5252";
-            ctx.fillRect(x, ammoTop + ammoHeight * (1 - fill), ammoWidth, ammoHeight * fill);
+            // 当前段从左向右恢复；填充前沿始终是竖直线。
+            ctx.fillRect(x, ammoTop, segmentWidth * fill, ammoHeight);
           }
-          ctx.strokeStyle = "rgba(255,205,210,0.42)";
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x, ammoTop, ammoWidth, ammoHeight);
+          if (index > 0) {
+            ctx.strokeStyle = "rgba(255,205,210,0.58)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, ammoTop);
+            ctx.lineTo(x, ammoTop + ammoHeight);
+            ctx.stroke();
+          }
         }
+        ctx.strokeStyle = "rgba(255,205,210,0.72)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(ammoLeft, ammoTop, ammoWidth, ammoHeight);
+        ctx.restore();
       }
 
       if (isAimingMode && aimJoystickRef.current.active) {
@@ -2272,49 +2282,6 @@ export default function OfflineTrainingGame() {
               }}
             >
               受击次数: {hitCount}
-            </div>}
-            {!isAimingMode && <div
-              aria-label={`敌方弹匣 ${magazineAmmo}/${magazineCapacity}`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.45rem",
-                background: "rgba(239, 83, 80, 0.12)",
-                border: "1px solid rgba(239, 83, 80, 0.42)",
-                color: "#ffcdd2",
-                fontWeight: 800,
-                padding: "0.3rem 0.7rem",
-                borderRadius: "999px",
-                fontSize: "0.82rem",
-              }}
-            >
-              <span>敌方弹匣</span>
-              <span style={{ display: "flex", gap: "0.25rem" }}>
-                {Array.from({ length: magazineCapacity }, (_, index) => (
-                  <span
-                    key={index}
-                    style={{
-                      display: "inline-block",
-                      width: 7,
-                      height: 15,
-                      borderRadius: "4px 4px 2px 2px",
-                      border: "1px solid rgba(255, 205, 210, 0.42)",
-                      background: (() => {
-                        const fill = index < magazineAmmo
-                          ? 100
-                          : index === magazineAmmo && magazineAmmo < magazineCapacity
-                            ? magazineReloadProgress * 100
-                            : 0;
-                        return `linear-gradient(to top, #ff5252 0%, #ff5252 ${fill}%, rgba(255,255,255,0.12) ${fill}%, rgba(255,255,255,0.12) 100%)`;
-                      })(),
-                      boxShadow: index < magazineAmmo ? "0 0 6px rgba(255,82,82,0.75)" : "none",
-                      transition: "background 40ms linear, box-shadow 120ms ease",
-                      boxSizing: "border-box",
-                    }}
-                  />
-                ))}
-              </span>
-              <span style={{ color: "#ef9a9a", fontVariantNumeric: "tabular-nums" }}>{magazineAmmo}/{magazineCapacity}</span>
             </div>}
           </div>
         </div>
