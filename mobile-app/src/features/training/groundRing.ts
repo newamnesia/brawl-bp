@@ -1,7 +1,10 @@
-// 受击圆（r=150）位于底圈的透明核心中；外圈仅是阵营可视化，不扩大碰撞体。
+// 基准半径为角色受击半径 r=150；d 沿用原内外圈间距。
+const RING_GAP_RATIO = 1 / 0.66 - 1;
 export const GROUND_RING = {
-  collisionRadiusRatio: 0.66,
-  outerRadiusRatio: 1 / 0.66,
+  innerRadiusRatio: 1,
+  outerRadiusRatio: 1 + RING_GAP_RATIO,
+  starRadiusRatio: 2 / 3,
+  gadgetBumpRadiusRatio: RING_GAP_RATIO * 2 / 3,
   superRingRadiusRatio: 1.9,
 } as const;
 
@@ -25,14 +28,17 @@ export function drawGroundRing(ctx: CanvasRenderingContext2D, x: number, y: numb
   const starPower = options.starPower ?? DEFAULT_EQUIPMENT_MARKERS.starPower;
   const outerRx = rx * GROUND_RING.outerRadiusRatio;
   const outerRy = ry * GROUND_RING.outerRadiusRatio;
+  const innerRadius = GROUND_RING.innerRadiusRatio / GROUND_RING.outerRadiusRatio;
+  const starRadius = GROUND_RING.starRadiusRatio / GROUND_RING.outerRadiusRatio;
+  const bumpRadius = GROUND_RING.gadgetBumpRadiusRatio / GROUND_RING.outerRadiusRatio;
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(outerRx, outerRy);
   const rgb = teamColor[team];
   const fill = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
   fill.addColorStop(0, `rgba(${rgb},0)`);
-  fill.addColorStop(GROUND_RING.collisionRadiusRatio * 0.92, `rgba(${rgb},0)`);
-  fill.addColorStop(GROUND_RING.collisionRadiusRatio, `rgba(${rgb},0.04)`);
+  fill.addColorStop(innerRadius * 0.92, `rgba(${rgb},0)`);
+  fill.addColorStop(innerRadius, `rgba(${rgb},0.04)`);
   fill.addColorStop(0.80, `rgba(${rgb},0.22)`);
   fill.addColorStop(0.95, `rgba(${rgb},0.76)`);
   fill.addColorStop(1, `rgba(${rgb},0.96)`);
@@ -41,19 +47,31 @@ export function drawGroundRing(ctx: CanvasRenderingContext2D, x: number, y: numb
   ctx.arc(0, 0, 1, 0, Math.PI * 2);
   ctx.fill();
 
-  // 所有角色默认显示妙具四鼓丘标识，可由具体角色状态显式关闭。
+  // 四个独立半圆附着在内圈外侧；每个半径为内外圈间距 d 的 2/3。
   if (gadgetReady) {
-    ctx.strokeStyle = `rgba(${rgb},0.92)`;
-    ctx.lineWidth = 0.07;
-    ctx.beginPath();
-    for (let i = 0; i <= 72; i++) {
-      const angle = i / 72 * Math.PI * 2;
-      const radius = GROUND_RING.collisionRadiusRatio * (0.82 + 0.08 * Math.cos(angle * 4));
-      if (i === 0) ctx.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
-      else ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+    const bumpCenterRadius = Math.sqrt(innerRadius ** 2 - bumpRadius ** 2);
+    ctx.fillStyle = `rgba(${rgb},0.30)`;
+    for (let i = 0; i < 4; i++) {
+      const angle = i * Math.PI / 2;
+      ctx.beginPath();
+      ctx.arc(
+        Math.cos(angle) * bumpCenterRadius,
+        Math.sin(angle) * bumpCenterRadius,
+        bumpRadius,
+        angle - Math.PI / 2,
+        angle + Math.PI / 2,
+      );
+      ctx.closePath();
+      ctx.fill();
     }
-    ctx.stroke();
   }
+
+  // 扩大后的内圈保持完整圆形，并绘制在鼓包填色之上。
+  ctx.strokeStyle = `rgba(${rgb},0.88)`;
+  ctx.lineWidth = 0.055;
+  ctx.beginPath();
+  ctx.arc(0, 0, innerRadius, 0, Math.PI * 2);
+  ctx.stroke();
 
   // 所有阵营共用金色星辉标识，阵营仍由外圈颜色区分。
   if (starPower) {
@@ -62,7 +80,7 @@ export function drawGroundRing(ctx: CanvasRenderingContext2D, x: number, y: numb
     ctx.beginPath();
     for (let i = 0; i <= 16; i++) {
       const angle = -Math.PI / 2 + i * Math.PI / 8;
-      const radius = GROUND_RING.collisionRadiusRatio * (i % 2 === 0 ? 0.66 : 0.32);
+      const radius = starRadius * (i % 2 === 0 ? 1 : 0.48);
       if (i === 0) ctx.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
       else ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
     }

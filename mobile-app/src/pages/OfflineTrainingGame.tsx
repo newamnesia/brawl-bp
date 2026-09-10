@@ -54,18 +54,22 @@ const BEA_RELOAD_SECONDS = 0.9;
 const BEA_SUPER_UNIT = 1;
 const BULLET_MAX_DIST = 10;   // 子弹最远行进 10 单位
 const PLAYER_MAX_HEALTH = 6000;
+const PRACTICE_PLAYER_MAX_HEALTH = 100000;
 const HEALTH_REGEN_DELAY_SECONDS = 3;
 const HEALTH_REGEN_PER_SECOND = PLAYER_MAX_HEALTH * 0.2;
 const BEA_NORMAL_DAMAGE = 1600;
 const BEA_ENHANCED_DAMAGE = 4400;
+const BEA_PROJECTILE_WIDTH = 1; // 150 × 2 = 300 世界单位
+const BEA_PROJECTILE_RADIUS = BEA_PROJECTILE_WIDTH / 2;
+const BEA_PROJECTILE_LENGTH_TO_WIDTH = 4 / 3; // 大招按自身宽度同比缩放
 const PIPER_MIN_DAMAGE = 720;
 const PIPER_MAX_DAMAGE = 3600;
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
-const BULLET_TEXTURES = {
-  beaNormal: "/assets/projectiles/bea-normal-v7.png",
-  beaEnhanced: "/assets/projectiles/bea-enhanced-v7.png",
-  beaSuper: "", // 技能弹由 Canvas 绘制
-  high: "/assets/projectiles/piper-normal-v6.png",
+const BULLET_STYLES = {
+  beaNormal: { color: "#ffd43b", lengthScale: 1.8 },
+  beaEnhanced: { color: "#39cfff", lengthScale: 1.8 },
+  beaSuper: { color: "#ffd43b", lengthScale: 1.8 },
+  high: { color: "#ffd43b", lengthScale: 1.8 },
 } as const;
 const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
 const TAUNT_DURATION_MS = 3000;
@@ -82,7 +86,7 @@ function randomTauntDelayMs(): number {
   return TAUNT_DELAY_MIN_MS + Math.random() * (TAUNT_DELAY_MAX_MS - TAUNT_DELAY_MIN_MS);
 }
 
-function projectileDamage(texture: keyof typeof BULLET_TEXTURES, traveled: number): number {
+function projectileDamage(texture: keyof typeof BULLET_STYLES, traveled: number): number {
   if (texture === "beaSuper") return BEA_SUPER.damage;
   if (texture === "beaNormal") return BEA_NORMAL_DAMAGE;
   if (texture === "beaEnhanced") return BEA_ENHANCED_DAMAGE;
@@ -98,7 +102,7 @@ type Bullet = {
   traveled: number;   // 已行进距离
   id: number;         // 唯一 ID，用于视野首次进入检测
   radius: number;
-  texture: keyof typeof BULLET_TEXTURES;
+  texture: keyof typeof BULLET_STYLES;
   owner: "enemy" | "player";
   superTrajectory?: { originX: number; originY: number; angle: number; omega: number; elapsed: number };
 };
@@ -749,6 +753,7 @@ export default function OfflineTrainingGame() {
     : requestedTrainingMode === "aiming" ? "aiming" : "practice";
   const isSurvivalMode = trainingMode === "survival";
   const isAimingMode = trainingMode === "aiming";
+  const playerMaxHealth = trainingMode === "practice" ? PRACTICE_PLAYER_MAX_HEALTH : PLAYER_MAX_HEALTH;
   const aimingRule: AimingRule = searchParams.get("aimingRule") === "infinite" ? "infinite" : "challenge";
   const isAimingInfinite = isAimingMode && aimingRule === "infinite";
   const requestedReactionTier = searchParams.get("reactionTier");
@@ -830,7 +835,7 @@ export default function OfflineTrainingGame() {
   const [, forceUpdate] = useState(0);
   const [hitCount, setHitCount] = useState(0);
   const [totalDamage, setTotalDamage] = useState(0);
-  const [, setHealth] = useState(PLAYER_MAX_HEALTH);
+  const [, setHealth] = useState(playerMaxHealth);
   const [survivalTime, setSurvivalTime] = useState(0);
   const [roundResult, setRoundResult] = useState<"victory" | "defeat" | "ended" | null>(null);
   const [restartNonce, setRestartNonce] = useState(0);
@@ -933,7 +938,7 @@ export default function OfflineTrainingGame() {
   const firedShotCountRef = useRef(0);
   const totalDamageRef = useRef(0);
   const bulletIdRef = useRef(1);
-  const healthRef = useRef(PLAYER_MAX_HEALTH);
+  const healthRef = useRef(playerMaxHealth);
   const secondsSinceDamageRef = useRef(0);
   const survivalTimeRef = useRef(0);
   const lastSurvivalUiUpdateRef = useRef(0);
@@ -1078,13 +1083,13 @@ export default function OfflineTrainingGame() {
     fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
     setMagazineAmmo(magazineCapacity);
     setMagazineReloadProgress(0);
-    healthRef.current = PLAYER_MAX_HEALTH;
+    healthRef.current = playerMaxHealth;
     secondsSinceDamageRef.current = 0;
     survivalTimeRef.current = 0;
     hitCountRef.current = 0;
     firedShotCountRef.current = 0;
     totalDamageRef.current = 0;
-    setHealth(PLAYER_MAX_HEALTH);
+    setHealth(playerMaxHealth);
     setSurvivalTime(0);
     setHitCount(0);
     setTotalDamage(0);
@@ -1095,16 +1100,6 @@ export default function OfflineTrainingGame() {
     playerDirectionRef.current = -Math.PI / 2;
     enemyDirectionRef.current = Math.PI / 2;
 
-    const projectileImages: Partial<Record<keyof typeof BULLET_TEXTURES, HTMLImageElement>> = {};
-    if (isBeaMode) {
-      projectileImages.beaNormal = new Image();
-      projectileImages.beaEnhanced = new Image();
-      projectileImages.beaNormal.src = BULLET_TEXTURES.beaNormal;
-      projectileImages.beaEnhanced.src = BULLET_TEXTURES.beaEnhanced;
-    } else {
-      projectileImages.high = new Image();
-      projectileImages.high.src = BULLET_TEXTURES.high;
-    }
     const tauntEmoteImage = new Image();
     tauntEmoteImage.src = TAUNT_EMOTE_TEXTURE;
     const hitParticles: HitParticle[] = [];
@@ -1436,7 +1431,7 @@ export default function OfflineTrainingGame() {
             const ay = pred.aimY - ENEMY_Y;
             const da = Math.hypot(ax, ay) || 1;
             const isEnhancedBeaShot = isBeaMode && beaEnhancedShotsRef.current > 0;
-            const projectileTexture: keyof typeof BULLET_TEXTURES = isBeaMode
+            const projectileTexture: keyof typeof BULLET_STYLES = isBeaMode
               ? isEnhancedBeaShot ? "beaEnhanced" : "beaNormal"
               : "high";
             bulletsRef.current.push({
@@ -1446,7 +1441,7 @@ export default function OfflineTrainingGame() {
               vy: (ay / da) * currentBulletSpeed,
               traveled: 0,
               id: shotId,
-              radius: isBeaMode ? 0.325 : 0.25,
+              radius: isBeaMode ? BEA_PROJECTILE_RADIUS : 0.25,
               texture: projectileTexture,
               owner: "enemy",
             });
@@ -1605,14 +1600,16 @@ export default function OfflineTrainingGame() {
               superCharge = chargeBeaSuper(superCharge, b.texture);
             }
             spawnHitParticles(player.x, player.y);
-            hitCountRef.current += 1;
-            setHitCount(hitCountRef.current);
             if (isSurvivalMode) {
+              hitCountRef.current += 1;
+              setHitCount(hitCountRef.current);
+            }
+            if (!isAimingMode) {
               const damage = projectileDamage(b.texture, b.traveled);
               healthRef.current = Math.max(0, healthRef.current - damage);
               secondsSinceDamageRef.current = 0;
               setHealth(Math.round(healthRef.current));
-              if (healthRef.current <= 0) {
+              if (isSurvivalMode && healthRef.current <= 0) {
                 pausedRef.current = true;
                 setSurvivalTime(survivalTimeRef.current);
                 setRoundResult("defeat");
@@ -1782,7 +1779,7 @@ export default function OfflineTrainingGame() {
         radiusY: playerRadiusPy,
         width: scale * widthFactorAt(player.y),
         health: healthRef.current,
-        maxHealth: PLAYER_MAX_HEALTH,
+        maxHealth: playerMaxHealth,
         relation: "self",
         ammo: isAimingMode ? { current: ammo, capacity: magazineCapacity, reloadProgress } : undefined,
       });
@@ -1805,31 +1802,53 @@ export default function OfflineTrainingGame() {
         }
       }
 
-      // 绘制子弹贴图；贴图跟随弹道方向旋转，碰撞仍使用实例自身的物理半径。
+      // 半圆弹头 + 长方形弹身；显示宽度与物理碰撞直径一致。
+      // 贝亚普通弹、强化弹与大招均为菱形，长度按宽度的 4/3 同比缩放。
       for (const b of bulletsRef.current) {
         const bx = projectX(b.x, b.y);
         const by = projectY(b.y);
         const radiusX = b.radius * scale * widthFactorAt(b.y);
         const radiusY = b.radius * scaleY;
-        const image = projectileImages[b.texture];
-        if (image?.complete && image.naturalWidth > 0) {
-          const headingX = projectX(b.x + b.vx * 0.05, b.y + b.vy * 0.05);
-          const headingY = projectY(b.y + b.vy * 0.05);
-          const angle = Math.atan2(headingY - by, headingX - bx);
-          const textureRatio = image.naturalHeight / image.naturalWidth;
-          const drawWidth = radiusX * 2;
-          const drawHeight = radiusY * 2 * textureRatio;
+        const headingX = projectX(b.x + b.vx * 0.05, b.y + b.vy * 0.05);
+        const headingY = projectY(b.y + b.vy * 0.05);
+        const angle = Math.atan2(headingY - by, headingX - bx);
+        const style = BULLET_STYLES[b.texture];
+        const isBeaProjectile = b.texture === "beaNormal"
+          || b.texture === "beaEnhanced"
+          || b.texture === "beaSuper";
+        if (isBeaProjectile) {
+          const halfWidth = radiusX;
+          const halfLength = b.radius * BEA_PROJECTILE_LENGTH_TO_WIDTH * scaleY;
           ctx.save();
           ctx.translate(bx, by);
-          ctx.rotate(angle + Math.PI / 2);
-          ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
-          ctx.restore();
-        } else {
-          ctx.fillStyle = b.texture === "high" ? "#70d7ff" : b.texture === "beaEnhanced" ? "#fff59d" : "#ffca28";
+          ctx.rotate(angle);
+          ctx.fillStyle = style.color;
           ctx.beginPath();
-          ctx.ellipse(bx, by, radiusX, radiusY, 0, 0, Math.PI * 2);
+          ctx.moveTo(-halfLength, 0);
+          ctx.lineTo(0, -halfWidth);
+          ctx.lineTo(halfLength, 0);
+          ctx.lineTo(0, halfWidth);
+          ctx.closePath();
           ctx.fill();
+          ctx.restore();
+          continue;
         }
+        const halfWidth = radiusX;
+        const length = radiusY * 2 * style.lengthScale;
+        const tailX = -length / 2;
+        const capCenterX = length / 2 - halfWidth;
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.rotate(angle);
+        ctx.fillStyle = style.color;
+        ctx.beginPath();
+        ctx.moveTo(tailX, -halfWidth);
+        ctx.lineTo(capCenterX, -halfWidth);
+        ctx.arc(capCenterX, 0, halfWidth, -Math.PI / 2, Math.PI / 2);
+        ctx.lineTo(tailX, halfWidth);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
       }
 
       // 受击粒子绘制在角色与子弹上层，短促向外迸射后渐隐。
@@ -2051,7 +2070,7 @@ export default function OfflineTrainingGame() {
         vy: (aim.knobY / directionLength) * bulletSpeed,
         traveled: 0,
         id: bulletIdRef.current++,
-        radius: isBeaMode ? 0.325 : 0.25,
+        radius: isBeaMode ? BEA_PROJECTILE_RADIUS : 0.25,
         texture: isBeaMode ? (isEnhancedBeaShot ? "beaEnhanced" : "beaNormal") : "high",
         owner: "player",
       });
@@ -2134,7 +2153,7 @@ export default function OfflineTrainingGame() {
               {isAimingMode ? "离线瞄准训练" : "离线走位训练"}
             </div>
             {/* 受击计数器（左上角） */}
-            <div
+            {(isAimingMode || isSurvivalMode) && <div
               style={{
                 background: "rgba(255, 82, 82, 0.15)",
                 border: "1px solid rgba(255, 82, 82, 0.45)",
@@ -2147,7 +2166,7 @@ export default function OfflineTrainingGame() {
               }}
             >
               {isAimingMode ? "命中次数" : "受击次数"}: {hitCount}
-            </div>
+            </div>}
             {isAimingInfinite && (
               <div style={{ color: "#ffee58", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
                 总伤害: {totalDamage}

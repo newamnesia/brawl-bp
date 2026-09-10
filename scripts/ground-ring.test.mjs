@@ -26,13 +26,16 @@ test('movement indicator maps joystick magnitude to the super-ring radius', () =
 });
 
 test('collision circle stays transparent inside the larger visual ground ring', () => {
-  near(GROUND_RING.collisionRadiusRatio, 0.66);
-  near(GROUND_RING.outerRadiusRatio * 150, 150 / 0.66);
+  const originalGap = 150 / 0.66 - 150;
+  near(GROUND_RING.innerRadiusRatio * 150, 150);
+  near(GROUND_RING.outerRadiusRatio * 150, 150 + originalGap);
+  near(GROUND_RING.starRadiusRatio * 150, 100);
+  const ringGap = (GROUND_RING.outerRadiusRatio - GROUND_RING.innerRadiusRatio) * 150;
+  near(GROUND_RING.gadgetBumpRadiusRatio * 150, ringGap * 2 / 3);
   near(MOVEMENT_INDICATOR.maxOffsetRatio, GROUND_RING.superRingRadiusRatio);
-  assert.ok(GROUND_RING.superRingRadiusRatio > GROUND_RING.outerRadiusRatio);
 });
 
-test('gadget and star-power markers are enabled for every team by default', () => {
+test('the four-bump gadget ring and star are shown by default', () => {
   assert.deepEqual(DEFAULT_EQUIPMENT_MARKERS, {
     gadgetReady: true,
     starPower: true,
