@@ -62,10 +62,10 @@ const PIPER_MIN_DAMAGE = 720;
 const PIPER_MAX_DAMAGE = 3600;
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_TEXTURES = {
-  beaNormal: "/assets/projectiles/bea-normal-v6.png",
-  beaEnhanced: "/assets/projectiles/bea-enhanced-v6.png",
+  beaNormal: "/assets/projectiles/bea-normal-v7.png",
+  beaEnhanced: "/assets/projectiles/bea-enhanced-v7.png",
   beaSuper: "", // 技能弹由 Canvas 绘制
-  high: "/assets/projectiles/piper-normal-v5.png",
+  high: "/assets/projectiles/piper-normal-v6.png",
 } as const;
 const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
 const TAUNT_DURATION_MS = 3000;
@@ -1816,8 +1816,9 @@ export default function OfflineTrainingGame() {
           const headingX = projectX(b.x + b.vx * 0.05, b.y + b.vy * 0.05);
           const headingY = projectY(b.y + b.vy * 0.05);
           const angle = Math.atan2(headingY - by, headingX - bx);
-          const drawWidth = radiusX * 6;
-          const drawHeight = radiusY * 6;
+          const textureRatio = image.naturalHeight / image.naturalWidth;
+          const drawWidth = radiusX * 2;
+          const drawHeight = radiusY * 2 * textureRatio;
           ctx.save();
           ctx.translate(bx, by);
           ctx.rotate(angle + Math.PI / 2);
