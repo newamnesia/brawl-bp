@@ -8,6 +8,11 @@ export const GROUND_RING = {
 export type GroundRingTeam = "player" | "ally" | "enemy";
 export type GroundRingOptions = { gadgetReady?: boolean; starPower?: boolean };
 
+export const DEFAULT_EQUIPMENT_MARKERS = {
+  gadgetReady: true,
+  starPower: true,
+} as const;
+
 const teamColor: Record<GroundRingTeam, string> = {
   player: "91,255,38",
   ally: "75,175,255",
@@ -16,6 +21,8 @@ const teamColor: Record<GroundRingTeam, string> = {
 
 export function drawGroundRing(ctx: CanvasRenderingContext2D, x: number, y: number,
   rx: number, ry: number, team: GroundRingTeam, options: GroundRingOptions = {}) {
+  const gadgetReady = options.gadgetReady ?? DEFAULT_EQUIPMENT_MARKERS.gadgetReady;
+  const starPower = options.starPower ?? DEFAULT_EQUIPMENT_MARKERS.starPower;
   const outerRx = rx * GROUND_RING.outerRadiusRatio;
   const outerRy = ry * GROUND_RING.outerRadiusRatio;
   ctx.save();
@@ -34,8 +41,8 @@ export function drawGroundRing(ctx: CanvasRenderingContext2D, x: number, y: numb
   ctx.arc(0, 0, 1, 0, Math.PI * 2);
   ctx.fill();
 
-  // 妙具可用时才显示四鼓丘内环；当前训练不传入该状态。
-  if (options.gadgetReady) {
+  // 所有角色默认显示妙具四鼓丘标识，可由具体角色状态显式关闭。
+  if (gadgetReady) {
     ctx.strokeStyle = `rgba(${rgb},0.92)`;
     ctx.lineWidth = 0.07;
     ctx.beginPath();
@@ -48,8 +55,8 @@ export function drawGroundRing(ctx: CanvasRenderingContext2D, x: number, y: numb
     ctx.stroke();
   }
 
-  // 星辉图样预留在透明受击区内，默认不显示。
-  if (options.starPower) {
+  // 所有阵营共用金色星辉标识，阵营仍由外圈颜色区分。
+  if (starPower) {
     ctx.strokeStyle = "rgba(255,229,142,0.9)";
     ctx.lineWidth = 0.045;
     ctx.beginPath();
