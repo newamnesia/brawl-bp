@@ -1404,6 +1404,12 @@
     "sha256": "66da473fc2b2c95ecc548fea82f294384e71bce906befd9af4adfbb6465dc51e"
   },
   {
+    "path": "brawl-stars/res/img/modes/icon_heist.webp",
+    "source": "https://www.noff.gg/brawl-stars/res/img/modes/icon_heist.webp",
+    "bytes": 5084,
+    "sha256": "7b13c831c91b687ed57e9da772bfc83dbb778342f2b99be010fd2df7b382877a"
+  },
+  {
     "path": "brawl-stars/res/img/modes/icon_hot_zone.webp",
     "source": "https://www.noff.gg/brawl-stars/res/img/modes/icon_hot_zone.webp",
     "bytes": 4476,

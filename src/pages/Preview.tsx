@@ -2,8 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   HEROES,
+  HERO_TRAIT_TAGS,
+  SPECIALTY_MODES,
   type Hero,
+  type HeroTraitTag,
   type Rarity,
+  type SpecialtyMode,
   type Tier,
 } from "../../shared/types";
 import { heroDisplayName, heroImageUrl } from "../../shared/catalog";
@@ -28,6 +32,36 @@ const RARITY_ORDER: Rarity[] = [
   "extraordinary",
 ];
 
+const RANGE_TRAIT_TAGS: ReadonlySet<HeroTraitTag> = new Set([
+  "range_all",
+  "range_close",
+  "range_close_medium",
+  "range_medium",
+  "range_medium_long",
+  "range_long",
+]);
+
+const COMBAT_ROLE_TRAIT_TAGS: ReadonlySet<HeroTraitTag> = new Set([
+  "single_shot",
+  "burst_fire",
+  "tank",
+  "thrower",
+]);
+
+const STATUS_EFFECT_TRAIT_TAGS: ReadonlySet<HeroTraitTag> = new Set([
+  "healing",
+  "shield_grant",
+  "cleanse",
+  "debuff",
+]);
+
+function traitDisplayPriority(id: HeroTraitTag | SpecialtyMode) {
+  if (RANGE_TRAIT_TAGS.has(id as HeroTraitTag)) return 0;
+  if (COMBAT_ROLE_TRAIT_TAGS.has(id as HeroTraitTag)) return 1;
+  if (STATUS_EFFECT_TRAIT_TAGS.has(id as HeroTraitTag)) return 3;
+  return 2;
+}
+
 /** 评级配色（便利贴 / 角标通用） */
 const TIER_COLORS: Record<Tier, string> = {
   S: "#ff5252",
@@ -35,7 +69,7 @@ const TIER_COLORS: Record<Tier, string> = {
   B: "#69f0ae",
   C: "#4fc3f7",
   D: "#b46cff",
-  E: "#8899aa",
+  F: "#8899aa",
 };
 
 const TIER_LABELS: Record<Tier, string> = {
@@ -44,8 +78,19 @@ const TIER_LABELS: Record<Tier, string> = {
   B: "B 级",
   C: "C 级",
   D: "D 级",
-  E: "E 级",
+  F: "F 级",
 };
+
+const REGULAR_MOVE_SPEED_LABELS: Partial<Record<number, string>> = {
+  720: "中等",
+  770: "快",
+  820: "非常快",
+};
+
+function formatMoveSpeed(moveSpeed: number) {
+  const label = REGULAR_MOVE_SPEED_LABELS[moveSpeed];
+  return label ? `${moveSpeed}（${label}）` : moveSpeed;
+}
 
 export default function Preview() {
   const navigate = useNavigate();
@@ -128,7 +173,7 @@ export default function Preview() {
       </div>
 
       <p className="disclaimer-note">
-        本页为粉丝向非商业工具，所有角色数值与评级整理自荒野乱斗公开社区资料（如 brawlstars.fandom.com），仅供玩家便捷参考，可能与最新版本存在出入，请以游戏内为准。
+        本页为粉丝向非商业工具；角色评级仅采用 Brawlytix 近七天传奇段位 Meta Score，粗略划分为 F、D、C、B、A、S 六档，每日数据可能变化，仅供参考。
       </p>
 
       <button
@@ -148,9 +193,31 @@ export default function Preview() {
 
 function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
   const s = hero.stats;
+  const modeTags = (hero.specialtyModes ?? []).flatMap((id) => {
+    const mode = SPECIALTY_MODES.find((item) => item.id === id);
+    return mode ? [{ ...mode, label: `擅长${mode.name}模式` }] : [];
+  });
+  const traitTags = (hero.traitTags ?? []).flatMap((id) => {
+    const trait = HERO_TRAIT_TAGS.find((item) => item.id === id);
+    return trait ? [{ ...trait, label: trait.name }] : [];
+  });
+  const tags = [...modeTags, ...traitTags].sort(
+    (a, b) => traitDisplayPriority(a.id) - traitDisplayPriority(b.id),
+  );
   return (
     <>
       <div className="note-backdrop" onClick={onClose} />
+      <aside className="hero-specialty-note" aria-label={`${hero.name}角色特性`}>
+        <p className="hero-specialty-title">角色特性</p>
+        <div className="hero-specialty-list">
+          {tags.map((tag) => (
+            <div key={tag.id} className="hero-specialty-row">
+              <img src={tag.icon} alt="" aria-hidden="true" />
+              <span>{tag.label}</span>
+            </div>
+          ))}
+        </div>
+      </aside>
       <div className="hero-note">
         <div className="hero-note-header">
           <div className="hero-note-title">
@@ -201,7 +268,7 @@ function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
             </div>
             <div className="stat-row">
               <span className="stat-label">移速</span>
-              <span className="stat-value">{s.moveSpeed}</span>
+              <span className="stat-value">{formatMoveSpeed(s.moveSpeed)}</span>
             </div>
             <p className="hero-note-note">
               数值来源：brawlstars.fandom.com 公开粉丝 Wiki 的基础值，按「生命/伤害 ×2」换算为 11 级（移速、距离、回弹不随等级变化）。柯尔特已按你提供的可靠数据核对一致（6200 / 720×6）。「普攻满伤」为一发普攻的总伤害（含多段、区间、多档、反弹/溅射等构成），写法见数值口径说明；数据源无法确定的项标注「数据待补」。若与游戏内实际不符，请以你提供的真实数据为准修正。

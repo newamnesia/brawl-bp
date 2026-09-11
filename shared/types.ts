@@ -1,6 +1,6 @@
 export type Rarity = "starting" | "rare" | "super_rare" | "epic" | "mythic" | "legendary" | "extraordinary";
 
-export type Tier = "S" | "A" | "B" | "C" | "D" | "E";
+export type Tier = "S" | "A" | "B" | "C" | "D" | "F";
 
 /**
  * 11 级基础数值（仅展示 11 级）。
@@ -43,8 +43,12 @@ export interface Hero {
   borderless?: boolean;
   /** 暂时不可用（不在选角/禁用池中出现） */
   disabled?: boolean;
-  /** 综合评级（S/A/B/C/D/E，与 brawlstats.net 同口径）；未评级则省略 */
+  /** 综合评级（S/A/B/C/D/F，按 Brawlytix 近七天传奇段位 Meta Score 粗略分档）；未评级则省略 */
   tier?: Tier;
+  /** 单人预览中展示的擅长模式；未标记则保持为空 */
+  specialtyModes?: SpecialtyMode[];
+  /** 单人预览中展示的战斗特性标签；未标记则保持为空 */
+  traitTags?: HeroTraitTag[];
   /** 11 级基础数值；尚未录入则为 undefined */
   stats?: StatBlock;
 }
@@ -55,58 +59,58 @@ export interface Hero {
 // cdnId 按官方顺序分配，跳过 33/88；56 和 89 的 borders 图缺失，用 borderless
 export const HEROES: Hero[] = [
   // 初始
-  { id: "shelly", name: "雪莉", enName: "Shelly", emoji: "🔫", rarity: "starting", cdnId: 16000000 , stats: { health: 7800, attack: "600×5", reloadMs: 1500, range: 7.67, moveSpeed: 770 }},
+  { id: "shelly", name: "雪莉", enName: "Shelly", emoji: "🔫", rarity: "starting", cdnId: 16000000, traitTags: ["anti_tank", "range_close"], stats: { health: 7800, attack: "600×5", reloadMs: 1500, range: 7.67, moveSpeed: 770 }},
   // 稀有
-  { id: "nita", name: "妮塔", enName: "Nita", emoji: "🐻", rarity: "rare", cdnId: 16000008 , stats: { health: 8400, attack: "1920", reloadMs: 1100, range: 6, moveSpeed: 720 }},
-  { id: "colt", name: "柯尔特", enName: "Colt", emoji: "🤠", rarity: "rare", cdnId: 16000001, stats: { health: 6200, attack: "720×6", reloadMs: 1300, range: 9, moveSpeed: 720 }},
-  { id: "bull", name: "公牛", enName: "Bull", emoji: "🐂", rarity: "rare", cdnId: 16000002 , stats: { health: 10000, attack: "880×5", reloadMs: 1600, range: 5.33, moveSpeed: 770 }},
-  { id: "brock", name: "布洛克", enName: "Brock", emoji: "🚀", rarity: "rare", cdnId: 16000003 , stats: { health: 6000, attack: "2320+696×2(残留火焰灼烧)", reloadMs: 1950, range: 9, moveSpeed: 720 }},
-  { id: "el_primo", name: "艾尔普利莫", enName: "El Primo", emoji: "💪", rarity: "rare", cdnId: 16000010 , stats: { health: 13000, attack: "760×4", reloadMs: 800, range: 3, moveSpeed: 770 }},
-  { id: "barley", name: "巴利", enName: "Barley", emoji: "🍺", rarity: "rare", cdnId: 16000006 , stats: { health: 5400, attack: "1600×2", reloadMs: 2000, range: 7.33, moveSpeed: 720 }},
-  { id: "poco", name: "波克", enName: "Poco", emoji: "🎸", rarity: "rare", cdnId: 16000013 , stats: { health: 8000, attack: "1520", reloadMs: 1600, range: 7, moveSpeed: 720 }},
-  { id: "rosa", name: "罗莎", enName: "Rosa", emoji: "🌹", rarity: "rare", cdnId: 16000024 , stats: { health: 10800, attack: "1000×3", reloadMs: 1000, range: 3.67, moveSpeed: 770 }},
+  { id: "nita", name: "妮塔", enName: "Nita", emoji: "🐻", rarity: "rare", cdnId: 16000008, specialtyModes: ["heist"], traitTags: ["range_close_medium", "anti_tank", "summoned_unit"], stats: { health: 8400, attack: "1920", reloadMs: 1100, range: 6, moveSpeed: 720 }},
+  { id: "colt", name: "柯尔特", enName: "Colt", emoji: "🤠", rarity: "rare", cdnId: 16000001, specialtyModes: ["heist"], traitTags: ["wall_breaker", "burst_fire"], stats: { health: 6200, attack: "720×6", reloadMs: 1300, range: 9, moveSpeed: 720 }},
+  { id: "bull", name: "公牛", enName: "Bull", emoji: "🐂", rarity: "rare", cdnId: 16000002, specialtyModes: ["heist"], traitTags: ["range_close", "tank", "dash"], stats: { health: 10000, attack: "880×5", reloadMs: 1600, range: 5.33, moveSpeed: 770 }},
+  { id: "brock", name: "布洛克", enName: "Brock", emoji: "🚀", rarity: "rare", cdnId: 16000003, traitTags: ["range_long", "wall_breaker", "lane_dominance", "single_shot"], stats: { health: 6000, attack: "2320+696×2(残留火焰灼烧)", reloadMs: 1950, range: 9, moveSpeed: 720 }},
+  { id: "el_primo", name: "艾尔普利莫", enName: "El Primo", emoji: "💪", rarity: "rare", cdnId: 16000010, traitTags: ["range_close", "tank", "dash"], stats: { health: 13000, attack: "760×4", reloadMs: 800, range: 3, moveSpeed: 770 }},
+  { id: "barley", name: "巴利", enName: "Barley", emoji: "🍺", rarity: "rare", cdnId: 16000006, traitTags: ["thrower", "area_control", "wall_cover"], stats: { health: 5400, attack: "1600×2", reloadMs: 2000, range: 7.33, moveSpeed: 720 }},
+  { id: "poco", name: "波克", enName: "Poco", emoji: "🎸", rarity: "rare", cdnId: 16000013, traitTags: ["range_close_medium", "healing", "cleanse"], stats: { health: 8000, attack: "1520", reloadMs: 1600, range: 7, moveSpeed: 720 }},
+  { id: "rosa", name: "罗莎", enName: "Rosa", emoji: "🌹", rarity: "rare", cdnId: 16000024, traitTags: ["tank"], stats: { health: 10800, attack: "1000×3", reloadMs: 1000, range: 3.67, moveSpeed: 770 }},
   // 超稀有
-  { id: "jessie", name: "杰西", enName: "Jessie", emoji: "🤖", rarity: "super_rare", cdnId: 16000007 , stats: { health: 6600, attack: "2120/1590/1192(反弹递减)", reloadMs: 1800, range: 9, moveSpeed: 720 }},
-  { id: "dynamike", name: "麦克", enName: "Dynamike", emoji: "💣", rarity: "super_rare", cdnId: 16000009 , stats: { health: 6000, attack: "1600×2", reloadMs: 1400, range: 7.33, moveSpeed: 770 }},
-  { id: "tick", name: "迪克", enName: "Tick", emoji: "🧨", rarity: "super_rare", cdnId: 16000022 , stats: { health: 4800, attack: "1360×3", reloadMs: 2400, range: 8.67, moveSpeed: 720 }},
-  { id: "8bit", name: "8比特", enName: "8-Bit", emoji: "👾", rarity: "super_rare", cdnId: 16000027 , stats: { health: 10400, attack: "680×6", reloadMs: 1350, range: 10, moveSpeed: 580 }},
-  { id: "rico", name: "瑞科", enName: "Rico", emoji: "🏐", rarity: "super_rare", cdnId: 16000004 , stats: { health: 6000, attack: "600×5", reloadMs: 1100, range: 9.67, moveSpeed: 720 }},
-  { id: "darryl", name: "达里尔", enName: "Darryl", emoji: "🛢️", rarity: "super_rare", cdnId: 16000018 , stats: { health: 11000, attack: "480×5×2", reloadMs: 1800, range: 6, moveSpeed: 770 }},
-  { id: "penny", name: "潘妮", enName: "Penny", emoji: "🪙", rarity: "super_rare", cdnId: 16000019 , stats: { health: 7000, attack: "1960+1470×3(溅射)", reloadMs: 2000, range: 8.67, moveSpeed: 720 }},
-  { id: "carl", name: "卡尔", enName: "Carl", emoji: "⛏️", rarity: "super_rare", cdnId: 16000025 , stats: { health: 8400, attack: "1640×2", range: 8.33, moveSpeed: 720 }},
-  { id: "jacky", name: "雅琪", enName: "Jacky", emoji: "🔨", rarity: "super_rare", cdnId: 16000034 , stats: { health: 10400, attack: "2480", reloadMs: 1800, range: 3.33, moveSpeed: 770 }},
-  { id: "gus", name: "格斯", enName: "Gus", emoji: "👻", rarity: "super_rare", cdnId: 16000061 , stats: { health: 6600, attack: "2160", reloadMs: 1500, range: 9.33, moveSpeed: 720 }},
+  { id: "jessie", name: "杰西", enName: "Jessie", emoji: "🤖", rarity: "super_rare", cdnId: 16000007, traitTags: ["range_medium_long", "summoned_unit", "anti_multiple_summons"], stats: { health: 6600, attack: "2120/1590/1192(反弹递减)", reloadMs: 1800, range: 9, moveSpeed: 720 }},
+  { id: "dynamike", name: "麦克", enName: "Dynamike", emoji: "💣", rarity: "super_rare", cdnId: 16000009, traitTags: ["thrower", "wall_cover"], stats: { health: 6000, attack: "1600×2", reloadMs: 1400, range: 7.33, moveSpeed: 770 }},
+  { id: "tick", name: "迪克", enName: "Tick", emoji: "🧨", rarity: "super_rare", cdnId: 16000022, traitTags: ["thrower", "wall_cover"], stats: { health: 4800, attack: "1360×3", reloadMs: 2400, range: 8.67, moveSpeed: 720 }},
+  { id: "8bit", name: "8比特", enName: "8-Bit", emoji: "👾", rarity: "super_rare", cdnId: 16000027, specialtyModes: ["heist"], traitTags: ["range_medium_long", "burst_fire"], stats: { health: 10400, attack: "680×6", reloadMs: 1350, range: 10, moveSpeed: 580 }},
+  { id: "rico", name: "瑞科", enName: "Rico", emoji: "🏐", rarity: "super_rare", cdnId: 16000004, traitTags: ["range_medium_long", "burst_fire", "wall_cover"], stats: { health: 6000, attack: "600×5", reloadMs: 1100, range: 9.67, moveSpeed: 720 }},
+  { id: "darryl", name: "达里尔", enName: "Darryl", emoji: "🛢️", rarity: "super_rare", cdnId: 16000018, traitTags: ["range_close", "tank", "dash"], stats: { health: 11000, attack: "480×5×2", reloadMs: 1800, range: 6, moveSpeed: 770 }},
+  { id: "penny", name: "潘妮", enName: "Penny", emoji: "🪙", rarity: "super_rare", cdnId: 16000019, traitTags: ["anti_multiple_summons", "range_medium", "summoned_unit"], stats: { health: 7000, attack: "1960+1470×3(溅射)", reloadMs: 2000, range: 8.67, moveSpeed: 720 }},
+  { id: "carl", name: "卡尔", enName: "Carl", emoji: "⛏️", rarity: "super_rare", cdnId: 16000025, traitTags: ["range_close_medium", "dash"], stats: { health: 8400, attack: "1640×2", range: 8.33, moveSpeed: 720 }},
+  { id: "jacky", name: "雅琪", enName: "Jacky", emoji: "🔨", rarity: "super_rare", cdnId: 16000034, traitTags: ["tank"], stats: { health: 10400, attack: "2480", reloadMs: 1800, range: 3.33, moveSpeed: 770 }},
+  { id: "gus", name: "格斯", enName: "Gus", emoji: "👻", rarity: "super_rare", cdnId: 16000061, traitTags: ["shield_grant", "healing", "single_shot"], stats: { health: 6600, attack: "2160", reloadMs: 1500, range: 9.33, moveSpeed: 720 }},
   // 史诗
-  { id: "bo", name: "阿渤", enName: "Bo", emoji: "🏹", rarity: "epic", cdnId: 16000014 , stats: { health: 7600, attack: "1280×3", reloadMs: 1700, range: 8.67, moveSpeed: 720 }},
-  { id: "emz", name: "艾魅", enName: "Emz", emoji: "💅", rarity: "epic", cdnId: 16000030 , stats: { health: 7800, attack: "1120×(1~3段)", reloadMs: 2000, range: 6.67, moveSpeed: 720 }},
-  { id: "stu", name: "斯图", enName: "Stu", emoji: "🏍️", rarity: "epic", cdnId: 16000045 , stats: { health: 7000, attack: "1080×2", reloadMs: 1500, range: 7.67, moveSpeed: 720 }},
-  { id: "piper", name: "佩佩", enName: "Piper", emoji: "☂️", rarity: "epic", cdnId: 16000015 , stats: { health: 5600, attack: "720~3600", reloadMs: 2300, range: 10, moveSpeed: 720 }},
-  { id: "pam", name: "帕姆", enName: "Pam", emoji: "🔧", rarity: "epic", cdnId: 16000016 , stats: { health: 10000, attack: "600×9", reloadMs: 1300, range: 9, moveSpeed: 720 }},
-  { id: "frank", name: "弗兰肯", enName: "Frank", emoji: "⚰️", rarity: "epic", cdnId: 16000020 , stats: { health: 13600, attack: "2320", reloadMs: 800, range: 6, moveSpeed: 770 }},
-  { id: "bibi", name: "比比", enName: "Bibi", emoji: "🥎", rarity: "epic", cdnId: 16000026 , stats: { health: 10000, attack: "2800", reloadMs: 800, range: 3.67, moveSpeed: 820 }},
-  { id: "bea", name: "贝亚", enName: "Bea", emoji: "🐝", rarity: "epic", cdnId: 16000029 , stats: { health: 5600, attack: "1600/4400", reloadMs: 900, range: 10, moveSpeed: 720 }},
-  { id: "nani", name: "纳妮", enName: "Nani", emoji: "🤖", rarity: "epic", cdnId: 16000036 , stats: { health: 5000, attack: "1600×3", reloadMs: 1800, range: 8.67, moveSpeed: 720 }},
-  { id: "edgar", name: "艾德加", enName: "Edgar", emoji: "🦇", rarity: "epic", cdnId: 16000043 , stats: { health: 7400, attack: "1080×2", reloadMs: 700, range: 2, moveSpeed: 820 }},
-  { id: "griff", name: "格里夫", enName: "Griff", emoji: "🎰", rarity: "epic", cdnId: 16000050 , stats: { health: 7400, attack: "560×9", reloadMs: 1600, range: 8.33, moveSpeed: 720 }},
-  { id: "grom", name: "格罗姆", enName: "Grom", emoji: "🧪", rarity: "epic", cdnId: 16000048 , stats: { health: 6000, attack: "2080", reloadMs: 2000, range: 7.67, moveSpeed: 720 }},
-  { id: "bonnie", name: "邦妮", enName: "Bonnie", emoji: "🍭", rarity: "epic", cdnId: 16000058 , stats: { health: 10000, attack: "2440/1160×3", reloadMs: 1000, range: 9, moveSpeed: 620 }},
-  { id: "gale", name: "格尔", enName: "Gale", emoji: "🌪️", rarity: "epic", cdnId: 16000035 , stats: { health: 8000, attack: "600×6", reloadMs: 1200, range: 8.33, moveSpeed: 720 }},
-  { id: "colette", name: "柯莱特", enName: "Colette", emoji: "🚌", rarity: "epic", cdnId: 16000039 , stats: { health: 7200, attack: "39%(最低1000)", reloadMs: 1600, range: 8.67, moveSpeed: 720 }},
-  { id: "belle", name: "贝尔", enName: "Belle", emoji: "🔔", rarity: "epic", cdnId: 16000046 , stats: { health: 5800, attack: "2080+1040×3(反弹)", reloadMs: 1400, range: 10, moveSpeed: 720 }},
-  { id: "ash", name: "阿拾", enName: "Ash", emoji: "⚔️", rarity: "epic", cdnId: 16000051 , stats: { health: 11800, attack: "1600/2400/3200", reloadMs: 1400, range: 4.67, moveSpeed: 720 }},
-  { id: "lola", name: "萝拉", enName: "Lola", emoji: "🎬", rarity: "epic", cdnId: 16000053 , stats: { health: 8000, attack: "560×6", reloadMs: 1700, range: 9, moveSpeed: 720 }},
-  { id: "sam", name: "山姆", enName: "Sam", emoji: "🎒", rarity: "epic", cdnId: 16000060 , stats: { health: 11400, attack: "3200(拳套)/2000(无拳套)", reloadMs: 1600, range: 3, moveSpeed: 770 }},
-  { id: "mandy", name: "曼迪", enName: "Mandy", emoji: "🎯", rarity: "epic", cdnId: 16000065 , stats: { health: 6000, attack: "2800", reloadMs: 1500, range: 9, moveSpeed: 720 }},
-  { id: "maisie", name: "麦茜", enName: "Maisie", emoji: "💢", rarity: "epic", cdnId: 16000068 , stats: { health: 8000, attack: "3000", reloadMs: 1500, range: 8.67, moveSpeed: 720 }},
-  { id: "hank", name: "汉克", enName: "Hank", emoji: "🫧", rarity: "epic", cdnId: 16000069 , stats: { health: 10400, attack: "1050~4200", reloadMs: 250, range: 1.67, moveSpeed: 720 }},
-  { id: "pearl", name: "珀尔", enName: "Pearl", emoji: "🤖", rarity: "epic", cdnId: 16000072 , stats: { health: 8600, attack: "(560~980)×6", reloadMs: 1500, range: 9, moveSpeed: 720 }},
-  { id: "larry_lawrie", name: "拉里和劳里", enName: "Larry & Lawrie", emoji: "🤖", rarity: "epic", cdnId: 16000077 , stats: { health: 6000, attack: "1400×2", reloadMs: 2200, range: 7.33, moveSpeed: 770 }},
-  { id: "angelo", name: "安吉洛", enName: "Angelo", emoji: "🏹", rarity: "epic", cdnId: 16000079 , stats: { health: 6200, attack: "400~4000", reloadMs: 100, range: 10, moveSpeed: 820 }},
-  { id: "berry", name: "拜瑞", enName: "Berry", emoji: "🎻", rarity: "epic", cdnId: 16000082 , stats: { health: 5200, attack: "1320×6", reloadMs: 2400, range: 6.33, moveSpeed: 720 }},
-  { id: "shade", name: "谢德", enName: "Shade", emoji: "🌑", rarity: "epic", cdnId: 16000086 , stats: { health: 7400, attack: "1600/3200(中心)", reloadMs: 800, range: 3.67, moveSpeed: 820 }},
-  { id: "meeple", name: "谜宝", enName: "Meeple", emoji: "🎲", rarity: "epic", cdnId: 16000089, borderless: true , stats: { health: 6600, attack: "2520", reloadMs: 1700, range: 7.67, moveSpeed: 720 }},
-  { id: "trunk", name: "桩", enName: "Trunk", emoji: "🪵", rarity: "epic", cdnId: 16000096 , stats: { health: 10400, attack: "2100(中)/2800(边)", reloadMs: 1500, range: 3.33, moveSpeed: 770 }},
-  { id: "bolt", name: "博尔特", enName: "Bolt", emoji: "⚡", rarity: "epic", cdnId: 16000106 , stats: { health: 10000, attack: "1048~1480", reloadMs: 2200, moveSpeed: 540 }},
+  { id: "bo", name: "阿渤", enName: "Bo", emoji: "🏹", rarity: "epic", cdnId: 16000014, traitTags: ["range_medium_long", "area_control"], stats: { health: 7600, attack: "1280×3", reloadMs: 1700, range: 8.67, moveSpeed: 720 }},
+  { id: "emz", name: "艾魅", enName: "Emz", emoji: "💅", rarity: "epic", cdnId: 16000030, traitTags: ["range_close_medium", "anti_tank"], stats: { health: 7800, attack: "1120×(1~3段)", reloadMs: 2000, range: 6.67, moveSpeed: 720 }},
+  { id: "stu", name: "斯图", enName: "Stu", emoji: "🏍️", rarity: "epic", cdnId: 16000045, traitTags: ["dash", "range_close_medium"], stats: { health: 7000, attack: "1080×2", reloadMs: 1500, range: 7.67, moveSpeed: 720 }},
+  { id: "piper", name: "佩佩", enName: "Piper", emoji: "☂️", rarity: "epic", cdnId: 16000015, traitTags: ["range_long", "wall_breaker", "single_shot", "lane_dominance"], stats: { health: 5600, attack: "720~3600", reloadMs: 2300, range: 10, moveSpeed: 720 }},
+  { id: "pam", name: "帕姆", enName: "Pam", emoji: "🔧", rarity: "epic", cdnId: 16000016, traitTags: ["range_close_medium", "healing", "tank"], stats: { health: 10000, attack: "600×9", reloadMs: 1300, range: 9, moveSpeed: 720 }},
+  { id: "frank", name: "弗兰肯", enName: "Frank", emoji: "⚰️", rarity: "epic", cdnId: 16000020, traitTags: ["tank", "range_close_medium", "wall_breaker"], stats: { health: 13600, attack: "2320", reloadMs: 800, range: 6, moveSpeed: 770 }},
+  { id: "bibi", name: "比比", enName: "Bibi", emoji: "🥎", rarity: "epic", cdnId: 16000026, traitTags: ["range_close"], stats: { health: 10000, attack: "2800", reloadMs: 800, range: 3.67, moveSpeed: 820 }},
+  { id: "bea", name: "贝亚", enName: "Bea", emoji: "🐝", rarity: "epic", cdnId: 16000029, traitTags: ["single_shot", "range_medium_long", "anti_tank", "debuff"], stats: { health: 5600, attack: "1600/4400", reloadMs: 900, range: 10, moveSpeed: 720 }},
+  { id: "nani", name: "纳妮", enName: "Nani", emoji: "🤖", rarity: "epic", cdnId: 16000036, traitTags: ["range_long", "lane_dominance", "ultra_range_execute", "anti_single_shot"], stats: { health: 5000, attack: "1600×3", reloadMs: 1800, range: 8.67, moveSpeed: 720 }},
+  { id: "edgar", name: "艾德加", enName: "Edgar", emoji: "🦇", rarity: "epic", cdnId: 16000043, traitTags: ["range_close", "dash"], stats: { health: 7400, attack: "1080×2", reloadMs: 700, range: 2, moveSpeed: 820 }},
+  { id: "griff", name: "格里夫", enName: "Griff", emoji: "🎰", rarity: "epic", cdnId: 16000050, traitTags: ["burst_fire", "range_close_medium", "wall_breaker"], stats: { health: 7400, attack: "560×9", reloadMs: 1600, range: 8.33, moveSpeed: 720 }},
+  { id: "grom", name: "格罗姆", enName: "Grom", emoji: "🧪", rarity: "epic", cdnId: 16000048, traitTags: ["thrower", "wall_cover"], stats: { health: 6000, attack: "2080", reloadMs: 2000, range: 7.67, moveSpeed: 720 }},
+  { id: "bonnie", name: "邦妮", enName: "Bonnie", emoji: "🍭", rarity: "epic", cdnId: 16000058, traitTags: ["single_shot", "dash"], stats: { health: 10000, attack: "2440/1160×3", reloadMs: 1000, range: 9, moveSpeed: 620 }},
+  { id: "gale", name: "格尔", enName: "Gale", emoji: "🌪️", rarity: "epic", cdnId: 16000035, traitTags: ["range_close_medium", "anti_tank", "debuff"], stats: { health: 8000, attack: "600×6", reloadMs: 1200, range: 8.33, moveSpeed: 720 }},
+  { id: "colette", name: "柯莱特", enName: "Colette", emoji: "🚌", rarity: "epic", cdnId: 16000039, specialtyModes: ["heist"], traitTags: ["single_shot", "range_all", "anti_tank"], stats: { health: 7200, attack: "39%(最低1000)", reloadMs: 1600, range: 8.67, moveSpeed: 720 }},
+  { id: "belle", name: "贝尔", enName: "Belle", emoji: "🔔", rarity: "epic", cdnId: 16000046, traitTags: ["single_shot", "anti_grouped", "range_long", "debuff"], stats: { health: 5800, attack: "2080+1040×3(反弹)", reloadMs: 1400, range: 10, moveSpeed: 720 }},
+  { id: "ash", name: "阿拾", enName: "Ash", emoji: "⚔️", rarity: "epic", cdnId: 16000051, traitTags: ["tank", "multiple_summons"], stats: { health: 11800, attack: "1600/2400/3200", reloadMs: 1400, range: 4.67, moveSpeed: 720 }},
+  { id: "lola", name: "萝拉", enName: "Lola", emoji: "🎬", rarity: "epic", cdnId: 16000053, traitTags: ["range_medium_long", "burst_fire", "summoned_unit"], stats: { health: 8000, attack: "560×6", reloadMs: 1700, range: 9, moveSpeed: 720 }},
+  { id: "sam", name: "山姆", enName: "Sam", emoji: "🎒", rarity: "epic", cdnId: 16000060, traitTags: ["tank", "range_close"], stats: { health: 11400, attack: "3200(拳套)/2000(无拳套)", reloadMs: 1600, range: 3, moveSpeed: 770 }},
+  { id: "mandy", name: "曼迪", enName: "Mandy", emoji: "🎯", rarity: "epic", cdnId: 16000065, traitTags: ["range_long", "lane_dominance", "ultra_range_execute"], stats: { health: 6000, attack: "2800", reloadMs: 1500, range: 9, moveSpeed: 720 }},
+  { id: "maisie", name: "麦茜", enName: "Maisie", emoji: "💢", rarity: "epic", cdnId: 16000068, traitTags: ["single_shot", "range_medium_long", "anti_tank"], stats: { health: 8000, attack: "3000", reloadMs: 1500, range: 8.67, moveSpeed: 720 }},
+  { id: "hank", name: "汉克", enName: "Hank", emoji: "🫧", rarity: "epic", cdnId: 16000069, traitTags: ["wall_cover", "range_close_medium", "tank"], stats: { health: 10400, attack: "1050~4200", reloadMs: 250, range: 1.67, moveSpeed: 720 }},
+  { id: "pearl", name: "珀尔", enName: "Pearl", emoji: "🤖", rarity: "epic", cdnId: 16000072, traitTags: ["burst_fire", "range_all", "tank"], stats: { health: 8600, attack: "(560~980)×6", reloadMs: 1500, range: 9, moveSpeed: 720 }},
+  { id: "larry_lawrie", name: "拉里和劳里", enName: "Larry & Lawrie", emoji: "🤖", rarity: "epic", cdnId: 16000077, traitTags: ["thrower", "summoned_unit"], stats: { health: 6000, attack: "1400×2", reloadMs: 2200, range: 7.33, moveSpeed: 770 }},
+  { id: "angelo", name: "安吉洛", enName: "Angelo", emoji: "🏹", rarity: "epic", cdnId: 16000079, traitTags: ["single_shot", "water_route"], stats: { health: 6200, attack: "400~4000", reloadMs: 100, range: 10, moveSpeed: 820 }},
+  { id: "berry", name: "拜瑞", enName: "Berry", emoji: "🎻", rarity: "epic", cdnId: 16000082, traitTags: ["thrower", "healing"], stats: { health: 5200, attack: "1320×6", reloadMs: 2400, range: 6.33, moveSpeed: 720 }},
+  { id: "shade", name: "谢德", enName: "Shade", emoji: "🌑", rarity: "epic", cdnId: 16000086, traitTags: ["range_close_medium", "wall_cover", "dash"], stats: { health: 7400, attack: "1600/3200(中心)", reloadMs: 800, range: 3.67, moveSpeed: 820 }},
+  { id: "meeple", name: "谜宝", enName: "Meeple", emoji: "🎲", rarity: "epic", cdnId: 16000089, borderless: true, traitTags: ["wall_cover", "range_close_medium"], stats: { health: 6600, attack: "2520", reloadMs: 1700, range: 7.67, moveSpeed: 720 }},
+  { id: "trunk", name: "桩", enName: "Trunk", emoji: "🪵", rarity: "epic", cdnId: 16000096, traitTags: ["range_close", "tank", "dash"], stats: { health: 10400, attack: "2100(中)/2800(边)", reloadMs: 1500, range: 3.33, moveSpeed: 770 }},
+  { id: "bolt", name: "博尔特", enName: "Bolt", emoji: "⚡", rarity: "epic", cdnId: 16000106, traitTags: ["range_close", "dash"], stats: { health: 10000, attack: "1048~1480", reloadMs: 2200, moveSpeed: 540 }},
   // 神话
   { id: "mortis", name: "莫提斯", enName: "Mortis", emoji: "🪦", rarity: "mythic", cdnId: 16000011 , stats: { health: 8000, attack: "2000", reloadMs: 2400, range: 2.67, moveSpeed: 820 }},
   { id: "tara", name: "塔拉", enName: "Tara", emoji: "🔮", rarity: "mythic", cdnId: 16000017 , stats: { health: 6600, attack: "960×3", reloadMs: 1800, range: 8, moveSpeed: 720 }},
@@ -130,7 +134,7 @@ export const HEROES: Hero[] = [
   { id: "doug", name: "道格", enName: "Doug", emoji: "🌭", rarity: "mythic", cdnId: 16000071 , stats: { health: 10400, attack: "2400", reloadMs: 1500, range: 3.33, moveSpeed: 770 }},
   { id: "chuck", name: "查克", enName: "Chuck", emoji: "📦", rarity: "mythic", cdnId: 16000073 , stats: { health: 9400, attack: "(572~1080)×3(后两发射程更远)", reloadMs: 2000, range: 6.67, moveSpeed: 770 }},
   { id: "charlie", name: "查理", enName: "Charlie", emoji: "🕷️", rarity: "mythic", cdnId: 16000074 , stats: { health: 7400, attack: "1600", range: 9, moveSpeed: 720 }},
-  { id: "mico", name: "米科", enName: "Mico", emoji: "🐵", rarity: "mythic", cdnId: 16000075 , stats: { health: 7000, attack: "2280", reloadMs: 2400, range: 4, moveSpeed: 820 }},
+  { id: "mico", name: "米科", enName: "Mico", emoji: "🐵", rarity: "mythic", cdnId: 16000075, specialtyModes: ["heist"], stats: { health: 7000, attack: "2280", reloadMs: 2400, range: 4, moveSpeed: 820 }},
   { id: "melodie", name: "麦乐迪", enName: "Melodie", emoji: "🎤", rarity: "mythic", cdnId: 16000078 , stats: { health: 7600, attack: "920/1840", reloadMs: 1500, range: 8, moveSpeed: 720 }},
   { id: "lily", name: "莉莉", enName: "Lily", emoji: "🌸", rarity: "mythic", cdnId: 16000081 , stats: { health: 8400, attack: "1060×2", reloadMs: 800, range: 2, moveSpeed: 820 }},
   { id: "moe", name: "阿萌", enName: "Moe", emoji: "🐲", rarity: "mythic", cdnId: 16000084 , stats: { health: 7200, attack: "1000×n/560×n", reloadMs: 1500, range: 7.67, moveSpeed: 770 }},
@@ -165,36 +169,43 @@ export const HEROES: Hero[] = [
   { id: "pierce", name: "皮尔斯", enName: "Pierce", emoji: "🏹", rarity: "legendary", cdnId: 16000099 , stats: { health: 6000, attack: "1900/1900/3000", reloadMs: 3000, range: 10, moveSpeed: 720 }},
   { id: "nori", name: "阿宪", enName: "Nori", emoji: "🍡", rarity: "legendary", cdnId: 16000107, borderless: true, stats: { health: 7600, attack: "2000(近战)/1440(远程)", reloadMs: 100, range: 8, moveSpeed: 820 }},
   // 超凡
-  { id: "kaze", name: "风姬", enName: "Kaze", emoji: "🌬️", rarity: "extraordinary", cdnId: 16000094 , stats: { health: 8200, attack: "1500/3000(艺妓)/(750~1500)×2(忍者)", reloadMs: 1900, range: 6.67, moveSpeed: 820 }},
+  { id: "kaze", name: "风姬", enName: "Kaze", emoji: "🌬️", rarity: "extraordinary", cdnId: 16000094, specialtyModes: ["heist"], stats: { health: 8200, attack: "1500/3000(艺妓)/(750~1500)×2(忍者)", reloadMs: 1900, range: 6.67, moveSpeed: 820 }},
   { id: "sirius", name: "西里乌斯", enName: "Sirius", emoji: "🌟", rarity: "extraordinary", cdnId: 16000102 , stats: { health: 6800, attack: "1200(双投射物)", reloadMs: 1600, range: 7.33, moveSpeed: 720 }},
 ];
 
 /**
- * 综合评级（S/A/B/C/D/E）。
- * 来源：荒野乱斗公开社区评级（如 brawlstars.fandom.com 及各类社区/视频网站的通行评级），
- * 属本游戏常见的社区共识性分级，非 brawlstats.net 原榜复制（后者抓取受反爬封锁，未使用）。
- * 数值与评级以用户后续提供的真实数据为准校准；未评级角色暂不显示评级。
+ * 综合评级（S/A/B/C/D/F）。
+ * 来源：Brawlytix 近七天传奇段位 Overall Meta Score，按高段位分数分布粗略分档：
+ * S 8.0–10、A 6.0–7.9、B 5.0–5.9、C 3.0–4.9、D 1.5–2.9、F 0–1.4。
+ * 不混入普通对局；这是不区分地图与阵容的高水平排位预览评级。
  */
 export const HERO_TIERS: Record<string, Tier> = {
   // S
-  sandy: "S", surge: "S", chester: "S", kit: "S", cordelius: "S", kaze: "S",
+  amber: "S", shade: "S", windy: "S", el_primo: "S", gus: "S", emz: "S",
   // A
-  spike: "A", crow: "A", leon: "A", amber: "A", meg: "A", draco: "A", kenji: "A",
-  pierce: "A", mortis: "A", tara: "A", gene: "A", max: "A", mr_p: "A", sprout: "A",
-  byron: "A", squeak: "A", lou: "A", ruffs: "A", buzz: "A", fang: "A", eve: "A",
-  janet: "A", otis: "A", buster: "A", gray: "A", rt: "A", willow: "A", doug: "A",
-  chuck: "A", charlie: "A", mico: "A", melodie: "A", lily: "A", moe: "A", clancy: "A",
-  juju: "A", ollie: "A", finx: "A", lumi: "A", jae_yong: "A", alli: "A", mina: "A",
-  ziggy: "A", gigi: "A", glowy: "A", starr_nova: "A", damian: "A", najia: "A",
+  "8bit": "A", brock: "A", rico: "A", pearl: "A", bo: "A", piper: "A",
+  colette: "A", edgar: "A", surge: "A", ash: "A", stu: "A", max: "A",
+  gray: "A", nori: "A", griff: "A", mortis: "A", colt: "A", carl: "A",
+  meg: "A", kaze: "A", starr_nova: "A", mina: "A", meeple: "A", pierce: "A",
+  otis: "A", byron: "A", bibi: "A", gene: "A",
   // B
-  shelly: "B", nita: "B", colt: "B", bull: "B", brock: "B", el_primo: "B", barley: "B",
-  poco: "B", rosa: "B", jessie: "B", dynamike: "B", tick: "B", "8bit": "B", rico: "B",
-  darryl: "B", penny: "B", carl: "B", jacky: "B", gus: "B", bo: "B", emz: "B",
-  stu: "B", piper: "B", pam: "B", frank: "B", bibi: "B", bea: "B", nani: "B",
-  edgar: "B", griff: "B", grom: "B", bonnie: "B", gale: "B", colette: "B", belle: "B",
-  ash: "B", lola: "B", sam: "B", mandy: "B", maisie: "B", hank: "B", pearl: "B",
-  larry_lawrie: "B", angelo: "B", berry: "B", shade: "B", meeple: "B", trunk: "B",
-  bolt: "B",
+  bull: "B", spike: "B", mico: "B", nani: "B", poco: "B", penny: "B",
+  crow: "B", ruffs: "B", melodie: "B", maisie: "B", angelo: "B", trunk: "B",
+  willow: "B", chester: "B", lumi: "B",
+  // C
+  najia: "C", leon: "C", fang: "C", cordelius: "C", mandy: "C", chuck: "C",
+  tara: "C", lou: "C", buzz: "C", belle: "C", sprout: "C", sirius: "C",
+  nita: "C", kenji: "C", tick: "C", charlie: "C", damian: "C", bolt: "C",
+  gigi: "C", doug: "C", eve: "C", frank: "C",
+  // D
+  rt: "D", squeak: "D", dynamike: "D", clancy: "D", bea: "D", lily: "D",
+  kit: "D", moe: "D", alli: "D", jessie: "D", barley: "D", gale: "D",
+  juju: "D", buster: "D", shelly: "D", darryl: "D", janet: "D", lola: "D",
+  finx: "D", grom: "D", jae_yong: "D", hank: "D", glowy: "D", sandy: "D",
+  mr_p: "D", berry: "D",
+  // F
+  larry_lawrie: "F", bonnie: "F", ziggy: "F", rosa: "F", jacky: "F",
+  ollie: "F", draco: "F", sam: "F", pam: "F",
 };
 
 /** 将评级写回 Hero；未评级角色保持 tier 为空 */
@@ -285,6 +296,49 @@ export interface RoomState {
 }
 
 export type GameMode = "brawl_ball" | "gem_grab" | "hot_zone" | "bounty" | "knockout";
+export type SpecialtyMode = GameMode | "heist";
+export type HeroTraitTag = "anti_grouped" | "anti_multiple_summons" | "anti_single_shot" | "anti_tank" | "area_control" | "burst_fire" | "cleanse" | "dash" | "debuff" | "healing" | "lane_dominance" | "multiple_summons" | "range_all" | "range_close" | "range_close_medium" | "range_medium" | "range_medium_long" | "range_long" | "shield_grant" | "single_shot" | "summoned_unit" | "tank" | "thrower" | "ultra_range_execute" | "wall_breaker" | "wall_cover" | "water_route";
+
+/** 角色特性使用的六种模式；独立于当前有地图数据的 BP 模式。 */
+export const SPECIALTY_MODES: { id: SpecialtyMode; name: string; icon: string }[] = [
+  { id: "brawl_ball", name: "足球", icon: "/brawl-stars/res/img/modes/icon_brawl_ball.webp" },
+  { id: "gem_grab", name: "宝石", icon: "/brawl-stars/res/img/modes/icon_gem_grab.webp" },
+  { id: "heist", name: "金库", icon: "/brawl-stars/res/img/modes/icon_heist.webp" },
+  { id: "hot_zone", name: "热区", icon: "/brawl-stars/res/img/modes/icon_hot_zone.webp" },
+  { id: "bounty", name: "赏金", icon: "/brawl-stars/res/img/modes/icon_bounty.webp" },
+  { id: "knockout", name: "淘汰", icon: "/brawl-stars/res/img/modes/icon_knockout.webp" },
+];
+
+/** 已审核通过的角色战斗特性标签。距离标签的三道弧分别独立表示近、中、长距离。 */
+export const HERO_TRAIT_TAGS: { id: HeroTraitTag; name: string; icon: string }[] = [
+  { id: "anti_grouped", name: "克制抱团", icon: "/assets/hero-tags/anti-multiple-summons.png" },
+  { id: "anti_multiple_summons", name: "反制多重召唤物", icon: "/assets/hero-tags/anti-multiple-summons.png" },
+  { id: "anti_single_shot", name: "克制单发射手", icon: "/assets/hero-tags/shield-grant.png" },
+  { id: "anti_tank", name: "反制坦克", icon: "/assets/hero-tags/anti-tank.png" },
+  { id: "area_control", name: "区域控制", icon: "/assets/hero-tags/area-control.png" },
+  { id: "burst_fire", name: "多连发子弹", icon: "/assets/hero-tags/burst-fire.png" },
+  { id: "cleanse", name: "解除 Debuff", icon: "/assets/hero-tags/cleanse.png" },
+  { id: "dash", name: "突进", icon: "/assets/hero-tags/dash.png" },
+  { id: "debuff", name: "施加负面效果", icon: "/assets/hero-tags/debuff.png" },
+  { id: "healing", name: "治疗", icon: "/assets/hero-tags/healing.png" },
+  { id: "lane_dominance", name: "强势对线", icon: "/assets/hero-tags/lane-dominance.png" },
+  { id: "multiple_summons", name: "多重召唤物", icon: "/assets/hero-tags/multiple-summons.png" },
+  { id: "range_all", name: "近中远距离", icon: "/assets/hero-tags/range-all.png" },
+  { id: "range_close", name: "近距离", icon: "/assets/hero-tags/range-close.png" },
+  { id: "range_close_medium", name: "中近距离", icon: "/assets/hero-tags/range-close-medium.png" },
+  { id: "range_medium", name: "中距离", icon: "/assets/hero-tags/range-medium.png" },
+  { id: "range_medium_long", name: "中长距离", icon: "/assets/hero-tags/range-medium-long.png" },
+  { id: "range_long", name: "长距离", icon: "/assets/hero-tags/range-long.png" },
+  { id: "shield_grant", name: "提供护盾", icon: "/assets/hero-tags/shield-grant.png" },
+  { id: "single_shot", name: "单发射手", icon: "/assets/hero-tags/single-shot.png" },
+  { id: "summoned_unit", name: "召唤物", icon: "/assets/hero-tags/summoned-unit.png" },
+  { id: "tank", name: "坦克", icon: "/assets/hero-tags/tank.png" },
+  { id: "thrower", name: "投手", icon: "/assets/hero-tags/thrower.png" },
+  { id: "ultra_range_execute", name: "超远距离斩杀", icon: "/assets/hero-tags/ultra-range-execute.png" },
+  { id: "wall_breaker", name: "破墙", icon: "/assets/hero-tags/wall-breaker.png" },
+  { id: "wall_cover", name: "利用墙体", icon: "/assets/hero-tags/wall-cover.png" },
+  { id: "water_route", name: "走水路", icon: "/assets/hero-tags/water-route.png" },
+];
 
 export interface BrawlMap {
   id: string;
