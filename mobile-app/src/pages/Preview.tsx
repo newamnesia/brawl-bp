@@ -85,9 +85,9 @@ const TIER_LABELS: Record<Tier, string> = {
 };
 
 const REGULAR_MOVE_SPEED_LABELS: Partial<Record<number, string>> = {
-  720: "中等",
-  770: "快",
-  820: "非常快",
+  750: "中等",
+  800: "快",
+  855: "非常快",
 };
 
 function formatMoveSpeed(moveSpeed: number) {
@@ -176,7 +176,7 @@ export default function Preview() {
       </div>
 
       <p className="disclaimer-note">
-        本页为粉丝向非商业工具；角色评级仅采用 Brawlytix 近七天传奇段位 Meta Score，粗略划分为 F、D、C、B、A、S 六档，每日数据可能变化，仅供参考。
+        本页为粉丝向非商业工具；11 级基础数值取自 Brawlytix 公开角色详情页，角色评级仅采用其近七天传奇段位 Meta Score。复合机制角色的伤害可能按源站显示为 0；数据可能随版本与每日统计变化，仅供参考。
       </p>
 
       <button
@@ -253,16 +253,20 @@ function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
               <span className="stat-value">{s.health}</span>
             </div>
             <div className="stat-row">
-              <span className="stat-label">普攻满伤</span>
+              <span className="stat-label">普攻伤害</span>
               <span className="stat-value">
                 {s.attack}
               </span>
             </div>
             <div className="stat-row">
-              <span className="stat-label">回弹速度</span>
+              <span className="stat-label">装填速度</span>
               <span className="stat-value">
-                {s.reloadMs != null ? `${(s.reloadMs / 1000).toFixed(1)} 秒` : "数据待补"}
+                {s.reloadMs != null ? `${Number((s.reloadMs / 1000).toFixed(2))} 秒` : "数据待补"}
               </span>
+            </div>
+            <div className="stat-row">
+              <span className="stat-label">弹药数量</span>
+              <span className="stat-value">{s.ammo}</span>
             </div>
             <div className="stat-row">
               <span className="stat-label">攻击距离</span>
