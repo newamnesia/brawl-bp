@@ -184,12 +184,13 @@ export const HERO_TIERS: Record<string, Tier> = {
   colette: "A", griff: "A", maisie: "A", edgar: "A", emz: "A", stu: "A",
   gene: "A", lumi: "A", starr_nova: "A", lou: "A", mortis: "A", otis: "A",
   byron: "A", surge: "A", meg: "A", pierce: "A", kenji: "A", sirius: "A", kaze: "A",
+  mina: "A", moe: "A",
   // B
   colt: "B", nita: "B", jessie: "B", penny: "B", carl: "B", angelo: "B",
   belle: "B", berry: "B", bibi: "B", bonnie: "B", bolt: "B", piper: "B",
   meeple: "B", larry_lawrie: "B", janet: "B", pam: "B", pearl: "B", lola: "B", chuck: "B",
   charlie: "B", finx: "B", glowy: "B", buzz: "B", gray: "B", tara: "B",
-  jae_yong: "B", moe: "B", najia: "B", ruffs: "B", mina: "B", cordelius: "B",
+  jae_yong: "B", najia: "B", ruffs: "B", cordelius: "B",
   crow: "B", sandy: "B", kit: "B", leon: "B", chester: "B",
   // C
   bull: "C", barley: "C", dynamike: "C", bea: "C", frank: "C", gale: "C",
