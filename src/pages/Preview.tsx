@@ -35,6 +35,7 @@ const RARITY_ORDER: Rarity[] = [
 const RANGE_TRAIT_TAGS: ReadonlySet<HeroTraitTag> = new Set([
   "range_all",
   "range_close",
+  "range_close_long",
   "range_close_medium",
   "range_medium",
   "range_medium_long",
@@ -49,8 +50,10 @@ const COMBAT_ROLE_TRAIT_TAGS: ReadonlySet<HeroTraitTag> = new Set([
 ]);
 
 const STATUS_EFFECT_TRAIT_TAGS: ReadonlySet<HeroTraitTag> = new Set([
+  "anti_healing",
   "healing",
   "shield_grant",
+  "positive_buff",
   "cleanse",
   "debuff",
 ]);
