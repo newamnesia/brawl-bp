@@ -1,7 +1,8 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 
-const SOURCE_ORIGIN = "https://www.noff.gg";
+const NOFF_ORIGIN = "https://www.noff.gg";
+const BRAWL_SCOUT_ORIGIN = "https://brawlscout.com";
 const projectRoot = resolve(process.cwd());
 const publicRoot = join(projectRoot, "public");
 const catalogSource = await readFile(join(projectRoot, "shared", "types.ts"), "utf8");
@@ -33,7 +34,9 @@ async function syncAsset(assetPath) {
     if (error.code !== "ENOENT") throw error;
   }
 
-  const response = await fetch(`${SOURCE_ORIGIN}${assetPath}`);
+  const sourceOrigin = assetPath.startsWith("/brawlscout/") ? BRAWL_SCOUT_ORIGIN : NOFF_ORIGIN;
+  const sourcePath = assetPath.startsWith("/brawlscout/") ? assetPath.replace("/brawlscout", "") : assetPath;
+  const response = await fetch(`${sourceOrigin}${sourcePath}`);
   if (!response.ok) {
     throw new Error(`${assetPath} 下载失败: HTTP ${response.status}`);
   }

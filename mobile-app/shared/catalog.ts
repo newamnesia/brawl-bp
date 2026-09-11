@@ -17,6 +17,7 @@ export function heroDisplayName(hero: Hero): string {
 }
 
 export function heroImageUrl(hero: Hero): string {
+  if (hero.avatarPath) return `${MAPS_BASE_URL}${hero.avatarPath}`;
   const folder = hero.borderless ? "borderless" : "borders";
   return `/assets/heroes/${folder}/${hero.cdnId}.png`;
 }

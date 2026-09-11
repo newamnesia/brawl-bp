@@ -16,6 +16,7 @@ export function heroDisplayName(hero: Hero): string {
 }
 
 export function heroImageUrl(hero: Hero): string {
+  if (hero.avatarPath) return hero.avatarPath;
   const folder = hero.borderless ? "borderless" : "borders";
   return `https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/${folder}/${hero.cdnId}.png`;
 }

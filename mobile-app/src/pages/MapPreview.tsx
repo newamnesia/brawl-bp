@@ -20,6 +20,13 @@ export default function MapPreview() {
 
   return (
     <div className="app-shell">
+      <button
+        className="btn-primary"
+        style={{ marginBottom: "1rem", width: "100%" }}
+        onClick={() => navigate("/bp")}
+      >
+        返回 BP 大厅
+      </button>
       <h1 className="page-title">地图预览（{MAPS.length}）</h1>
       <p style={{ textAlign: "center", color: "var(--muted)", marginBottom: "0.75rem" }}>
         检查地图名称与图片配对 · 已加载 {loadedCount}/{MAPS.length}
@@ -82,13 +89,6 @@ export default function MapPreview() {
         })}
       </div>
 
-      <button
-        className="btn-primary"
-        style={{ marginTop: "1.5rem", width: "100%" }}
-        onClick={() => navigate("/bp")}
-      >
-        返回 BP 大厅
-      </button>
     </div>
   );
 }

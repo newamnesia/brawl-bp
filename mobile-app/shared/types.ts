@@ -27,6 +27,8 @@ export interface Hero {
   emoji: string;
   rarity: Rarity;
   cdnId: number;
+  /** 项目内置头像路径；用于外部头像源尚未同步的角色 */
+  avatarPath?: string;
   /** 该角色在 borders 文件夹无图，需用 borderless 文件夹 */
   borderless?: boolean;
   /** 暂时不可用（不在选角/禁用池中出现） */
@@ -141,6 +143,8 @@ export const HEROES: Hero[] = [
   { id: "damian", name: "达米安", enName: "Damian", emoji: "🦹", rarity: "mythic", cdnId: 16000104, traitTags: ["tank", "range_close", "dash"], stats: { health: 11200, attack: "1400", reloadMs: 1200, range: 2.67, moveSpeed: 800, ammo: 3 }},
   { id: "najia", name: "娜吉亚", enName: "Najia", emoji: "🧵", rarity: "mythic", cdnId: 16000103, traitTags: ["range_long", "multiple_summons", "lane_dominance"], stats: { health: 6800, attack: "600", reloadMs: 800, range: 6, moveSpeed: 800, ammo: 1 }},
   { id: "windy", name: "温蒂", enName: "Wendy", emoji: "🌪️", rarity: "mythic", cdnId: 16000108, borderless: true, traitTags: ["shield_grant", "range_close_medium"], stats: { health: 4000, attack: "2000", reloadMs: 1450, range: 8, moveSpeed: 800, ammo: 3 }},
+  { id: "cosmo", name: "科斯莫", enName: "Cosmo", emoji: "🔭", rarity: "mythic", cdnId: 16000109, avatarPath: "/assets/heroes/borderless/16000109.webp", stats: { health: 6800, attack: "0", reloadMs: 2000, range: 9, moveSpeed: 750, ammo: 3 }},
+  { id: "vince", name: "文斯", enName: "Vince", emoji: "🐛", rarity: "mythic", cdnId: 16000110, avatarPath: "/assets/heroes/borderless/16000110.webp", stats: { health: 6800, attack: "2200", reloadMs: 1450, range: 8.33, moveSpeed: 750, ammo: 3 }},
   // 传奇
   { id: "spike", name: "斯派克", enName: "Spike", emoji: "🌵", rarity: "legendary", cdnId: 16000005 , traitTags: ["range_all", "summoned_unit", "debuff"], stats: { health: 6000, attack: "1080", reloadMs: 2000, range: 7.67, moveSpeed: 750, ammo: 3 }},
   { id: "crow", name: "黑鸦", enName: "Crow", emoji: "🦅", rarity: "legendary", cdnId: 16000012 , traitTags: ["range_all", "debuff", "anti_healing", "dash"], stats: { health: 5600, attack: "1920", reloadMs: 1600, range: 8.67, moveSpeed: 855, ammo: 3 }},
@@ -291,7 +295,6 @@ export const SPECIALTY_MODES: { id: SpecialtyMode; name: string; icon: string }[
   { id: "hot_zone", name: "热区", icon: "/brawl-stars/res/img/modes/icon_hot_zone.webp" },
   { id: "bounty", name: "赏金", icon: "/brawl-stars/res/img/modes/icon_bounty.webp" },
   { id: "knockout", name: "淘汰", icon: "/brawl-stars/res/img/modes/icon_knockout.webp" },
-  { id: "heist", name: "金库", icon: "/brawl-stars/res/img/modes/icon_heist.webp" },
 ];
 
 /** 已审核通过的角色战斗特性标签。距离标签的三道弧分别独立表示近、中、长距离。 */
@@ -348,6 +351,7 @@ export const GAME_MODES: { id: GameMode; name: string; icon: string }[] = [
   { id: "hot_zone", name: "热区", icon: "/brawl-stars/res/img/modes/icon_hot_zone.webp" },
   { id: "bounty", name: "赏金", icon: "/brawl-stars/res/img/modes/icon_bounty.webp" },
   { id: "knockout", name: "淘汰", icon: "/brawl-stars/res/img/modes/icon_knockout.webp" },
+  { id: "heist", name: "金库", icon: "/brawl-stars/res/img/modes/icon_heist.webp" },
 ];
 
 export const MAPS: BrawlMap[] = [

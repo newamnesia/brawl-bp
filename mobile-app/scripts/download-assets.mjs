@@ -6,7 +6,7 @@ const root = new URL('../public/', import.meta.url);
 const assets = [...HEROES.map(hero => {
   const folder = hero.borderless ? 'borderless' : 'borders';
   return { path: `assets/heroes/${folder}/${hero.cdnId}.png`, source: `https://raw.githubusercontent.com/Brawlify/CDN/master/brawlers/${folder}/${hero.cdnId}.png` };
-}), ...[...MAPS.map(map => map.thumbnail), ...GAME_MODES.map(mode => mode.icon), ...SPECIALTY_MODES.map(mode => mode.icon)].map(path => ({ path: path.slice(1), source: `https://www.noff.gg${path}` }))];
+}), ...MAPS.map(map => ({ path: map.thumbnail.slice(1), source: `https://brawlscout.com${map.thumbnail.replace('/brawlscout', '')}` })), ...[...GAME_MODES.map(mode => mode.icon), ...SPECIALTY_MODES.map(mode => mode.icon)].map(path => ({ path: path.slice(1), source: `https://www.noff.gg${path}` }))];
 const queue = [...new Map(assets.map(asset => [asset.path, asset])).values()];
 const results = [];
 let next = 0;
