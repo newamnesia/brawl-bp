@@ -341,6 +341,8 @@ export const HERO_TRAIT_TAGS: { id: HeroTraitTag; name: string; icon: string }[]
 export interface BrawlMap {
   id: string;
   name: string;
+  /** 可选中文译名；有译名的地图在预览与选择列表中优先展示 */
+  localizedName?: string;
   mode: GameMode;
   thumbnail: string;
 }
@@ -446,7 +448,7 @@ export const MAPS: BrawlMap[] = [
 
   // ===== Knockout (淘汰) =====
   { id: "bs_15001096", name: "A Ballad About Minced Cutlets", mode: "knockout", thumbnail: "/brawlscout/map-img/a-ballad-about-minced-cutlets-15001096.webp" },
-  { id: "bs_15000368", name: "Belles Rock", mode: "knockout", thumbnail: "/brawlscout/map-img/belles-rock-15000368.webp" },
+  { id: "bs_15000368", name: "Belles Rock", localizedName: "摇滚贝尔", mode: "knockout", thumbnail: "/brawlscout/map-img/belles-rock-15000368.webp" },
   { id: "bs_15001059", name: "Call Of The Water", mode: "knockout", thumbnail: "/brawlscout/map-img/call-of-the-water-15001059.webp" },
   { id: "bs_15001127", name: "Chivalry", mode: "knockout", thumbnail: "/brawlscout/map-img/chivalry-15001127.webp" },
   { id: "bs_15001211", name: "Crab Claws", mode: "knockout", thumbnail: "/brawlscout/map-img/crab-claws-15001211.webp" },

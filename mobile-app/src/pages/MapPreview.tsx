@@ -5,7 +5,7 @@ import {
   MAPS,
   type GameMode,
 } from "../../shared/types";
-import { MAPS_BASE_URL } from "../../shared/catalog";
+import { mapDisplayName, mapThumbnailUrl } from "../../shared/catalog";
 
 export default function MapPreview() {
   const navigate = useNavigate();
@@ -13,7 +13,9 @@ export default function MapPreview() {
   const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<GameMode | "all">("all");
 
-  const visible = filter === "all" ? MAPS : MAPS.filter((m) => m.mode === filter);
+  const visible = (filter === "all" ? MAPS : MAPS.filter((m) => m.mode === filter))
+    .slice()
+    .sort((a, b) => Number(Boolean(b.localizedName)) - Number(Boolean(a.localizedName)));
 
   const modeName = (mode: GameMode) =>
     GAME_MODES.find((m) => m.id === mode)?.name ?? mode;
@@ -60,12 +62,12 @@ export default function MapPreview() {
             <div
               key={map.id}
               className={`map-preview-card ${isError ? "error" : ""}`}
-              title={`${map.name}（${modeName(map.mode)}）`}
+              title={`${mapDisplayName(map)}（${modeName(map.mode)}）`}
             >
               <img
                 className="map-preview-thumb"
-                src={`${MAPS_BASE_URL}${map.thumbnail}`}
-                alt={map.name}
+                src={mapThumbnailUrl(map)}
+                alt={mapDisplayName(map)}
                 loading="lazy"
                 draggable={false}
                 onLoad={() => setLoadedCount((c) => c + 1)}
@@ -79,7 +81,7 @@ export default function MapPreview() {
                     : undefined
                 }
               />
-              <span className="map-preview-name">{map.name}</span>
+              <span className="map-preview-name">{mapDisplayName(map)}</span>
               <span className="map-preview-mode">{modeName(map.mode)}</span>
               {isError && (
                 <span style={{ fontSize: "0.5rem", color: "var(--red)" }}>加载失败</span>

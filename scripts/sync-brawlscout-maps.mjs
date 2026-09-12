@@ -10,6 +10,7 @@ const MODE_SPECS = [
   ["knockout", "knockout", "Knockout (淘汰)"],
   ["heist", "heist", "Heist (金库)"],
 ];
+const LOCALIZED_NAMES = { "15000368": "摇滚贝尔" };
 
 const projectRoot = resolve(process.cwd());
 const webPublic = join(projectRoot, "public");
@@ -62,6 +63,7 @@ for (const [sourceMode, mode, heading] of MODE_SPECS) {
   const modeMaps = [...section.matchAll(cardPattern)].map((match) => ({
     id: `bs_${match[1]}`,
     name: decodeHtml(match[4].trim()),
+    localizedName: LOCALIZED_NAMES[match[1]],
     mode,
     sourcePath: match[2],
     thumbnail: `/brawlscout/map-img/${basename(match[2])}`,
@@ -102,7 +104,8 @@ const lines = ["export const MAPS: BrawlMap[] = ["];
 for (const [, mode, heading] of MODE_SPECS) {
   lines.push(`  // ===== ${heading} =====`);
   for (const map of maps.filter((item) => item.mode === mode)) {
-    lines.push(`  { id: "${map.id}", name: "${escapeTs(map.name)}", mode: "${mode}", thumbnail: "${map.thumbnail}" },`);
+    const localizedName = map.localizedName ? ` localizedName: "${escapeTs(map.localizedName)}",` : "";
+    lines.push(`  { id: "${map.id}", name: "${escapeTs(map.name)}",${localizedName} mode: "${mode}", thumbnail: "${map.thumbnail}" },`);
   }
   lines.push("");
 }

@@ -9,6 +9,8 @@ const Home = lazy(() => import("./pages/Home"));
 const Room = lazy(() => import("./pages/Room"));
 const Preview = lazy(() => import("./pages/Preview"));
 const MapPreview = lazy(() => import("./pages/MapPreview"));
+const SoloBpSetup = lazy(() => import("./pages/SoloBpSetup"));
+const SoloBpBoard = lazy(() => import("./pages/SoloBpBoard"));
 const MovementTraining = lazy(() => import("./pages/MovementTraining"));
 const AimingTraining = lazy(() => import("./pages/AimingTraining"));
 const OfflineTrainingGame = lazy(() => import("./pages/OfflineTrainingGame"));
@@ -26,6 +28,8 @@ export default function App() {
           <Route path="/room/:code" element={<Room />} />
           <Route path="/preview" element={<Preview />} />
           <Route path="/map-preview" element={<MapPreview />} />
+          <Route path="/solo-bp" element={<SoloBpSetup />} />
+          <Route path="/solo-bp/board" element={<SoloBpBoard />} />
           <Route path="/offline-training" element={<MovementTraining />} />
           <Route path="/offline-aiming" element={<AimingTraining />} />
           <Route path="/offline-training/game" element={<OfflineTrainingGame />} />

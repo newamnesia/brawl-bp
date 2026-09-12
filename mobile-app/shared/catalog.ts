@@ -8,6 +8,10 @@ export function mapThumbnailUrl(map: BrawlMap): string {
   return `${MAPS_BASE_URL}${map.thumbnail}`;
 }
 
+export function mapDisplayName(map: BrawlMap): string {
+  return map.localizedName ? `${map.localizedName}（${map.name}）` : map.name;
+}
+
 export function modeIconUrl(mode: Pick<{ id: GameMode; name: string; icon: string }, "icon">): string {
   return `${MAPS_BASE_URL}${mode.icon}`;
 }

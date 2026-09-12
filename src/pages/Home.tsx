@@ -68,9 +68,9 @@ export default function Home() {
     <div className="app-shell">
       <h1 className="page-title">BP 大厅</h1>
       <div className="tutorial-box tutorial-highlight">
-        <p className="tutorial-intro">⚠️ 任何操作前请先输入你的 ID（昵称）</p>
+        <p className="tutorial-intro">⚠️ 联机操作前请先输入你的 ID（昵称）</p>
         <p className="tutorial-emphasis">
-          支持汉字与 emoji，长度上限 16 字符。未输入 ID 时所有按钮均不可用。
+          支持汉字与 emoji，长度上限 16 字符。创建或加入联机房间时必须填写；单人 BP 辅助无需 ID。
         </p>
       </div>
 
@@ -85,13 +85,10 @@ export default function Home() {
           />
         </div>
 
-        <button
-          className="btn-primary"
-          disabled={!nickname.trim() || loading}
-          onClick={handleCreate}
-        >
-          创建房间
-        </button>
+        <div className="create-actions">
+          <button className="btn-primary" disabled={!nickname.trim() || loading} onClick={handleCreate}>创建房间</button>
+          <button className="btn-secondary" onClick={() => navigate("/solo-bp")}>单人 BP 辅助</button>
+        </div>
       </div>
 
       <div className="divider">或加入已有房间</div>
