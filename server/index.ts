@@ -5,6 +5,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import { registerRoomHandlers } from "./rooms.js";
+import { registerTournamentRoomHandlers } from "./tournamentRooms.js";
 
 const PORT = Number(process.env.PORT) || 10000;
 
@@ -51,6 +52,7 @@ const io = new Server(httpServer, {
 });
 
 registerRoomHandlers(io);
+registerTournamentRoomHandlers(io);
 
 httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`BP 服务器运行于 http://0.0.0.0:${PORT}`);

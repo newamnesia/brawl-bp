@@ -41,22 +41,44 @@ export default function Home() {
     });
   };
 
+  const handleCreateTournament = () => {
+    setError("");
+    setLoading(true);
+    if (!socket.connected) { setLoading(false); return; }
+    socket.timeout(15000).emit("create_tournament_room", nickname, (err: Error | null, res: { ok: boolean; code?: string; error?: string }) => {
+      setLoading(false);
+      if (err) { setError("请求超时，请重试"); return; }
+      if (!res.ok || !res.code) { setError(res.error ?? "创建赛事房失败"); return; }
+      navigate(`/tournament/${res.code}`);
+    });
+  };
+
   const handleJoin = (code: string) => {
     setError("");
     setLoading(true);
     if (!socket.connected) { setLoading(false); return; }
     socket.timeout(15000).emit(
-      "join_room",
+      "join_tournament_room",
       { code, nickname },
-      (err: Error | null, res: { ok: boolean; resumeToken?: string; error?: string }) => {
-        setLoading(false);
-        if (err) { setError('请求超时，请重试'); return; }
-        if (!res.ok) {
-          setError(res.error ?? "加入失败");
+      (err: Error | null, tournament: { ok: boolean; found?: boolean; error?: string }) => {
+        if (err) { setLoading(false); setError('请求超时，请重试'); return; }
+        if (tournament.ok) {
+          setLoading(false);
+          navigate(`/tournament/${code.toUpperCase().trim()}`);
           return;
         }
-        saveRoomSession(code.toUpperCase().trim(), res.resumeToken);
-        navigate(`/room/${code.toUpperCase().trim()}`);
+        if (tournament.found) {
+          setLoading(false);
+          setError(tournament.error ?? "加入赛事房失败");
+          return;
+        }
+        socket.timeout(15000).emit("join_room", { code, nickname }, (joinErr: Error | null, res: { ok: boolean; resumeToken?: string; error?: string }) => {
+          setLoading(false);
+          if (joinErr) { setError("请求超时，请重试"); return; }
+          if (!res.ok) { setError(res.error ?? "加入失败"); return; }
+          saveRoomSession(code.toUpperCase().trim(), res.resumeToken);
+          navigate(`/room/${code.toUpperCase().trim()}`);
+        });
       },
     );
   };
@@ -66,17 +88,27 @@ export default function Home() {
     setLoading(true);
     if (!socket.connected) { setLoading(false); return; }
     socket.timeout(15000).emit(
-      "join_room_spectator",
+      "join_tournament_spectator",
       { code, nickname },
-      (err: Error | null, res: { ok: boolean; resumeToken?: string; error?: string }) => {
-        setLoading(false);
-        if (err) { setError('请求超时，请重试'); return; }
-        if (!res.ok) {
-          setError(res.error ?? "加入失败");
+      (err: Error | null, tournament: { ok: boolean; found?: boolean; error?: string }) => {
+        if (err) { setLoading(false); setError('请求超时，请重试'); return; }
+        if (tournament.ok) {
+          setLoading(false);
+          navigate(`/tournament/${code.toUpperCase().trim()}`);
           return;
         }
-        saveRoomSession(code.toUpperCase().trim(), res.resumeToken);
-        navigate(`/room/${code.toUpperCase().trim()}`);
+        if (tournament.found) {
+          setLoading(false);
+          setError(tournament.error ?? "加入观战失败");
+          return;
+        }
+        socket.timeout(15000).emit("join_room_spectator", { code, nickname }, (joinErr: Error | null, res: { ok: boolean; resumeToken?: string; error?: string }) => {
+          setLoading(false);
+          if (joinErr) { setError("请求超时，请重试"); return; }
+          if (!res.ok) { setError(res.error ?? "加入失败"); return; }
+          saveRoomSession(code.toUpperCase().trim(), res.resumeToken);
+          navigate(`/room/${code.toUpperCase().trim()}`);
+        });
       },
     );
   };
@@ -90,7 +122,7 @@ export default function Home() {
       <div className="tutorial-box tutorial-highlight">
         <p className="tutorial-intro">⚠️ 联机操作前请先输入你的 ID（昵称）</p>
         <p className="tutorial-emphasis">
-          支持汉字与 emoji，长度上限 16 字符。创建或加入联机房间时必须填写；单人 BP 辅助无需 ID。
+          支持汉字与 emoji，长度上限 16 字符。创建或加入普通房、六席赛事房时均需填写。
         </p>
       </div>
 
@@ -107,7 +139,7 @@ export default function Home() {
 
         <div className="create-actions">
           <button className="btn-primary" disabled={!connected || !nickname.trim() || loading} onClick={handleCreate}>创建房间</button>
-          <button className="btn-secondary" onClick={() => navigate("/solo-bp")}>单人 BP 辅助</button>
+          <button className="btn-secondary" disabled={!connected || !nickname.trim() || loading} onClick={handleCreateTournament}>创建六席赛事房</button>
         </div>
       </div>
 

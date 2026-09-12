@@ -347,6 +347,65 @@ export interface BrawlMap {
   thumbnail: string;
 }
 
+export type TournamentTeam = "blue" | "red";
+export type TournamentPhase = "lobby" | "ban" | "pick" | "complete";
+
+export interface TournamentSeatView {
+  id: string;
+  nickname: string;
+  team: TournamentTeam;
+  seatIndex: number;
+  ready: boolean;
+}
+
+export interface TournamentSpectatorView {
+  id: string;
+  nickname: string;
+}
+
+/** 六席赛事房仅向当前观看者公开其有权限看到的隐藏信息。 */
+export interface TournamentRoomState {
+  roomKind: "tournament";
+  code: string;
+  roomName: string;
+  phase: TournamentPhase;
+  hostId: string;
+  players: TournamentSeatView[];
+  spectators: TournamentSpectatorView[];
+  myTeam: TournamentTeam | null;
+  mySeatIndex: number | null;
+  isSpectator: boolean;
+  firstPickTeam: TournamentTeam | null;
+  gameMode: GameMode | null;
+  teamMapIds: Record<TournamentTeam, string | null>;
+  confirmedMapId: string | null;
+  banDurationSeconds: number;
+  pickDurationSeconds: number;
+  phaseEndsAt: number | null;
+  /** 大厅阶段：选手仅收到本队内容；观战席为空。开赛后双方公开。 */
+  blueGlobalBans: string[] | null;
+  redGlobalBans: string[] | null;
+  myGlobalBans: string[];
+  blueBans: Array<string | null>;
+  redBans: Array<string | null>;
+  bluePicks: Array<string | null>;
+  redPicks: Array<string | null>;
+  blueBanLockedCount: number;
+  redBanLockedCount: number;
+  blueBanFinished: boolean;
+  redBanFinished: boolean;
+  visibleBluePendingBans: Array<string | null>;
+  visibleRedPendingBans: Array<string | null>;
+  myActiveBanSlot: number | null;
+  pendingPick: string | null;
+  pickStep: number;
+  activePickTeam: TournamentTeam | null;
+  activePickSlot: number | null;
+  canAct: boolean;
+  timedOutSeatId: string | null;
+  timeoutMessage: string | null;
+}
+
 export const GAME_MODES: { id: GameMode; name: string; icon: string }[] = [
   { id: "brawl_ball", name: "足球", icon: "/brawl-stars/res/img/modes/icon_brawl_ball.webp" },
   { id: "gem_grab", name: "宝石", icon: "/brawl-stars/res/img/modes/icon_gem_grab.webp" },

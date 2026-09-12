@@ -134,6 +134,7 @@ export default function HeroGrid({
               />
               <span className="hero-name">{hero.name}</span>
               <span className="hero-en-name">{hero.enName}</span>
+              {hero.tier && <span className={`hero-tier-badge tier-${hero.tier.toLowerCase()}`}>{hero.tier}</span>}
               {hero.disabled && <span className="hero-disabled-badge">不可用</span>}
             </div>
           );

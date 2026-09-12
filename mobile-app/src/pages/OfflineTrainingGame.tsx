@@ -19,6 +19,8 @@ type TrainingSnapshot = {
   emptyAmmoRatio: number;
   damagePerSecond: number;
   hitRate: number;
+  score: number;
+  aiScore: number;
 };
 
 // 地图常量
@@ -41,7 +43,7 @@ const ENEMY_X = 10.5;
 const ENEMY_Y = 9.5;
 const ENEMY_RADIUS = 0.5;
 const ENEMY_RANGE = 10;       // 射程半径
-const AIMING_MIN_DISTANCE = 8;
+const AIMING_MIN_DISTANCE = 6;
 const AIMING_MAX_DISTANCE = 10;
 const AIMING_FRONT_ANGLE = -Math.PI / 2;
 const AIMING_SECTOR_HALF_ANGLE = Math.PI / 4;
@@ -64,6 +66,13 @@ const BEA_PROJECTILE_RADIUS = BEA_PROJECTILE_WIDTH / 2;
 const BEA_PROJECTILE_LENGTH_TO_WIDTH = 4 / 3; // 大招按自身宽度同比缩放
 const PIPER_MIN_DAMAGE = 720;
 const PIPER_MAX_DAMAGE = 3600;
+const STAR_RADIUS = 50 / TILE_SIZE;
+const STAR_SPAWN_MIN_DISTANCE = 6;
+const STAR_SPAWN_MAX_DISTANCE = 9;
+const STAR_SPAWN_MIN_SECONDS = 2;
+const STAR_SPAWN_MAX_SECONDS = 3;
+const STAR_LIFETIME_SECONDS = 10;
+const STAR_MAX_ACTIVE = 4;
 const BULLET_SPEED_BY_TIER: Record<string, number> = { mid: 14, high: 17.5 };
 const BULLET_STYLES = {
   beaNormal: { color: "#ffd43b", lengthScale: 1.8 },
@@ -106,6 +115,32 @@ type Bullet = {
   owner: "enemy" | "player";
   superTrajectory?: { originX: number; originY: number; angle: number; omega: number; elapsed: number };
 };
+
+type TrainingStar = {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  spawnDistance: number;
+  heal: number;
+  points: number;
+  remainingSeconds: number;
+};
+
+type PlayerShotObservation = { at: number; angle: number };
+
+function starReward(distance: number) {
+  const closeness = Math.max(0, Math.min(1, (STAR_SPAWN_MAX_DISTANCE - distance)
+    / (STAR_SPAWN_MAX_DISTANCE - STAR_SPAWN_MIN_DISTANCE)));
+  return { heal: Math.round(1000 + 1000 * closeness), points: 1 + closeness };
+}
+
+function rayDistanceToPoint(originX: number, originY: number, angle: number, pointX: number, pointY: number) {
+  const dx = pointX - originX;
+  const dy = pointY - originY;
+  const along = Math.max(0, Math.min(BULLET_MAX_DIST, dx * Math.cos(angle) + dy * Math.sin(angle)));
+  return Math.hypot(pointX - (originX + Math.cos(angle) * along), pointY - (originY + Math.sin(angle) * along));
+}
 
 type HitParticle = {
   x: number;
@@ -835,6 +870,8 @@ export default function OfflineTrainingGame() {
   const [, forceUpdate] = useState(0);
   const [hitCount, setHitCount] = useState(0);
   const [totalDamage, setTotalDamage] = useState(0);
+  const [score, setScore] = useState(0);
+  const [aiScore, setAiScore] = useState(0);
   const [, setHealth] = useState(playerMaxHealth);
   const [survivalTime, setSurvivalTime] = useState(0);
   const [roundResult, setRoundResult] = useState<"victory" | "defeat" | "ended" | null>(null);
@@ -873,6 +910,8 @@ export default function OfflineTrainingGame() {
         hitRate: firedShotCountRef.current > 0
           ? hitCountRef.current / firedShotCountRef.current
           : 0,
+        score: scoreRef.current,
+        aiScore: aiScoreRef.current,
       });
     } else if (!paused) {
       setPauseSnapshot(null);
@@ -937,6 +976,9 @@ export default function OfflineTrainingGame() {
   const hitCountRef = useRef(0); // 与 state 同步，供循环内读取/累加
   const firedShotCountRef = useRef(0);
   const totalDamageRef = useRef(0);
+  const scoreRef = useRef(0);
+  const aiScoreRef = useRef(0);
+  const playerShotHistoryRef = useRef<PlayerShotObservation[]>([]);
   const bulletIdRef = useRef(1);
   const healthRef = useRef(playerMaxHealth);
   const secondsSinceDamageRef = useRef(0);
@@ -1052,6 +1094,12 @@ export default function OfflineTrainingGame() {
     let tauntDodgeGoal = randomTauntDodgeGoal();
     let tauntDelayRemainingMs: number | null = null;
     let tauntVisibleRemainingMs = 0;
+    const stars: TrainingStar[] = [];
+    let nextStarId = 1;
+    let starSpawnTimer = STAR_SPAWN_MIN_SECONDS + Math.random() * (STAR_SPAWN_MAX_SECONDS - STAR_SPAWN_MIN_SECONDS);
+    let aiTargetStarId: number | null = null;
+    let aiFeintCooldown = 0;
+    let aiFeint: { starId: number; phase: "approach" | "break"; remaining: number; startedAt: number; breakHeading: number } | null = null;
 
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
@@ -1089,10 +1137,15 @@ export default function OfflineTrainingGame() {
     hitCountRef.current = 0;
     firedShotCountRef.current = 0;
     totalDamageRef.current = 0;
+    scoreRef.current = 0;
+    aiScoreRef.current = 0;
+    playerShotHistoryRef.current = [];
     setHealth(playerMaxHealth);
     setSurvivalTime(0);
     setHitCount(0);
     setTotalDamage(0);
+    setScore(0);
+    setAiScore(0);
     setRoundResult(null);
     aimingLeadAnglesRef.current = [];
     aimingElapsedSecondsRef.current = 0;
@@ -1103,6 +1156,42 @@ export default function OfflineTrainingGame() {
     const tauntEmoteImage = new Image();
     tauntEmoteImage.src = TAUNT_EMOTE_TEXTURE;
     const hitParticles: HitParticle[] = [];
+
+    const spawnStar = () => {
+      if (stars.length >= STAR_MAX_ACTIVE) return;
+      const shooter = isAimingMode ? playerRef.current : { x: ENEMY_X, y: ENEMY_Y };
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const radiusSquared = STAR_SPAWN_MIN_DISTANCE ** 2
+          + Math.random() * (STAR_SPAWN_MAX_DISTANCE ** 2 - STAR_SPAWN_MIN_DISTANCE ** 2);
+        const distance = Math.sqrt(radiusSquared);
+        const angle = isAimingMode
+          ? AIMING_FRONT_ANGLE + (Math.random() * 2 - 1) * AIMING_SECTOR_HALF_ANGLE
+          : Math.random() * Math.PI * 2;
+        const x = shooter.x + Math.cos(angle) * distance;
+        const y = shooter.y + Math.sin(angle) * distance;
+        if (x < STAR_RADIUS || x > MAP_WIDTH - STAR_RADIUS || y < STAR_RADIUS || y > MAP_HEIGHT - STAR_RADIUS) continue;
+        const collector = isAimingMode ? aimingTargetRef.current : playerRef.current;
+        if (Math.hypot(x - collector.x, y - collector.y) < PLAYER_RADIUS + STAR_RADIUS + 0.35) continue;
+        if (stars.some((star) => Math.hypot(x - star.x, y - star.y) < STAR_RADIUS * 2 + 0.35)) continue;
+        const reward = starReward(distance);
+        stars.push({ id: nextStarId++, x, y, radius: STAR_RADIUS, spawnDistance: distance, ...reward, remainingSeconds: STAR_LIFETIME_SECONDS });
+        return;
+      }
+    };
+
+    const getInterceptPressure = (star: TrainingStar, now: number) => {
+      const shots = playerShotHistoryRef.current;
+      const recent = shots.slice(-6);
+      const interceptRate = recent.length > 0
+        ? recent.filter((shot) => rayDistanceToPoint(playerRef.current.x, playerRef.current.y, shot.angle, star.x, star.y) <= 0.75).length / recent.length
+        : 0;
+      const intervals = recent.slice(1).map((shot, index) => shot.at - recent[index].at);
+      const averageInterval = intervals.length > 0 ? intervals.reduce((sum, value) => sum + value, 0) / intervals.length : 1200;
+      const sinceLastShot = recent.length > 0 ? now - recent[recent.length - 1].at : 3000;
+      const cadencePressure = Math.exp(-sinceLastShot / Math.max(250, averageInterval));
+      const ammoPressure = Math.max(0, Math.min(1, magazineAmmoRef.current / magazineCapacity));
+      return Math.max(0, Math.min(1, ammoPressure * 0.45 + cadencePressure * 0.30 + interceptRate * 0.25));
+    };
 
     const recordDodgedProjectile = () => {
       dodgesSinceTaunt += 1;
@@ -1170,6 +1259,21 @@ export default function OfflineTrainingGame() {
       if (!pausedRef.current) {
         trainingSecondsRef.current += dt;
         // —— 逻辑更新（暂停时跳过） ——
+        starSpawnTimer -= dt;
+        aiFeintCooldown = Math.max(0, aiFeintCooldown - dt);
+        for (let index = stars.length - 1; index >= 0; index--) {
+          stars[index].remainingSeconds -= dt;
+          if (stars[index].remainingSeconds <= 0) {
+            if (aiTargetStarId === stars[index].id) aiTargetStarId = null;
+            if (aiFeint?.starId === stars[index].id) aiFeint = null;
+            stars.splice(index, 1);
+          }
+        }
+        if (starSpawnTimer <= 0) {
+          spawnStar();
+          starSpawnTimer = STAR_SPAWN_MIN_SECONDS + Math.random() * (STAR_SPAWN_MAX_SECONDS - STAR_SPAWN_MIN_SECONDS);
+        }
+
         if (tauntVisibleRemainingMs > 0) {
           tauntVisibleRemainingMs = Math.max(0, tauntVisibleRemainingMs - dtMs);
         } else if (tauntDelayRemainingMs !== null) {
@@ -1232,6 +1336,52 @@ export default function OfflineTrainingGame() {
           ai.changeTimer -= dt;
           ai.dodgeLockTimer = Math.max(0, ai.dodgeLockTimer - dt);
 
+          const radialX = target.x - player.x;
+          const radialY = target.y - player.y;
+          const radialDistance = Math.hypot(radialX, radialY) || AIMING_MIN_DISTANCE;
+          const missingHealthRatio = Math.max(0, (PLAYER_MAX_HEALTH - aimingTargetHealthRef.current) / PLAYER_MAX_HEALTH);
+          const rankedStars = stars.map((star) => {
+            const travelSeconds = Math.hypot(star.x - target.x, star.y - target.y) / MOVE_SPEED;
+            const projectileDanger = bulletsRef.current.filter((bullet) => bullet.owner === "player")
+              .filter((bullet) => rayDistanceToPoint(bullet.x, bullet.y, Math.atan2(bullet.vy, bullet.vx), star.x, star.y) <= 0.75).length;
+            const starDistanceFromShooter = Math.hypot(star.x - player.x, star.y - player.y);
+            const boundaryPenalty = Math.max(0, starDistanceFromShooter - 9) ** 2;
+            return {
+              star,
+              utility: star.points * 2 + missingHealthRatio * star.heal / 1000
+                - travelSeconds * 1.1 - projectileDanger * 2 - boundaryPenalty * 4,
+            };
+          }).sort((a, b) => b.utility - a.utility);
+          if (!stars.some((star) => star.id === aiTargetStarId)) aiTargetStarId = rankedStars[0]?.star.id ?? null;
+          const selectedStar = stars.find((star) => star.id === aiTargetStarId) ?? null;
+
+          if (aiFeint) {
+            aiFeint.remaining -= dt;
+            const feintStar = stars.find((star) => star.id === aiFeint?.starId);
+            if (!feintStar) {
+              aiFeint = null;
+            } else if (aiFeint.phase === "approach") {
+              const reactedShot = [...playerShotHistoryRef.current].reverse().find((shot) =>
+                shot.at >= aiFeint!.startedAt
+                && now - shot.at >= aimingReactionSeconds * 1000
+                && rayDistanceToPoint(player.x, player.y, shot.angle, feintStar.x, feintStar.y) <= 0.85);
+              if (reactedShot) {
+                const inwardHeading = Math.atan2(player.y - target.y, player.x - target.x);
+                const left = reactedShot.angle + Math.PI / 2;
+                const right = reactedShot.angle - Math.PI / 2;
+                aiFeint.phase = "break";
+                aiFeint.remaining = 0.35 + Math.random() * 0.2;
+                aiFeint.breakHeading = Math.cos(left - inwardHeading) >= Math.cos(right - inwardHeading) ? left : right;
+              } else if (aiFeint.remaining <= 0) {
+                aiFeint = null;
+                aiFeintCooldown = 0.8;
+              }
+            } else if (aiFeint.remaining <= 0) {
+              aiFeint = null;
+              aiFeintCooldown = 0.8;
+            }
+          }
+
           // 子弹飞行达到当前段位反应时间后，开始把模拟摇杆拖向弹道的垂直方向。
           const threat = aimingDodgesProjectiles
             ? bulletsRef.current
@@ -1249,9 +1399,15 @@ export default function OfflineTrainingGame() {
             const currentPerpendicularMotion = Math.cos(ai.heading) * perpendicularX
               + Math.sin(ai.heading) * perpendicularY;
             // 严格沿弹道法线躲避；优先远离弹道，正中弹道时延续当前垂直分量以避免无谓掉速。
-            const evadeSign = Math.abs(signedLineOffset) > 0.001
+            let evadeSign = Math.abs(signedLineOffset) > 0.001
               ? Math.sign(signedLineOffset)
               : Math.abs(currentPerpendicularMotion) > 0.05 ? Math.sign(currentPerpendicularMotion) : (Math.random() < 0.5 ? -1 : 1);
+            if (radialDistance >= 9.4) {
+              const inwardHeading = Math.atan2(player.y - target.y, player.x - target.x);
+              const left = bulletHeading + Math.PI / 2;
+              const right = bulletHeading - Math.PI / 2;
+              evadeSign = Math.cos(left - inwardHeading) >= Math.cos(right - inwardHeading) ? 1 : -1;
+            }
             const evadeHeading = bulletHeading + evadeSign * Math.PI / 2;
             ai.desiredHeading = evadeHeading;
             const turnDelta = Math.atan2(Math.sin(evadeHeading - ai.heading), Math.cos(evadeHeading - ai.heading));
@@ -1267,8 +1423,21 @@ export default function OfflineTrainingGame() {
             ai.dodgeLockTimer = Math.hypot(threat.x - target.x, threat.y - target.y) / projectileSpeed
               + (ENEMY_RADIUS + threat.radius) / projectileSpeed;
             ai.reactedBulletIds.add(threat.id);
-          } else if (ai.changeTimer <= 0 && ai.dodgeLockTimer <= 0) {
-            ai.desiredHeading = Math.random() * Math.PI * 2 - Math.PI;
+          } else if (radialDistance >= 9.8) {
+            ai.desiredHeading = Math.atan2(player.y - target.y, player.x - target.x);
+          } else if (aiFeint?.phase === "break") {
+            ai.desiredHeading = aiFeint.breakHeading;
+          } else if (selectedStar && ai.changeTimer <= 0 && ai.dodgeLockTimer <= 0) {
+            const maxFeintProbability = reactionTier === "master" ? 0.60 : reactionTier === "legendary" ? 0.35 : 0;
+            if (!aiFeint && aiFeintCooldown <= 0 && Math.random() < maxFeintProbability * getInterceptPressure(selectedStar, now)) {
+              aiFeint = { starId: selectedStar.id, phase: "approach", remaining: 0.35 + Math.random() * 0.25, startedAt: now, breakHeading: ai.heading };
+            }
+            ai.desiredHeading = Math.atan2(selectedStar.y - target.y, selectedStar.x - target.x);
+            ai.changeTimer = 0.10;
+          } else if (!selectedStar && ai.changeTimer <= 0 && ai.dodgeLockTimer <= 0) {
+            const centerX = player.x + Math.cos(AIMING_FRONT_ANGLE) * 8;
+            const centerY = player.y + Math.sin(AIMING_FRONT_ANGLE) * 8;
+            ai.desiredHeading = Math.atan2(centerY - target.y, centerX - target.x) + (Math.random() - 0.5) * 1.2;
             ai.changeTimer = 0.3 + Math.random() * 0.7;
           }
 
@@ -1287,8 +1456,18 @@ export default function OfflineTrainingGame() {
             ai.heading += headingStep;
           }
 
-          let nextX = target.x + Math.cos(ai.heading) * MOVE_SPEED * dt;
-          let nextY = target.y + Math.sin(ai.heading) * MOVE_SPEED * dt;
+          let aiMoveX = Math.cos(ai.heading);
+          let aiMoveY = Math.sin(ai.heading);
+          if (radialDistance > 9.4) {
+            const outwardX = radialX / radialDistance;
+            const outwardY = radialY / radialDistance;
+            const outwardAmount = Math.max(0, aiMoveX * outwardX + aiMoveY * outwardY);
+            const boundaryStrength = Math.min(1, (radialDistance - 9.4) / 0.4);
+            aiMoveX -= outwardX * (outwardAmount * boundaryStrength + boundaryStrength * 0.35);
+            aiMoveY -= outwardY * (outwardAmount * boundaryStrength + boundaryStrength * 0.35);
+          }
+          let nextX = target.x + aiMoveX * MOVE_SPEED * dt;
+          let nextY = target.y + aiMoveY * MOVE_SPEED * dt;
           const relativeX = nextX - player.x;
           const relativeY = nextY - player.y;
           const rawDistance = Math.hypot(relativeX, relativeY) || 9;
@@ -2075,6 +2254,8 @@ export default function OfflineTrainingGame() {
         owner: "player",
       });
       firedShotCountRef.current += 1;
+      playerShotHistoryRef.current.push({ at: performance.now(), angle: shotAngle });
+      if (playerShotHistoryRef.current.length > 12) playerShotHistoryRef.current.shift();
       if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
       magazineAmmoRef.current -= 1;
       setMagazineAmmo(magazineAmmoRef.current);

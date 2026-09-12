@@ -100,7 +100,6 @@ export default function Preview() {
   const [loadedCount, setLoadedCount] = useState(0);
   const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Rarity | "all">("all");
-  const [activeHero, setActiveHero] = useState<Hero | null>(null);
 
   const visible = filter === "all" ? HEROES : HEROES.filter((h) => h.rarity === filter);
 
@@ -145,7 +144,6 @@ export default function Preview() {
             key={hero.id}
             className={`hero-card rarity-${hero.rarity}`}
             title={heroDisplayName(hero)}
-            onClick={() => setActiveHero(hero)}
           >
             <img
               className="hero-avatar"
@@ -186,14 +184,11 @@ export default function Preview() {
         本页为粉丝向非商业工具；11 级基础数值取自 Brawlytix 公开角色详情页，角色评级仅采用其近七天传奇段位 Meta Score。复合机制角色的伤害可能按源站显示为 0；数据可能随版本与每日统计变化，仅供参考。
       </p>
 
-      {activeHero && (
-        <HeroNote hero={activeHero} onClose={() => setActiveHero(null)} />
-      )}
     </div>
   );
 }
 
-function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
+export function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
   const s = hero.stats;
   const modeTags = (hero.specialtyModes ?? []).flatMap((id) => {
     const mode = SPECIALTY_MODES.find((item) => item.id === id);
