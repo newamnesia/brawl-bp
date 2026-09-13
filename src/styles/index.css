@@ -243,7 +243,16 @@ body {
   margin-bottom: 1rem;
 }
 
+.overview-heading {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
 .offline-training-heading .page-subtitle {
+  margin-bottom: 0;
+}
+
+.overview-heading .page-subtitle {
   margin-bottom: 0;
 }
 
@@ -261,9 +270,36 @@ body {
   white-space: nowrap;
 }
 
+.overview-updates-button {
+  position: absolute;
+  right: 0;
+  top: 0;
+  padding: 0.48rem 0.75rem;
+  border: 1px solid rgba(255, 193, 7, 0.5);
+  border-radius: 10px;
+  background: rgba(255, 193, 7, 0.1);
+  color: #ffd54f;
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.overview-updates-card { width: min(680px, 100%); }
+.overview-update-latest {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.12rem 0.42rem;
+  border-radius: 999px;
+  background: rgba(255, 193, 7, 0.14);
+  color: #ffd54f;
+  font-size: 0.7rem;
+  vertical-align: middle;
+}
+
 @media (max-width: 520px) {
   .offline-training-heading { padding-bottom: 2.5rem; }
   .offline-training-updates-button { bottom: 0; }
+  .overview-heading { padding-top: 2.75rem; }
 }
 
 #root {

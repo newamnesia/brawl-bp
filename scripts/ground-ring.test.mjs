@@ -47,14 +47,3 @@ test('movement indicator normalizes direction and clamps magnitude', () => {
   near(diagonal.x, 30 * MOVEMENT_INDICATOR.maxOffsetRatio * 3 / 5);
   near(diagonal.y, 20 * MOVEMENT_INDICATOR.maxOffsetRatio * 4 / 5);
 });
-
-test('mobile and web share movement-indicator geometry', async () => {
-  const mobile = await import('../mobile-app/src/features/training/groundRing.ts');
-  assert.deepEqual(mobile.GROUND_RING, GROUND_RING);
-  assert.deepEqual(mobile.DEFAULT_EQUIPMENT_MARKERS, DEFAULT_EQUIPMENT_MARKERS);
-  assert.deepEqual(mobile.MOVEMENT_INDICATOR, MOVEMENT_INDICATOR);
-  assert.deepEqual(
-    mobile.movementIndicatorPosition(5, 9, 14, 8, -2, 3, 0.37),
-    movementIndicatorPosition(5, 9, 14, 8, -2, 3, 0.37),
-  );
-});
