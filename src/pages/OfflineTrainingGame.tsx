@@ -2282,13 +2282,17 @@ export default function OfflineTrainingGame() {
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode !== "joystick") return;
+    if (mode !== "joystick" || isAimingMode || pausedRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const localX = e.clientX - rect.left;
+    if (localX >= rect.width / 2) return;
     e.preventDefault();
     const js = joystickRef.current;
+    if (js.active) return;
     js.active = true;
     js.touchId = e.pointerId;
-    js.baseX = e.currentTarget.clientWidth / 2;
-    js.baseY = e.currentTarget.clientHeight / 2;
+    js.baseX = localX;
+    js.baseY = e.clientY - rect.top;
     js.knobX = 0;
     js.knobY = 0;
     (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
@@ -2305,8 +2309,8 @@ export default function OfflineTrainingGame() {
     if (!js.active || js.touchId !== e.pointerId) return;
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
-    let dx = e.clientX - rect.left - rect.width / 2;
-    let dy = e.clientY - rect.top - rect.height / 2;
+    let dx = e.clientX - rect.left - js.baseX;
+    let dy = e.clientY - rect.top - js.baseY;
     let dist = Math.sqrt(dx * dx + dy * dy);
 
     // 钳制到 maxRadius 内，并同步更新 dist，保证 dx/dist 为单位向量
@@ -2351,14 +2355,17 @@ export default function OfflineTrainingGame() {
   };
 
   const handleAimPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isAimingMode || pausedRef.current) return;
-    e.preventDefault();
+    if (mode !== "joystick" || !isAimingMode || pausedRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
+    const localX = e.clientX - rect.left;
+    if (localX < rect.width / 2) return;
+    e.preventDefault();
     const aim = aimJoystickRef.current;
+    if (aim.active) return;
     aim.active = true;
     aim.touchId = e.pointerId;
-    aim.baseX = rect.width / 2;
-    aim.baseY = rect.height / 2;
+    aim.baseX = localX;
+    aim.baseY = e.clientY - rect.top;
     aim.knobX = 0;
     aim.knobY = 0;
     aim.rawMagnitude = 0;
@@ -2371,8 +2378,8 @@ export default function OfflineTrainingGame() {
     if (!isAimingMode || !aim.active || aim.touchId !== e.pointerId) return;
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
-    let dx = e.clientX - rect.left - rect.width / 2;
-    let dy = e.clientY - rect.top - rect.height / 2;
+    let dx = e.clientX - rect.left - aim.baseX;
+    let dy = e.clientY - rect.top - aim.baseY;
     let distance = Math.hypot(dx, dy);
     if (distance > aim.maxRadius) {
       dx = (dx / distance) * aim.maxRadius;
@@ -2428,10 +2435,37 @@ export default function OfflineTrainingGame() {
     forceUpdate((n) => n + 1);
   };
 
+  const isControlUiTarget = (target: EventTarget | null) => target instanceof Element
+    && Boolean(target.closest("button, a, input, select, textarea, [role='button']"));
+
+  const handleGamePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (mode !== "joystick" || isControlUiTarget(e.target)) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isLeftHalf = e.clientX - rect.left < rect.width / 2;
+    if (isLeftHalf) handlePointerDown(e);
+    else handleAimPointerDown(e);
+  };
+
+  const handleGamePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (joystickRef.current.touchId === e.pointerId) handlePointerMove(e);
+    if (aimJoystickRef.current.touchId === e.pointerId) handleAimPointerMove(e);
+  };
+
+  const handleGamePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (joystickRef.current.touchId === e.pointerId) handlePointerUp(e);
+    if (aimJoystickRef.current.touchId === e.pointerId) handleAimPointerUp(e);
+  };
+
   const js = joystickRef.current;
   const aimJs = aimJoystickRef.current;
   const movementLayout = clampJoystick(controlLayoutRef.current.joysticks.movement, controlViewport.width, controlViewport.height);
   const attackLayout = clampJoystick(controlLayoutRef.current.joysticks.attack, controlViewport.width, controlViewport.height);
+  const displayedMovementLayout = js.active
+    ? { ...movementLayout, x: js.baseX / controlViewport.width, y: js.baseY / controlViewport.height }
+    : movementLayout;
+  const displayedAttackLayout = aimJs.active
+    ? { ...attackLayout, x: aimJs.baseX / controlViewport.width, y: aimJs.baseY / controlViewport.height }
+    : attackLayout;
   js.maxRadius = joystickDiameter(movementLayout, controlViewport.width, controlViewport.height) * 0.39;
   aimJs.maxRadius = joystickDiameter(attackLayout, controlViewport.width, controlViewport.height) * 0.39;
 
@@ -2466,6 +2500,10 @@ export default function OfflineTrainingGame() {
         touchAction: "none",
         userSelect: "none",
       }}
+      onPointerDown={handleGamePointerDown}
+      onPointerMove={handleGamePointerMove}
+      onPointerUp={handleGamePointerUp}
+      onPointerCancel={handleGamePointerUp}
     >
       <canvas ref={canvasRef} style={{ display: "block" }} />
 
@@ -2628,28 +2666,22 @@ export default function OfflineTrainingGame() {
       {mode === "joystick" && !isAimingMode && (
         <AdjustableJoystick
           id="movement"
-          layout={movementLayout}
+          layout={displayedMovementLayout}
           viewport={controlViewport}
           selected={false}
           knob={{ x: js.knobX, y: js.knobY }}
           active={js.active}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
         />
       )}
 
       {isAimingMode && (
         <AdjustableJoystick
           id="attack"
-          layout={attackLayout}
+          layout={displayedAttackLayout}
           viewport={controlViewport}
           selected={false}
           knob={{ x: aimJs.knobX, y: aimJs.knobY }}
           active={aimJs.active}
-          onPointerDown={handleAimPointerDown}
-          onPointerMove={handleAimPointerMove}
-          onPointerUp={handleAimPointerUp}
         />
       )}
 
