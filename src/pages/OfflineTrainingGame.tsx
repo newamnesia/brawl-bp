@@ -5,7 +5,7 @@ import { BEA_SUPER, beaSuperPosition, chargeBeaSuper, updateBeaSuperAim } from "
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AIM_REACTION_TIERS, CHARACTER_MOVE_SPEED, SPEED_TIERS, TILE_SIZE, tiles, type AimReactionTier } from "../features/training/config";
-import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, type WallCell } from "../features/training/movement";
+import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, STARTUP_SECONDS, type WallCell } from "../features/training/movement";
 import { AdjustableJoystick } from "../components/AdjustableJoystick";
 import { clampJoystick, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
 
@@ -65,6 +65,7 @@ const BEA_SUPER_UNIT = TILE_SIZE;
 const BULLET_MAX_DIST = tiles(10); // 子弹最远行进 3000 单位
 const PLAYER_MAX_HEALTH = 6000;
 const PRACTICE_PLAYER_MAX_HEALTH = 100000;
+const AIMING_INFINITE_MAX_HEALTH = 100000;
 const BEA_NORMAL_DAMAGE = 1600;
 const BEA_ENHANCED_DAMAGE = 4400;
 const BEA_PROJECTILE_LENGTH_TO_WIDTH = 4 / 3; // 300 × 400；大招按自身宽度同比缩放
@@ -75,7 +76,7 @@ const STAR_SPAWN_MIN_DISTANCE = tiles(6);
 const STAR_SPAWN_MAX_DISTANCE = tiles(9);
 const STAR_SPAWN_MIN_SECONDS = 2;
 const STAR_SPAWN_MAX_SECONDS = 3;
-const STAR_LIFETIME_SECONDS = 10;
+const STAR_LIFETIME_SECONDS = 15;
 const STAR_MAX_ACTIVE = 4;
 const BULLET_STYLES = {
   beaNormal: { color: "#ffd43b", lengthScale: 1.8 },
@@ -794,6 +795,7 @@ export default function OfflineTrainingGame() {
   const playerMaxHealth = trainingMode === "practice" ? PRACTICE_PLAYER_MAX_HEALTH : PLAYER_MAX_HEALTH;
   const aimingRule: AimingRule = searchParams.get("aimingRule") === "infinite" ? "infinite" : "challenge";
   const isAimingInfinite = isAimingMode && aimingRule === "infinite";
+  const aimingTargetMaxHealth = isAimingInfinite ? AIMING_INFINITE_MAX_HEALTH : PLAYER_MAX_HEALTH;
   const requestedReactionTier = searchParams.get("reactionTier");
   const reactionTier: AimReactionTier = requestedReactionTier === "legendary" || requestedReactionTier === "master"
     ? requestedReactionTier
@@ -1072,7 +1074,8 @@ export default function OfflineTrainingGame() {
     const superAim = { elapsed: 0, stable: 0, angle: 0 };
     let superAiming = false;
     let superRingPhase = 0;
-    let aiMovementElapsed = 0;
+    // 倒计时期间视为人机已完成摇杆起步，正式开局第一帧即保持正常移速。
+    let aiMovementElapsed = isAimingMode ? STARTUP_SECONDS : 0;
     let aiDodgeTurn: { start: number; delta: number; elapsed: number; duration: number } | null = null;
     let dodgesSinceTaunt = 0;
     let tauntDodgeGoal = randomTauntDodgeGoal();
@@ -1085,6 +1088,8 @@ export default function OfflineTrainingGame() {
     let aiFeintCooldown = 0;
     let aiFeint: { starId: number; phase: "approach" | "break"; remaining: number; startedAt: number; breakHeading: number } | null = null;
     let aiRetreating = false;
+    let aiRetreatOrbitDirection: 1 | -1 = Math.random() < 0.5 ? -1 : 1;
+    let aiRetreatDirectionChangeTimer = 0.45 + Math.random() * 0.55;
     const aiRecentShotOutcomes: boolean[] = [];
     const recordAiShotOutcome = (hit: boolean) => {
       aiRecentShotOutcomes.push(hit);
@@ -1093,9 +1098,9 @@ export default function OfflineTrainingGame() {
     playerMovementElapsedRef.current = 0;
 
     // 只在新方向指令出现时判断，不能用每帧平滑转向的小角度代替单次转向。
-    const setAiDirection = (heading: number) => {
+    const setAiDirection = (heading: number, preserveMomentum = false) => {
       const ai = aimingTargetAiRef.current;
-      if (resetsMovementOnTurn(ai.desiredHeading, heading)) aiMovementElapsed = 0;
+      if (!preserveMomentum && resetsMovementOnTurn(ai.desiredHeading, heading)) aiMovementElapsed = 0;
       ai.desiredHeading = heading;
     };
     let superSlowRemainingMs = 0;
@@ -1119,7 +1124,7 @@ export default function OfflineTrainingGame() {
       dodgeLockTimer: 0,
       reactedBulletIds: new Set<number>(),
     };
-    aimingTargetHealthRef.current = PLAYER_MAX_HEALTH;
+    aimingTargetHealthRef.current = aimingTargetMaxHealth;
     aimingTargetSecondsSinceDamageRef.current = 0;
     playerVelocityRef.current = { x: 0, y: 0 };
     magazineAmmoRef.current = magazineCapacity;
@@ -1278,8 +1283,21 @@ export default function OfflineTrainingGame() {
         for (let index = stars.length - 1; index >= 0; index--) {
           stars[index].remainingSeconds -= dt;
           if (stars[index].remainingSeconds <= 0) {
-            if (aiTargetStarId === stars[index].id) aiTargetStarId = null;
-            if (aiFeint?.starId === stars[index].id) aiFeint = null;
+            const expiredStar = stars[index];
+            if (aiTargetStarId === expiredStar.id) aiTargetStarId = null;
+            if (aiFeint?.starId === expiredStar.id) aiFeint = null;
+            if (isAimingMode) {
+              aimingTargetHealthRef.current = Math.max(
+                0,
+                aimingTargetHealthRef.current - expiredStar.heal,
+              );
+              aimingTargetSecondsSinceDamageRef.current = 0;
+              spawnHitParticles(aimingTargetRef.current.x, aimingTargetRef.current.y);
+              if (!isAimingInfinite && aimingTargetHealthRef.current <= 0) {
+                pausedRef.current = true;
+                setRoundResult("victory");
+              }
+            }
             stars.splice(index, 1);
           }
         }
@@ -1347,21 +1365,31 @@ export default function OfflineTrainingGame() {
           const radialX = target.x - player.x;
           const radialY = target.y - player.y;
           const radialDistance = Math.hypot(radialX, radialY) || AIMING_MIN_DISTANCE;
-          const healthRatio = aimingTargetHealthRef.current / PLAYER_MAX_HEALTH;
-          if (!aiRetreating && healthRatio <= AIMING_RETREAT_HEALTH_RATIO) {
+          const healthRatio = aimingTargetHealthRef.current / aimingTargetMaxHealth;
+          if (isAimingInfinite) {
+            aiRetreating = false;
+          } else if (!aiRetreating && healthRatio <= AIMING_RETREAT_HEALTH_RATIO) {
             aiRetreating = true;
             aiTargetStarId = null;
             aiFeint = null;
+            const radialAngle = Math.atan2(radialY, radialX);
+            const positiveTangentMotion = Math.cos(ai.heading) * -Math.sin(radialAngle)
+              + Math.sin(ai.heading) * Math.cos(radialAngle);
+            if (Math.abs(positiveTangentMotion) > 0.1) {
+              aiRetreatOrbitDirection = positiveTangentMotion > 0 ? 1 : -1;
+            }
+            aiRetreatDirectionChangeTimer = 0.45 + Math.random() * 0.55;
           } else if (aiRetreating && healthRatio >= AIMING_RETREAT_EXIT_HEALTH_RATIO) {
             aiRetreating = false;
           }
           if (
             aiRetreating
+            && !isAimingInfinite
             && radialDistance >= AIMING_RETREAT_REGEN_DISTANCE
             && aimingTargetSecondsSinceDamageRef.current >= AIMING_RETREAT_REGEN_DELAY_SECONDS
           ) {
             aimingTargetHealthRef.current = Math.min(
-              PLAYER_MAX_HEALTH,
+              aimingTargetMaxHealth,
               aimingTargetHealthRef.current + AIMING_RETREAT_REGEN_PER_SECOND * dt,
             );
           }
@@ -1372,7 +1400,9 @@ export default function OfflineTrainingGame() {
             ? Math.max(0, Math.min(1, (recentHitRate - AIMING_INNER_STAR_HIT_RATE) / 0.35))
             : 0;
           const minimumSafeStarDistance = tiles(7.1 + innerStarPressure * 0.7);
-          const missingHealthRatio = Math.max(0, (PLAYER_MAX_HEALTH - aimingTargetHealthRef.current) / PLAYER_MAX_HEALTH);
+          const missingHealthRatio = isAimingInfinite
+            ? 0
+            : Math.max(0, (aimingTargetMaxHealth - aimingTargetHealthRef.current) / aimingTargetMaxHealth);
           const rankedStars = stars.filter((star) => {
             if (innerStarPressure <= 0) return true;
             return Math.hypot(star.x - player.x, star.y - player.y) >= minimumSafeStarDistance;
@@ -1463,20 +1493,39 @@ export default function OfflineTrainingGame() {
             ai.dodgeLockTimer = Math.hypot(threat.x - target.x, threat.y - target.y) / projectileSpeed
               + (ENEMY_RADIUS + threat.radius) / projectileSpeed;
             ai.reactedBulletIds.add(threat.id);
+          } else if (aiRetreating) {
+            const radialAngle = Math.atan2(radialY, radialX);
+            const sectorOffset = Math.atan2(
+              Math.sin(radialAngle - AIMING_FRONT_ANGLE),
+              Math.cos(radialAngle - AIMING_FRONT_ANGLE),
+            );
+            const orbitTurnMargin = 0.14;
+            aiRetreatDirectionChangeTimer -= dt;
+            if (sectorOffset >= AIMING_SECTOR_HALF_ANGLE - orbitTurnMargin) {
+              aiRetreatOrbitDirection = -1;
+              aiRetreatDirectionChangeTimer = 0.45 + Math.random() * 0.55;
+            } else if (sectorOffset <= -AIMING_SECTOR_HALF_ANGLE + orbitTurnMargin) {
+              aiRetreatOrbitDirection = 1;
+              aiRetreatDirectionChangeTimer = 0.45 + Math.random() * 0.55;
+            } else if (aiRetreatDirectionChangeTimer <= 0) {
+              aiRetreatOrbitDirection = aiRetreatOrbitDirection === 1 ? -1 : 1;
+              aiRetreatDirectionChangeTimer = 0.45 + Math.random() * 0.55;
+            }
+            const outwardX = radialX / radialDistance;
+            const outwardY = radialY / radialDistance;
+            const tangentX = -outwardY * aiRetreatOrbitDirection;
+            const tangentY = outwardX * aiRetreatOrbitDirection;
+            // 内圈撤退时以“向外 + 横移”合成斜线；接近外圈后逐渐转为沿边移动。
+            const radialCorrection = Math.max(
+              -0.85,
+              Math.min(0.85, (AIMING_RETREAT_DISTANCE - radialDistance) / tiles(0.7)),
+            );
+            setAiDirection(Math.atan2(
+              tangentY * 0.72 + outwardY * radialCorrection,
+              tangentX * 0.72 + outwardX * radialCorrection,
+            ), true);
           } else if (radialDistance >= tiles(8.85)) {
             setAiDirection(Math.atan2(player.y - target.y, player.x - target.x));
-          } else if (aiRetreating) {
-            const currentOffset = Math.atan2(
-              Math.sin(Math.atan2(radialY, radialX) - AIMING_FRONT_ANGLE),
-              Math.cos(Math.atan2(radialY, radialX) - AIMING_FRONT_ANGLE),
-            );
-            const retreatOffset = Math.max(
-              -AIMING_SECTOR_HALF_ANGLE + 0.12,
-              Math.min(AIMING_SECTOR_HALF_ANGLE - 0.12, currentOffset),
-            );
-            const retreatX = player.x + Math.cos(AIMING_FRONT_ANGLE + retreatOffset) * AIMING_RETREAT_DISTANCE;
-            const retreatY = player.y + Math.sin(AIMING_FRONT_ANGLE + retreatOffset) * AIMING_RETREAT_DISTANCE;
-            setAiDirection(Math.atan2(retreatY - target.y, retreatX - target.x));
           } else if (aiFeint?.phase === "break") {
             setAiDirection(aiFeint.breakHeading);
           } else if (selectedStar && ai.changeTimer <= 0 && ai.dodgeLockTimer <= 0) {
@@ -1519,8 +1568,9 @@ export default function OfflineTrainingGame() {
             const outwardY = radialY / radialDistance;
             const outwardAmount = Math.max(0, aiMoveX * outwardX + aiMoveY * outwardY);
             const boundaryStrength = Math.min(1, (radialDistance - tiles(8.4)) / tiles(0.45));
-            aiMoveX -= outwardX * (outwardAmount * boundaryStrength + boundaryStrength * 0.35);
-            aiMoveY -= outwardY * (outwardAmount * boundaryStrength + boundaryStrength * 0.35);
+            const inwardBias = aiRetreating ? 0 : boundaryStrength * 0.35;
+            aiMoveX -= outwardX * (outwardAmount * boundaryStrength + inwardBias);
+            aiMoveY -= outwardY * (outwardAmount * boundaryStrength + inwardBias);
           }
           const resolvedAiMove = resolveSquareMovement({
             x: target.x,
@@ -1565,7 +1615,7 @@ export default function OfflineTrainingGame() {
           const touchedBoundary = Math.abs(sectorOffset) >= AIMING_SECTOR_HALF_ANGLE - 0.025
             || rawDistance <= AIMING_MIN_DISTANCE + tiles(0.04)
             || rawDistance >= AIMING_MAX_DISTANCE - tiles(0.04);
-          if (touchedBoundary && ai.dodgeLockTimer <= 0) {
+          if (touchedBoundary && !aiRetreating && ai.dodgeLockTimer <= 0) {
             const centerX = player.x + Math.cos(AIMING_FRONT_ANGLE) * tiles(9);
             const centerY = player.y + Math.sin(AIMING_FRONT_ANGLE) * tiles(9);
             setAiDirection(Math.atan2(centerY - target.y, centerX - target.x) + (Math.random() - 0.5) * 0.35);
@@ -1587,9 +1637,18 @@ export default function OfflineTrainingGame() {
           const star = stars[index];
           if (Math.hypot(star.x - starCollector.x, star.y - starCollector.y) > collectorRadius + star.radius) continue;
           if (isAimingMode) {
-            aimingTargetHealthRef.current = Math.min(PLAYER_MAX_HEALTH, aimingTargetHealthRef.current + star.heal);
+            if (!isAimingInfinite) {
+              aimingTargetHealthRef.current = Math.min(
+                aimingTargetMaxHealth,
+                aimingTargetHealthRef.current + star.heal,
+              );
+            }
             aiScoreRef.current += star.points;
             setAiScore(Math.round(aiScoreRef.current * 10) / 10);
+            if (!isAimingInfinite && aiScoreRef.current >= 15 && !pausedRef.current) {
+              pausedRef.current = true;
+              setRoundResult("defeat");
+            }
           } else {
             healthRef.current = Math.min(playerMaxHealth, healthRef.current + star.heal);
             setHealth(Math.round(healthRef.current));
@@ -1840,13 +1899,11 @@ export default function OfflineTrainingGame() {
               const damage = projectileDamage(b.texture, b.traveled);
               totalDamageRef.current += damage;
               setTotalDamage(Math.round(totalDamageRef.current));
-              if (!isAimingInfinite) {
-                aimingTargetHealthRef.current = Math.max(0, aimingTargetHealthRef.current - damage);
-                aimingTargetSecondsSinceDamageRef.current = 0;
-                if (aimingTargetHealthRef.current <= 0) {
-                  pausedRef.current = true;
-                  setRoundResult("victory");
-                }
+              aimingTargetHealthRef.current = Math.max(0, aimingTargetHealthRef.current - damage);
+              aimingTargetSecondsSinceDamageRef.current = 0;
+              if (!isAimingInfinite && aimingTargetHealthRef.current <= 0) {
+                pausedRef.current = true;
+                setRoundResult("victory");
               }
               continue;
             }
@@ -2045,7 +2102,7 @@ export default function OfflineTrainingGame() {
         radiusY: enemyRadiusPy,
         width: TILE_SIZE * scale * widthFactorAt(renderedEnemy.y),
         health: isAimingMode ? aimingTargetHealthRef.current : PLAYER_MAX_HEALTH,
-        maxHealth: PLAYER_MAX_HEALTH,
+        maxHealth: isAimingMode ? aimingTargetMaxHealth : PLAYER_MAX_HEALTH,
         relation: "enemy",
       });
 
@@ -2531,13 +2588,17 @@ export default function OfflineTrainingGame() {
         <div className="training-game-over">
           <div className="training-game-over-card training-game-over-card-wide">
             <div className={`training-game-over-title ${roundResult === "victory" ? "victory" : ""}`}>
-              {roundResult === "victory" ? "预判命中，训练胜利！" : "本轮结束"}
+              {roundResult === "victory"
+                ? "预判命中，训练胜利！"
+                : isAimingMode && roundResult === "defeat" ? "人机达到 15 分，挑战失败" : "本轮结束"}
             </div>
             <div className="training-game-over-time">
               {isAimingInfinite
                 ? `累计造成 ${totalDamage} 点伤害 · 人机积分 ${aiScore.toFixed(1)}`
                 : roundResult === "victory"
                 ? `成功击败移动目标 · 人机积分 ${aiScore.toFixed(1)}`
+                : isAimingMode && roundResult === "defeat"
+                ? `人机积分 ${aiScore.toFixed(1)} / 15`
                 : isSurvivalMode ? `最终积分 ${score.toFixed(1)}` : `本局积分 ${score.toFixed(1)}`}
             </div>
             <TrainingStatsGrid
