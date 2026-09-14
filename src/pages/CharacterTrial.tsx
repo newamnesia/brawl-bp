@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
 import { HERO_MAP, heroImageUrl } from "../../shared/catalog";
 
-const IDS: TrialBrawlerId[] = ["piper", "bea", "max"];
+const IDS: TrialBrawlerId[] = ["piper", "bea", "max", "byron"];
 
 export default function CharacterTrial() {
   const navigate = useNavigate();
@@ -23,7 +23,7 @@ export default function CharacterTrial() {
       <button className="character-trial-choice controls" onClick={() => navigate("/control-layout/trial")}>
         <span className="character-trial-emblem">⚙</span>
         <strong>调整键位</strong>
-        <small>移动摇杆与攻击摇杆</small>
+        <small>移动、普攻与大招摇杆</small>
       </button>
     </section>
     <section className="tutorial-box">

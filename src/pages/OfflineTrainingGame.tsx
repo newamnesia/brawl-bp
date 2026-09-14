@@ -69,11 +69,22 @@ const TRIAL_TARGET_X = MAP_WIDTH / 2;
 const TRIAL_TARGET_Y = MAP_HEIGHT / 2;
 const MAX_SUPER_SPEED_BONUS = 300;
 const MAX_SUPER_DURATION_SECONDS = 4;
+const MAX_SUPER_RADIUS = 1200;
 const ATTACK_AUTO_AIM_DEADZONE_RATIO = 0.24;
 const BEA_NORMAL_DAMAGE = 1600;
 const BEA_ENHANCED_DAMAGE = 4400;
 const MAX_PROJECTILE_DAMAGE = 640;
+const BYRON_TICK_DAMAGE = 760;
+const BYRON_TICK_COUNT = 3;
+const BYRON_TICK_INTERVAL_SECONDS = 1;
+const BYRON_ATTACK_CHARGE_PER_TICK = 0.113;
+const BYRON_SUPER_DAMAGE_AND_HEAL = 3000;
+const BYRON_SUPER_CHARGE = 0.24;
+const BYRON_SUPER_RANGE = 2200;
+const BYRON_SUPER_SPEED = 2000;
+const BYRON_SUPER_RADIUS = 800;
 const MAX_SPREAD_DEGREES = [0, -1.5, 1.5, -3] as const;
+const MAX_AIM_EXTENTS_DEGREES = [-3, 1.8] as const;
 const BEA_PROJECTILE_LENGTH_TO_WIDTH = 4 / 3; // 300 × 400；大招按自身宽度同比缩放
 const PIPER_MIN_DAMAGE = 720;
 const PIPER_MAX_DAMAGE = 3600;
@@ -90,6 +101,8 @@ const BULLET_STYLES = {
   beaSuper: { color: "#ffd43b", lengthScale: 1.8 },
   high: { color: "#ffd43b", lengthScale: 1.8 },
   max: { color: "#ffd43b", lengthScale: 1.8 },
+  byron: { color: "#c94cff", lengthScale: 1.8 },
+  byronSuper: { color: "#9b5cff", lengthScale: 1.25 },
 } as const;
 const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
 const TAUNT_DURATION_MS = 3000;
@@ -128,7 +141,11 @@ type Bullet = {
   maxDistance: number;
   spawnDelay?: number;
   superTrajectory?: { originX: number; originY: number; angle: number; omega: number; elapsed: number };
+  lobbedImpact?: { x: number; y: number; radius: number; damage: number; heal: number };
 };
+
+type ByronPoison = { ticksRemaining: number; timeToNextTick: number };
+type ImpactBurst = { x: number; y: number; radius: number; life: number; maxLife: number };
 
 type TrainingStar = {
   id: number;
@@ -827,15 +844,26 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const aimingDodgesProjectiles = aimingReactionConfig.dodgesProjectiles;
 
   // 统一读取角色配置，旧链接中的格/秒 bulletSpeed 参数不再覆盖新单位数值。
-  const projectileConfig = SPEED_TIERS[speedTier];
+  const trialConfig = trialHeroId ? TRIAL_BRAWLERS[trialHeroId] : null;
+  const projectileConfig = trialConfig ? {
+    value: trialConfig.projectileSpeed,
+    bulletWidth: trialConfig.projectileWidth,
+    range: trialConfig.range,
+    magazineCapacity: trialConfig.ammoCapacity,
+    moveSpeed: trialConfig.moveSpeed,
+    reloadSeconds: trialConfig.reloadSeconds,
+    attackIntervalSeconds: trialConfig.attackIntervalSeconds,
+  } : SPEED_TIERS[speedTier];
   const bulletSpeed = projectileConfig.value;
   const bulletRadius = projectileConfig.bulletWidth / 2;
   const projectileRange = projectileConfig.range;
-  const isBeaMode = speedTier === "mid";
-  const isMaxMode = speedTier === "max";
+  const isBeaMode = trialHeroId ? trialHeroId === "bea" : speedTier === "mid";
+  const isMaxMode = trialHeroId ? trialHeroId === "max" : speedTier === "max";
+  const isByronMode = trialHeroId === "byron";
   const magazineCapacity = projectileConfig.magazineCapacity;
   const controlledMoveSpeed = projectileConfig.moveSpeed;
   const magazineReloadSeconds = projectileConfig.reloadSeconds;
+  const playerAttackIntervalSeconds = projectileConfig.attackIntervalSeconds;
   const usesRapidFireCadence = isBeaMode || isMaxMode;
   const fireIntervalMin = usesRapidFireCadence ? BEA_FIRE_INTERVAL_MIN : FIRE_INTERVAL_MIN;
   const fireIntervalMax = usesRapidFireCadence ? BEA_FIRE_INTERVAL_MAX : FIRE_INTERVAL_MAX;
@@ -1017,6 +1045,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   // 子弹 + 开火计时（用 ref 避免重渲染）
   const bulletsRef = useRef<Bullet[]>([]);
   const playerSuperChargeRef = useRef(0);
+  const playerAttackCooldownRef = useRef(0);
   const maxSuperRemainingRef = useRef(0);
   const fireTimerRef = useRef(fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin));
   const magazineAmmoRef = useRef(magazineCapacity);
@@ -1037,6 +1066,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const survivalTimeRef = useRef(0);
   const lastSurvivalUiUpdateRef = useRef(0);
   const playerDirectionRef = useRef(-Math.PI / 2);
+  const playerMoveDirectionRef = useRef(-Math.PI / 2);
   const enemyDirectionRef = useRef(Math.PI / 2);
   const playerIsMovingRef = useRef(false);
   const enemyIsMovingRef = useRef(false);
@@ -1176,6 +1206,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     burstFollowupRef.current = false;
     beaEnhancedShotsRef.current = 0;
     playerSuperChargeRef.current = 0;
+    playerAttackCooldownRef.current = 0;
     maxSuperRemainingRef.current = 0;
     fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
     setMagazineAmmo(magazineCapacity);
@@ -1200,6 +1231,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     aimingElapsedSecondsRef.current = 0;
     aimingEmptyAmmoSecondsRef.current = 0;
     playerDirectionRef.current = -Math.PI / 2;
+    playerMoveDirectionRef.current = -Math.PI / 2;
     enemyDirectionRef.current = Math.PI / 2;
     playerIsMovingRef.current = false;
     enemyIsMovingRef.current = false;
@@ -1207,6 +1239,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const tauntEmoteImage = new Image();
     tauntEmoteImage.src = TAUNT_EMOTE_TEXTURE;
     const hitParticles: HitParticle[] = [];
+    const byronPoisons: ByronPoison[] = [];
+    const impactBursts: ImpactBurst[] = [];
 
     const spawnStar = () => {
       if (stars.length >= STAR_MAX_ACTIVE) return;
@@ -1269,6 +1303,20 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       }
     };
 
+    const damageTrialTarget = (damage: number, chargeGain = 0) => {
+      if (isTrialMode && playerSuperChargeRef.current < 1) {
+        playerSuperChargeRef.current = Math.min(1, playerSuperChargeRef.current + chargeGain);
+      }
+      totalDamageRef.current += damage;
+      setTotalDamage(Math.round(totalDamageRef.current));
+      aimingTargetHealthRef.current = Math.max(0, aimingTargetHealthRef.current - damage);
+      aimingTargetSecondsSinceDamageRef.current = 0;
+      if ((isTrialMode || (isAimingMode && !isAimingInfinite)) && aimingTargetHealthRef.current <= 0) {
+        pausedRef.current = true;
+        setRoundResult("victory");
+      }
+    };
+
     // 缩放因子
     let scale = 1;
     let scaleY = GROUND_DEPTH_PROJECTION;
@@ -1324,6 +1372,24 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       if (!pausedRef.current && !countdownActiveRef.current) {
         // —— 逻辑更新（暂停时跳过） ——
         starSpawnTimer -= dt;
+        playerAttackCooldownRef.current = Math.max(0, playerAttackCooldownRef.current - dt);
+
+        for (let i = byronPoisons.length - 1; i >= 0; i--) {
+          const poison = byronPoisons[i];
+          poison.timeToNextTick -= dt;
+          while (poison.ticksRemaining > 0 && poison.timeToNextTick <= 0) {
+            damageTrialTarget(BYRON_TICK_DAMAGE, BYRON_ATTACK_CHARGE_PER_TICK);
+            spawnHitParticles(aimingTargetRef.current.x, aimingTargetRef.current.y);
+            poison.ticksRemaining -= 1;
+            poison.timeToNextTick += BYRON_TICK_INTERVAL_SECONDS;
+          }
+          if (poison.ticksRemaining <= 0) byronPoisons.splice(i, 1);
+        }
+
+        for (let i = impactBursts.length - 1; i >= 0; i--) {
+          impactBursts[i].life -= dt;
+          if (impactBursts[i].life <= 0) impactBursts.splice(i, 1);
+        }
         aiFeintCooldown = Math.max(0, aiFeintCooldown - dt);
         for (let index = stars.length - 1; index >= 0; index--) {
           stars[index].remainingSeconds -= dt;
@@ -1402,6 +1468,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         playerIsMovingRef.current = Math.hypot(resolvedPlayerMove.dx, resolvedPlayerMove.dy) > 1e-7;
         if (!isAimingMode && playerIsMovingRef.current) {
           playerDirectionRef.current = Math.atan2(resolvedPlayerMove.dy, resolvedPlayerMove.dx);
+          playerMoveDirectionRef.current = playerDirectionRef.current;
         }
 
         if (isAimingMode) {
@@ -1800,7 +1867,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             const isEnhancedBeaShot = isBeaMode && beaEnhancedShotsRef.current > 0;
             const projectileTexture: keyof typeof BULLET_STYLES = isBeaMode
               ? isEnhancedBeaShot ? "beaEnhanced" : "beaNormal"
-              : isMaxMode ? "max" : "high";
+              : isMaxMode ? "max" : isByronMode ? "byron" : "high";
             for (const [index, angle] of attackProjectileAngles(pred.aimAngle, isMaxMode, shotId).entries()) {
               bulletsRef.current.push({
                 x: ENEMY_X,
@@ -1917,6 +1984,26 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             b.traveled = Math.min(maxDistance, b.traveled + Math.hypot(b.vx, b.vy) * stepTime);
           }
 
+          if (b.lobbedImpact) {
+            if (b.traveled < maxDistance) continue;
+            const impact = b.lobbedImpact;
+            impactBursts.push({ x: impact.x, y: impact.y, radius: impact.radius, life: 0.35, maxLife: 0.35 });
+            if (Math.hypot(aimingTargetRef.current.x - impact.x, aimingTargetRef.current.y - impact.y) <= impact.radius + ENEMY_RADIUS) {
+              hitCountRef.current += 1;
+              setHitCount(hitCountRef.current);
+              damageTrialTarget(impact.damage, BYRON_SUPER_CHARGE);
+              spawnHitParticles(aimingTargetRef.current.x, aimingTargetRef.current.y);
+            }
+            if (Math.hypot(player.x - impact.x, player.y - impact.y) <= impact.radius + PLAYER_RADIUS) {
+              healthRef.current = Math.min(playerMaxHealth, healthRef.current + impact.heal);
+              setHealth(Math.round(healthRef.current));
+            }
+            bullets.splice(i, 1);
+            profileBulletRemoved(prof, b.id);
+            aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
+            continue;
+          }
+
           // 进入视野检测（第一次）
           if (!bulletEnteredVision.has(b.id)) {
             if (
@@ -1959,20 +2046,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               } else if (b.texture === "beaEnhanced") {
                 beaEnhancedShotsRef.current = 0;
               }
-              const damage = projectileDamage(b.texture, b.traveled);
-              if (isTrialMode && playerSuperChargeRef.current < 1) {
+              if (b.texture === "byron") {
+                byronPoisons.push({ ticksRemaining: BYRON_TICK_COUNT, timeToNextTick: 0 });
+              } else {
+                const damage = projectileDamage(b.texture, b.traveled);
                 const chargeGain = b.texture === "beaSuper"
                   ? 0.025
                   : b.texture === "max" ? 0.0735 : b.texture === "beaNormal" || b.texture === "beaEnhanced" ? 0.26 : 0;
-                playerSuperChargeRef.current = Math.min(1, playerSuperChargeRef.current + chargeGain);
-              }
-              totalDamageRef.current += damage;
-              setTotalDamage(Math.round(totalDamageRef.current));
-              aimingTargetHealthRef.current = Math.max(0, aimingTargetHealthRef.current - damage);
-              aimingTargetSecondsSinceDamageRef.current = 0;
-              if ((isTrialMode || (isAimingMode && !isAimingInfinite)) && aimingTargetHealthRef.current <= 0) {
-                pausedRef.current = true;
-                setRoundResult("victory");
+                damageTrialTarget(damage, chargeGain);
               }
               continue;
             }
@@ -1984,7 +2065,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             if (b.texture === "beaSuper") {
               superSlowRemainingMs = BEA_SUPER.slowMs;
             }
-            if (isBeaMode && !isAimingMode) {
+            if (isBeaMode && !isAimingMode && (
+              b.texture === "beaNormal" || b.texture === "beaEnhanced" || b.texture === "beaSuper"
+            )) {
               superCharge = chargeBeaSuper(superCharge, b.texture);
             }
             spawnHitParticles(player.x, player.y);
@@ -2159,6 +2242,31 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ctx.restore();
       }
 
+      for (const burst of impactBursts) {
+        const progress = 1 - burst.life / burst.maxLife;
+        const radius = burst.radius * (0.35 + progress * 0.65);
+        const burstX = projectX(burst.x, burst.y);
+        const burstY = projectY(burst.y);
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 1 - progress) * 0.55;
+        ctx.fillStyle = "#a54cff";
+        ctx.strokeStyle = "#e2b8ff";
+        ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
+        ctx.beginPath();
+        ctx.ellipse(
+          burstX,
+          burstY,
+          radius * scale * widthFactorAt(burst.y),
+          radius * scaleY,
+          0,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
       // 地面阵营圈：中心透明，外缘浓色；物理半径不变。
       drawTrainingUnitModel(ctx, {
         centerX: enemyCenterPx,
@@ -2205,16 +2313,118 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       if (isPlayerAttackMode && aimJoystickRef.current.active) {
         const aim = aimJoystickRef.current;
         const aimLength = Math.hypot(aim.knobX, aim.knobY);
-        if (aimLength > 8) {
-          const aimEndX = player.x + (aim.knobX / aimLength) * projectileRange;
-          const aimEndY = player.y + (aim.knobY / aimLength) * projectileRange;
+        const target = aimingTargetRef.current;
+        const bounds = visibleWorldBoundsRef.current;
+        const targetVisible = aimingTargetHealthRef.current > 0
+          && target.x >= bounds.left && target.x <= bounds.right
+          && target.y >= bounds.top && target.y <= bounds.bottom;
+        const angle = aimLength > 8
+          ? Math.atan2(aim.knobY, aim.knobX)
+          : targetVisible
+            ? Math.atan2(target.y - player.y, target.x - player.x)
+            : playerMoveDirectionRef.current;
+        let corners: { x: number; y: number }[];
+        if (isMaxMode) {
+          const upperAngle = angle + MAX_AIM_EXTENTS_DEGREES[0] * Math.PI / 180;
+          const lowerAngle = angle + MAX_AIM_EXTENTS_DEGREES[1] * Math.PI / 180;
+          corners = [
+            {
+              x: player.x + Math.sin(angle) * bulletRadius,
+              y: player.y - Math.cos(angle) * bulletRadius,
+            },
+            {
+              x: player.x + Math.cos(upperAngle) * projectileRange + Math.sin(upperAngle) * bulletRadius,
+              y: player.y + Math.sin(upperAngle) * projectileRange - Math.cos(upperAngle) * bulletRadius,
+            },
+            {
+              x: player.x + Math.cos(lowerAngle) * projectileRange - Math.sin(lowerAngle) * bulletRadius,
+              y: player.y + Math.sin(lowerAngle) * projectileRange + Math.cos(lowerAngle) * bulletRadius,
+            },
+            {
+              x: player.x - Math.sin(angle) * bulletRadius,
+              y: player.y + Math.cos(angle) * bulletRadius,
+            },
+          ];
+        } else {
+          const directionX = Math.cos(angle);
+          const directionY = Math.sin(angle);
+          const perpendicularX = -directionY * bulletRadius;
+          const perpendicularY = directionX * bulletRadius;
+          const aimEndX = player.x + directionX * projectileRange;
+          const aimEndY = player.y + directionY * projectileRange;
+          corners = [
+            { x: player.x + perpendicularX, y: player.y + perpendicularY },
+            { x: aimEndX + perpendicularX, y: aimEndY + perpendicularY },
+            { x: aimEndX - perpendicularX, y: aimEndY - perpendicularY },
+            { x: player.x - perpendicularX, y: player.y - perpendicularY },
+          ];
+        }
+        ctx.save();
+        ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+        ctx.beginPath();
+        corners.forEach((corner, index) => {
+          const x = projectX(corner.x, corner.y);
+          const y = projectY(corner.y);
+          if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      if (isTrialMode && superJoystickRef.current.active) {
+        const stick = superJoystickRef.current;
+        if (trialHeroId === "max") {
           ctx.save();
-          ctx.strokeStyle = "rgba(255, 213, 79, 0.72)";
-          ctx.lineWidth = 2;
-          ctx.setLineDash([7, 6]);
+          ctx.fillStyle = "rgba(255, 213, 79, 0.24)";
+          ctx.strokeStyle = "rgba(255, 235, 120, 0.82)";
+          ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
           ctx.beginPath();
-          ctx.moveTo(playerCenterPx, playerCenterPy);
-          ctx.lineTo(projectX(aimEndX, aimEndY), projectY(aimEndY));
+          ctx.ellipse(
+            playerCenterPx,
+            playerCenterPy,
+            MAX_SUPER_RADIUS * scale * widthFactorAt(player.y),
+            MAX_SUPER_RADIUS * scaleY,
+            0,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        } else if (trialHeroId === "byron") {
+          const target = aimingTargetRef.current;
+          const bounds = visibleWorldBoundsRef.current;
+          const targetVisible = aimingTargetHealthRef.current > 0
+            && target.x >= bounds.left && target.x <= bounds.right
+            && target.y >= bounds.top && target.y <= bounds.bottom;
+          const stickDistance = Math.hypot(stick.knobX, stick.knobY);
+          const angle = stick.exceededDeadzone
+            ? Math.atan2(stick.knobY, stick.knobX)
+            : targetVisible
+              ? Math.atan2(target.y - player.y, target.x - player.x)
+              : playerMoveDirectionRef.current;
+          const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
+          const throwDistance = stick.exceededDeadzone && stickDistance > 0
+            ? BYRON_SUPER_RANGE * stick.rawMagnitude
+            : targetVisible ? Math.min(BYRON_SUPER_RANGE, targetDistance) : BYRON_SUPER_RANGE;
+          const centerX = Math.max(0, Math.min(MAP_WIDTH, player.x + Math.cos(angle) * throwDistance));
+          const centerY = Math.max(0, Math.min(MAP_HEIGHT, player.y + Math.sin(angle) * throwDistance));
+          ctx.save();
+          ctx.fillStyle = "rgba(170, 76, 255, 0.28)";
+          ctx.strokeStyle = "rgba(230, 195, 255, 0.9)";
+          ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
+          ctx.beginPath();
+          ctx.ellipse(
+            projectX(centerX, centerY),
+            projectY(centerY),
+            BYRON_SUPER_RADIUS * scale * widthFactorAt(centerY),
+            BYRON_SUPER_RADIUS * scaleY,
+            0,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
           ctx.stroke();
           ctx.restore();
         }
@@ -2351,17 +2561,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       burstFollowupRef.current = false;
       beaEnhancedShotsRef.current = 0;
       playerSuperChargeRef.current = 0;
+      playerAttackCooldownRef.current = 0;
       maxSuperRemainingRef.current = 0;
       superJoystickRef.current.active = false;
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (mode !== "joystick" || isAimingMode || pausedRef.current) return;
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = containerRef.current?.getBoundingClientRect() ?? e.currentTarget.getBoundingClientRect();
     const localX = e.clientX - rect.left;
     if (localX >= rect.width / 2) return;
     e.preventDefault();
@@ -2386,7 +2597,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const js = joystickRef.current;
     if (!js.active || js.touchId !== e.pointerId) return;
     e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = containerRef.current?.getBoundingClientRect() ?? e.currentTarget.getBoundingClientRect();
     let dx = e.clientX - rect.left - js.baseX;
     let dy = e.clientY - rect.top - js.baseY;
     let dist = Math.sqrt(dx * dx + dy * dy);
@@ -2434,7 +2645,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
   const handleAimPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (mode !== "joystick" || !isPlayerAttackMode || pausedRef.current) return;
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = containerRef.current?.getBoundingClientRect() ?? e.currentTarget.getBoundingClientRect();
     const localX = e.clientX - rect.left;
     if (localX < rect.width / 2) return;
     e.preventDefault();
@@ -2456,7 +2667,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const aim = aimJoystickRef.current;
     if (!isPlayerAttackMode || !aim.active || aim.touchId !== e.pointerId) return;
     e.preventDefault();
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = containerRef.current?.getBoundingClientRect() ?? e.currentTarget.getBoundingClientRect();
     let dx = e.clientX - rect.left - aim.baseX;
     let dy = e.clientY - rect.top - aim.baseY;
     let distance = Math.hypot(dx, dy);
@@ -2482,13 +2693,19 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const cancelled = e.type === "pointercancel" || (aim.exceededDeadzone && directionLength <= deadzone);
     const target = aimingTargetRef.current;
     const bounds = visibleWorldBoundsRef.current;
-    const autoAimTargetVisible = target.x >= bounds.left && target.x <= bounds.right && target.y >= bounds.top && target.y <= bounds.bottom;
-    if (!cancelled && (aim.exceededDeadzone || autoAimTargetVisible) && !pausedRef.current && !countdownActiveRef.current && magazineAmmoRef.current > 0) {
+    const autoAimTargetVisible = aimingTargetHealthRef.current > 0
+      && target.x >= bounds.left && target.x <= bounds.right
+      && target.y >= bounds.top && target.y <= bounds.bottom;
+    if (!cancelled && !pausedRef.current && !countdownActiveRef.current && magazineAmmoRef.current > 0 && playerAttackCooldownRef.current <= 0) {
       const player = playerRef.current;
       const shotAngle = aim.exceededDeadzone
         ? Math.atan2(aim.knobY, aim.knobX)
-        : Math.atan2(target.y - player.y, target.x - player.x);
-      const directAngle = Math.atan2(target.y - player.y, target.x - player.x);
+        : autoAimTargetVisible
+          ? Math.atan2(target.y - player.y, target.x - player.x)
+          : playerMoveDirectionRef.current;
+      const directAngle = autoAimTargetVisible
+        ? Math.atan2(target.y - player.y, target.x - player.x)
+        : shotAngle;
       const leadDegrees = Math.atan2(Math.sin(shotAngle - directAngle), Math.cos(shotAngle - directAngle)) * 180 / Math.PI;
       const maxLeadDegrees = Math.asin(Math.min(0.999, MOVE_SPEED / bulletSpeed)) * 180 / Math.PI;
       if (isAimingMode && Math.abs(leadDegrees) <= maxLeadDegrees + 0.05 && aimingLeadAnglesRef.current.length < 10_000) {
@@ -2499,7 +2716,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       const projectileAngles = attackProjectileAngles(shotAngle, isMaxMode, shotSeed);
       const texture: keyof typeof BULLET_STYLES = isBeaMode
         ? (isEnhancedBeaShot ? "beaEnhanced" : "beaNormal")
-        : isMaxMode ? "max" : "high";
+        : isMaxMode ? "max" : isByronMode ? "byron" : "high";
       for (const [index, angle] of projectileAngles.entries()) {
         bulletsRef.current.push({
           x: player.x,
@@ -2521,6 +2738,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
       magazineAmmoRef.current -= 1;
       setMagazineAmmo(magazineAmmoRef.current);
+      playerAttackCooldownRef.current = playerAttackIntervalSeconds;
     }
     aim.active = false;
     aim.touchId = null;
@@ -2579,12 +2797,16 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const cancelled = e.type === "pointercancel" || (stick.exceededDeadzone && distance <= deadzone);
     const target = aimingTargetRef.current;
     const bounds = visibleWorldBoundsRef.current;
-    const autoAimTargetVisible = target.x >= bounds.left && target.x <= bounds.right && target.y >= bounds.top && target.y <= bounds.bottom;
-    if (!cancelled && (stick.exceededDeadzone || autoAimTargetVisible) && !pausedRef.current && !countdownActiveRef.current && playerSuperChargeRef.current >= 1) {
+    const autoAimTargetVisible = aimingTargetHealthRef.current > 0
+      && target.x >= bounds.left && target.x <= bounds.right
+      && target.y >= bounds.top && target.y <= bounds.bottom;
+    if (!cancelled && !pausedRef.current && !countdownActiveRef.current && playerSuperChargeRef.current >= 1) {
       const player = playerRef.current;
       const angle = stick.exceededDeadzone
         ? Math.atan2(stick.knobY, stick.knobX)
-        : Math.atan2(target.y - player.y, target.x - player.x);
+        : autoAimTargetVisible
+          ? Math.atan2(target.y - player.y, target.x - player.x)
+          : playerMoveDirectionRef.current;
       if (trialHeroId === "max") {
         maxSuperRemainingRef.current = MAX_SUPER_DURATION_SECONDS;
       } else if (trialHeroId === "bea") {
@@ -2603,6 +2825,33 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             superTrajectory: { originX: player.x, originY: player.y, angle, omega, elapsed: 0 },
           });
         }
+      } else if (trialHeroId === "byron") {
+        const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
+        const throwDistance = stick.exceededDeadzone
+          ? BYRON_SUPER_RANGE * stick.rawMagnitude
+          : autoAimTargetVisible ? Math.min(BYRON_SUPER_RANGE, targetDistance) : BYRON_SUPER_RANGE;
+        const impactX = Math.max(0, Math.min(MAP_WIDTH, player.x + Math.cos(angle) * throwDistance));
+        const impactY = Math.max(0, Math.min(MAP_HEIGHT, player.y + Math.sin(angle) * throwDistance));
+        const actualDistance = Math.hypot(impactX - player.x, impactY - player.y);
+        bulletsRef.current.push({
+          x: player.x,
+          y: player.y,
+          vx: Math.cos(angle) * BYRON_SUPER_SPEED,
+          vy: Math.sin(angle) * BYRON_SUPER_SPEED,
+          traveled: 0,
+          id: bulletIdRef.current++,
+          radius: tiles(0.3),
+          texture: "byronSuper",
+          owner: "player",
+          maxDistance: actualDistance,
+          lobbedImpact: {
+            x: impactX,
+            y: impactY,
+            radius: BYRON_SUPER_RADIUS,
+            damage: BYRON_SUPER_DAMAGE_AND_HEAL,
+            heal: BYRON_SUPER_DAMAGE_AND_HEAL,
+          },
+        });
       }
       playerSuperChargeRef.current = 0;
     }
@@ -2615,12 +2864,27 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     forceUpdate((value) => value + 1);
   };
 
+  const handleSuperControlPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (playerSuperChargeRef.current >= 1) handleSuperPointerDown(e);
+    else handleAimPointerDown(e);
+  };
+
+  const handleSuperControlPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (superJoystickRef.current.touchId === e.pointerId) handleSuperPointerMove(e);
+    else if (aimJoystickRef.current.touchId === e.pointerId) handleAimPointerMove(e);
+  };
+
+  const handleSuperControlPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (superJoystickRef.current.touchId === e.pointerId) handleSuperPointerUp(e);
+    else if (aimJoystickRef.current.touchId === e.pointerId) handleAimPointerUp(e);
+  };
+
   const isControlUiTarget = (target: EventTarget | null) => target instanceof Element
     && Boolean(target.closest("button, a, input, select, textarea, [role='button'], [data-joystick-id='super']"));
 
   const handleGamePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (mode !== "joystick" || isControlUiTarget(e.target)) return;
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = containerRef.current?.getBoundingClientRect() ?? e.currentTarget.getBoundingClientRect();
     const isLeftHalf = e.clientX - rect.left < rect.width / 2;
     if (isLeftHalf) handlePointerDown(e);
     else handleAimPointerDown(e);
@@ -2877,9 +3141,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           selected={false}
           knob={{ x: superJoystickRef.current.knobX, y: superJoystickRef.current.knobY }}
           active={superJoystickRef.current.active}
-          onPointerDown={handleSuperPointerDown}
-          onPointerMove={handleSuperPointerMove}
-          onPointerUp={handleSuperPointerUp}
+          charge={playerSuperChargeRef.current}
+          onPointerDown={handleSuperControlPointerDown}
+          onPointerMove={handleSuperControlPointerMove}
+          onPointerUp={handleSuperControlPointerUp}
         />
       )}
 
