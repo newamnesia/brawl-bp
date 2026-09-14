@@ -8,7 +8,7 @@ export default function CharacterTrial() {
   const navigate = useNavigate();
   return <main className="app-shell character-trial-page">
     <h1 className="page-title">角色试用</h1>
-    <p className="page-subtitle">选择角色进入空白地图，测试移动与普通攻击</p>
+    <p className="page-subtitle">选择角色进入统一战斗场景，测试移动、普通攻击与大招</p>
     <section className="character-trial-grid" aria-label="角色试用选项">
       {IDS.map(id => {
         const hero = TRIAL_BRAWLERS[id];
@@ -30,7 +30,8 @@ export default function CharacterTrial() {
       <p className="tutorial-intro">试用场说明</p>
       <ul className="tutorial-list">
         <li>地图中心有一个 100000 血量的静止敌人。</li>
-        <li>左侧摇杆控制移动，右侧摇杆拖动瞄准，松手发射普攻。</li>
+        <li>左半屏控制移动，右半屏控制普攻；黄色摇杆用于大招。</li>
+        <li>顶部“全屏”按钮可隐藏浏览器栏，使用完整横屏战斗区域。</li>
         <li>角色与子弹参数沿用当前战斗系统。</li>
       </ul>
     </section>

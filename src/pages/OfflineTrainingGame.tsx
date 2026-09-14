@@ -8,6 +8,7 @@ import { AIM_REACTION_TIERS, CHARACTER_MOVE_SPEED, MAX_PROJECTILE_INTERVAL_SECON
 import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, STARTUP_SECONDS, type WallCell } from "../features/training/movement";
 import { AdjustableJoystick } from "../components/AdjustableJoystick";
 import { clampJoystick, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
+import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
@@ -63,6 +64,12 @@ const BULLET_MAX_DIST = tiles(10); // 子弹最远行进 3000 单位
 const PLAYER_MAX_HEALTH = 6000;
 const PRACTICE_PLAYER_MAX_HEALTH = 100000;
 const AIMING_INFINITE_MAX_HEALTH = 100000;
+const TRIAL_TARGET_MAX_HEALTH = 100000;
+const TRIAL_TARGET_X = MAP_WIDTH / 2;
+const TRIAL_TARGET_Y = MAP_HEIGHT / 2;
+const MAX_SUPER_SPEED_BONUS = 300;
+const MAX_SUPER_DURATION_SECONDS = 4;
+const ATTACK_AUTO_AIM_DEADZONE_RATIO = 0.24;
 const BEA_NORMAL_DAMAGE = 1600;
 const BEA_ENHANCED_DAMAGE = 4400;
 const MAX_PROJECTILE_DAMAGE = 640;
@@ -793,11 +800,12 @@ function predictAimAngle(args: {
   };
 }
 
-export default function OfflineTrainingGame() {
+export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: TrialBrawlerId } = {}) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const mode = (searchParams.get("mode") as ControlMode) || "keyboard";
-  const requestedSpeedTier = searchParams.get("speedTier");
+  const isTrialMode = Boolean(trialHeroId);
+  const mode: ControlMode = isTrialMode ? "joystick" : (searchParams.get("mode") as ControlMode) || "keyboard";
+  const requestedSpeedTier = trialHeroId === "piper" ? "high" : trialHeroId === "max" ? "max" : trialHeroId === "bea" ? "mid" : searchParams.get("speedTier");
   const speedTier = requestedSpeedTier === "high" || requestedSpeedTier === "max" ? requestedSpeedTier : "mid";
   const requestedTrainingMode = searchParams.get("trainingMode");
   const trainingMode: TrainingMode = requestedTrainingMode === "survival"
@@ -805,10 +813,11 @@ export default function OfflineTrainingGame() {
     : requestedTrainingMode === "aiming" ? "aiming" : "practice";
   const isSurvivalMode = trainingMode === "survival";
   const isAimingMode = trainingMode === "aiming";
-  const playerMaxHealth = trainingMode === "practice" ? PRACTICE_PLAYER_MAX_HEALTH : PLAYER_MAX_HEALTH;
+  const isPlayerAttackMode = isAimingMode || isTrialMode;
+  const playerMaxHealth = trialHeroId ? TRIAL_BRAWLERS[trialHeroId].health : trainingMode === "practice" ? PRACTICE_PLAYER_MAX_HEALTH : PLAYER_MAX_HEALTH;
   const aimingRule: AimingRule = searchParams.get("aimingRule") === "infinite" ? "infinite" : "challenge";
   const isAimingInfinite = isAimingMode && aimingRule === "infinite";
-  const aimingTargetMaxHealth = isAimingInfinite ? AIMING_INFINITE_MAX_HEALTH : PLAYER_MAX_HEALTH;
+  const aimingTargetMaxHealth = isTrialMode ? TRIAL_TARGET_MAX_HEALTH : isAimingInfinite ? AIMING_INFINITE_MAX_HEALTH : PLAYER_MAX_HEALTH;
   const requestedReactionTier = searchParams.get("reactionTier");
   const reactionTier: AimReactionTier = requestedReactionTier === "legendary" || requestedReactionTier === "master"
     ? requestedReactionTier
@@ -872,6 +881,18 @@ export default function OfflineTrainingGame() {
     knobY: 0,
     maxRadius: 60,
     rawMagnitude: 0,
+    exceededDeadzone: false,
+  });
+  const superJoystickRef = useRef({
+    active: false,
+    touchId: null as number | null,
+    baseX: 0,
+    baseY: 0,
+    knobX: 0,
+    knobY: 0,
+    maxRadius: 60,
+    rawMagnitude: 0,
+    exceededDeadzone: false,
   });
   const aimingTargetRef = useRef({
     x: ENEMY_X,
@@ -889,6 +910,7 @@ export default function OfflineTrainingGame() {
   });
   const aimingTargetHealthRef = useRef(PLAYER_MAX_HEALTH);
   const aimingTargetSecondsSinceDamageRef = useRef(0);
+  const visibleWorldBoundsRef = useRef({ left: 0, right: MAP_WIDTH, top: 0, bottom: MAP_HEIGHT });
 
   // 仅在离散输入事件中刷新摇杆 UI；逐帧游戏状态全部保存在 ref 中。
   const [, forceUpdate] = useState(0);
@@ -994,6 +1016,8 @@ export default function OfflineTrainingGame() {
 
   // 子弹 + 开火计时（用 ref 避免重渲染）
   const bulletsRef = useRef<Bullet[]>([]);
+  const playerSuperChargeRef = useRef(0);
+  const maxSuperRemainingRef = useRef(0);
   const fireTimerRef = useRef(fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin));
   const magazineAmmoRef = useRef(magazineCapacity);
   const magazineReloadTimerRef = useRef(magazineReloadSeconds);
@@ -1100,7 +1124,7 @@ export default function OfflineTrainingGame() {
     let tauntVisibleRemainingMs = 0;
     const stars: TrainingStar[] = [];
     let nextStarId = 1;
-    let starSpawnTimer = STAR_SPAWN_MIN_SECONDS + Math.random() * (STAR_SPAWN_MAX_SECONDS - STAR_SPAWN_MIN_SECONDS);
+    let starSpawnTimer = isTrialMode ? Number.POSITIVE_INFINITY : STAR_SPAWN_MIN_SECONDS + Math.random() * (STAR_SPAWN_MAX_SECONDS - STAR_SPAWN_MIN_SECONDS);
     let aiTargetStarId: number | null = null;
     let aiFeintCooldown = 0;
     let aiFeint: { starId: number; phase: "approach" | "break"; remaining: number; startedAt: number; breakHeading: number } | null = null;
@@ -1124,12 +1148,14 @@ export default function OfflineTrainingGame() {
 
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart);
-    playerRef.current = isAimingMode
+    playerRef.current = isTrialMode
+      ? { x: TRIAL_TARGET_X, y: TRIAL_TARGET_Y + tiles(7) }
+      : isAimingMode
       ? { x: ENEMY_X, y: ENEMY_Y }
       : { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
     aimingTargetRef.current = {
-      x: ENEMY_X,
-      y: ENEMY_Y - tiles(9),
+      x: isTrialMode ? TRIAL_TARGET_X : ENEMY_X,
+      y: isTrialMode ? TRIAL_TARGET_Y : ENEMY_Y - tiles(9),
       angle: -Math.PI / 2,
       direction: 1,
       switchTimer: 0.7,
@@ -1149,6 +1175,8 @@ export default function OfflineTrainingGame() {
     timingScaleRef.current = 1;
     burstFollowupRef.current = false;
     beaEnhancedShotsRef.current = 0;
+    playerSuperChargeRef.current = 0;
+    maxSuperRemainingRef.current = 0;
     fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
     setMagazineAmmo(magazineCapacity);
     setMagazineReloadProgress(0);
@@ -1341,12 +1369,15 @@ export default function OfflineTrainingGame() {
         const prof = profilerRef.current!;
 
         const velocity = playerVelocityRef.current;
+        maxSuperRemainingRef.current = Math.max(0, maxSuperRemainingRef.current - dt);
         if (isBeaMode && !isAimingMode) {
           superSlowRemainingMs = Math.max(0, superSlowRemainingMs - dtMs);
         }
-        const movementSpeed = isBeaMode && !isAimingMode && superSlowRemainingMs > 0
+        const baseMovementSpeed = isBeaMode && !isAimingMode && !isTrialMode && superSlowRemainingMs > 0
           ? controlledMoveSpeed * BEA_SUPER.slowMultiplier
           : controlledMoveSpeed;
+        const movementSpeed = baseMovementSpeed
+          + (isTrialMode && isMaxMode && maxSuperRemainingRef.current > 0 ? MAX_SUPER_SPEED_BONUS : 0);
         const movement = advanceMovement(playerMovementElapsedRef.current, dt,
           !isAimingMode && Math.hypot(input.x, input.y) > 0);
         playerMovementElapsedRef.current = movement.elapsed;
@@ -1742,8 +1773,8 @@ export default function OfflineTrainingGame() {
           magazineReloadTimerRef.current = currentReloadSeconds;
         }
 
-        if (!isAimingMode) fireTimerRef.current -= dt;
-        if (!isAimingMode && fireTimerRef.current <= 0) {
+        if (!isAimingMode && !isTrialMode) fireTimerRef.current -= dt;
+        if (!isAimingMode && !isTrialMode && fireTimerRef.current <= 0) {
           const dx = player.x - ENEMY_X;
           const dy = player.y - ENEMY_Y;
           // 射程判定：用玩家当前位置
@@ -1805,7 +1836,7 @@ export default function OfflineTrainingGame() {
         // 满充保持蓝环；进入射程后以金环显示短暂的预判瞄准。
         if (superAim.elapsed === 0) superAim.angle = enemyDirectionRef.current;
         const superDecision = updateBeaSuperAim(superAim, dt,
-          isBeaMode && !isAimingMode && superCharge >= 1,
+          isBeaMode && !isAimingMode && !isTrialMode && superCharge >= 1,
           (player.x - ENEMY_X) / BEA_SUPER_UNIT, (player.y - ENEMY_Y) / BEA_SUPER_UNIT,
           playerVelocityRef.current.x / BEA_SUPER_UNIT, playerVelocityRef.current.y / BEA_SUPER_UNIT);
         superAiming = superDecision.aiming;
@@ -1852,6 +1883,7 @@ export default function OfflineTrainingGame() {
         const viewMapRight = (cssW - offsetX) / scale + viewMargin;
         const viewMapTop = (-oY) / scaleY - viewMargin;
         const viewMapBottom = (cssH - oY) / scaleY + viewMargin;
+        visibleWorldBoundsRef.current = { left: viewMapLeft, right: viewMapRight, top: viewMapTop, bottom: viewMapBottom };
 
         for (let i = bullets.length - 1; i >= 0; i--) {
           const b = bullets[i];
@@ -1928,11 +1960,17 @@ export default function OfflineTrainingGame() {
                 beaEnhancedShotsRef.current = 0;
               }
               const damage = projectileDamage(b.texture, b.traveled);
+              if (isTrialMode && playerSuperChargeRef.current < 1) {
+                const chargeGain = b.texture === "beaSuper"
+                  ? 0.025
+                  : b.texture === "max" ? 0.0735 : b.texture === "beaNormal" || b.texture === "beaEnhanced" ? 0.26 : 0;
+                playerSuperChargeRef.current = Math.min(1, playerSuperChargeRef.current + chargeGain);
+              }
               totalDamageRef.current += damage;
               setTotalDamage(Math.round(totalDamageRef.current));
               aimingTargetHealthRef.current = Math.max(0, aimingTargetHealthRef.current - damage);
               aimingTargetSecondsSinceDamageRef.current = 0;
-              if (!isAimingInfinite && aimingTargetHealthRef.current <= 0) {
+              if ((isTrialMode || (isAimingMode && !isAimingInfinite)) && aimingTargetHealthRef.current <= 0) {
                 pausedRef.current = true;
                 setRoundResult("victory");
               }
@@ -2071,7 +2109,7 @@ export default function OfflineTrainingGame() {
       ctx.closePath();
       ctx.stroke();
 
-      const renderedEnemy = isAimingMode ? aimingTargetRef.current : { x: ENEMY_X, y: ENEMY_Y };
+      const renderedEnemy = isPlayerAttackMode ? aimingTargetRef.current : { x: ENEMY_X, y: ENEMY_Y };
       // 两种训练都显示当前角色的实际攻击范围，不展示目标的移动轨迹。
       const enemyCenterPx = projectX(renderedEnemy.x, renderedEnemy.y);
       const enemyCenterPy = projectY(renderedEnemy.y);
@@ -2084,8 +2122,8 @@ export default function OfflineTrainingGame() {
       ctx.beginPath();
       for (let i = 0; i <= 72; i++) {
         const angle = (i / 72) * Math.PI * 2;
-        const circleCenterX = isAimingMode ? player.x : ENEMY_X;
-        const circleCenterY = isAimingMode ? player.y : ENEMY_Y;
+        const circleCenterX = isPlayerAttackMode ? player.x : ENEMY_X;
+        const circleCenterY = isPlayerAttackMode ? player.y : ENEMY_Y;
         const circleRadius = projectileRange;
         const worldX = circleCenterX + Math.cos(angle) * circleRadius;
         const worldY = circleCenterY + Math.sin(angle) * circleRadius;
@@ -2128,8 +2166,8 @@ export default function OfflineTrainingGame() {
         radiusX: enemyRadiusPx,
         radiusY: enemyRadiusPy,
         statusWidth: TILE_SIZE * scale * widthFactorAt(renderedEnemy.y),
-        health: isAimingMode ? aimingTargetHealthRef.current : PLAYER_MAX_HEALTH,
-        maxHealth: isAimingMode ? aimingTargetMaxHealth : PLAYER_MAX_HEALTH,
+        health: isPlayerAttackMode ? aimingTargetHealthRef.current : PLAYER_MAX_HEALTH,
+        maxHealth: isPlayerAttackMode ? aimingTargetMaxHealth : PLAYER_MAX_HEALTH,
         team: "enemy",
         relation: "enemy",
         afterGroundRing: isBeaMode && !isAimingMode && superCharge >= 1
@@ -2157,10 +2195,14 @@ export default function OfflineTrainingGame() {
         maxHealth: playerMaxHealth,
         team: "player",
         relation: "self",
-        ammo: isAimingMode ? { current: ammo, capacity: magazineCapacity, reloadProgress } : undefined,
+        afterGroundRing: isTrialMode && playerSuperChargeRef.current >= 1
+          ? () => drawSuperRing(ctx, playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy,
+            superRingPhase, superJoystickRef.current.active)
+          : undefined,
+        ammo: isPlayerAttackMode ? { current: ammo, capacity: magazineCapacity, reloadProgress } : undefined,
       });
 
-      if (isAimingMode && aimJoystickRef.current.active) {
+      if (isPlayerAttackMode && aimJoystickRef.current.active) {
         const aim = aimJoystickRef.current;
         const aimLength = Math.hypot(aim.knobX, aim.knobY);
         if (aimLength > 8) {
@@ -2308,9 +2350,13 @@ export default function OfflineTrainingGame() {
       lastMagazineUiUpdateRef.current = 0;
       burstFollowupRef.current = false;
       beaEnhancedShotsRef.current = 0;
+      playerSuperChargeRef.current = 0;
+      maxSuperRemainingRef.current = 0;
+      superJoystickRef.current.active = false;
+      superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isAimingInfinite, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -2387,7 +2433,7 @@ export default function OfflineTrainingGame() {
   };
 
   const handleAimPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (mode !== "joystick" || !isAimingMode || pausedRef.current) return;
+    if (mode !== "joystick" || !isPlayerAttackMode || pausedRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const localX = e.clientX - rect.left;
     if (localX < rect.width / 2) return;
@@ -2401,13 +2447,14 @@ export default function OfflineTrainingGame() {
     aim.knobX = 0;
     aim.knobY = 0;
     aim.rawMagnitude = 0;
+    aim.exceededDeadzone = false;
     e.currentTarget.setPointerCapture(e.pointerId);
     forceUpdate((n) => n + 1);
   };
 
   const handleAimPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const aim = aimJoystickRef.current;
-    if (!isAimingMode || !aim.active || aim.touchId !== e.pointerId) return;
+    if (!isPlayerAttackMode || !aim.active || aim.touchId !== e.pointerId) return;
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
     let dx = e.clientX - rect.left - aim.baseX;
@@ -2421,23 +2468,30 @@ export default function OfflineTrainingGame() {
     aim.knobX = dx;
     aim.knobY = dy;
     aim.rawMagnitude = distance / aim.maxRadius;
+    if (distance > aim.maxRadius * ATTACK_AUTO_AIM_DEADZONE_RATIO) aim.exceededDeadzone = true;
     if (distance > 8) playerDirectionRef.current = Math.atan2(dy, dx);
     forceUpdate((n) => n + 1);
   };
 
   const handleAimPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     const aim = aimJoystickRef.current;
-    if (!isAimingMode || aim.touchId !== e.pointerId) return;
+    if (!isPlayerAttackMode || aim.touchId !== e.pointerId) return;
     e.preventDefault();
     const directionLength = Math.hypot(aim.knobX, aim.knobY);
-    if (!pausedRef.current && !countdownActiveRef.current && directionLength > 8 && magazineAmmoRef.current > 0) {
+    const deadzone = aim.maxRadius * ATTACK_AUTO_AIM_DEADZONE_RATIO;
+    const cancelled = e.type === "pointercancel" || (aim.exceededDeadzone && directionLength <= deadzone);
+    const target = aimingTargetRef.current;
+    const bounds = visibleWorldBoundsRef.current;
+    const autoAimTargetVisible = target.x >= bounds.left && target.x <= bounds.right && target.y >= bounds.top && target.y <= bounds.bottom;
+    if (!cancelled && (aim.exceededDeadzone || autoAimTargetVisible) && !pausedRef.current && !countdownActiveRef.current && magazineAmmoRef.current > 0) {
       const player = playerRef.current;
-      const target = aimingTargetRef.current;
-      const shotAngle = Math.atan2(aim.knobY, aim.knobX);
+      const shotAngle = aim.exceededDeadzone
+        ? Math.atan2(aim.knobY, aim.knobX)
+        : Math.atan2(target.y - player.y, target.x - player.x);
       const directAngle = Math.atan2(target.y - player.y, target.x - player.x);
       const leadDegrees = Math.atan2(Math.sin(shotAngle - directAngle), Math.cos(shotAngle - directAngle)) * 180 / Math.PI;
       const maxLeadDegrees = Math.asin(Math.min(0.999, MOVE_SPEED / bulletSpeed)) * 180 / Math.PI;
-      if (Math.abs(leadDegrees) <= maxLeadDegrees + 0.05 && aimingLeadAnglesRef.current.length < 10_000) {
+      if (isAimingMode && Math.abs(leadDegrees) <= maxLeadDegrees + 0.05 && aimingLeadAnglesRef.current.length < 10_000) {
         aimingLeadAnglesRef.current.push(Math.round(leadDegrees * 10) / 10);
       }
       const isEnhancedBeaShot = isBeaMode && beaEnhancedShotsRef.current > 0;
@@ -2473,11 +2527,96 @@ export default function OfflineTrainingGame() {
     aim.knobX = 0;
     aim.knobY = 0;
     aim.rawMagnitude = 0;
+    aim.exceededDeadzone = false;
     forceUpdate((n) => n + 1);
   };
 
+  const handleSuperPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isTrialMode || trialHeroId === "piper" || pausedRef.current || playerSuperChargeRef.current < 1) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const stick = superJoystickRef.current;
+    if (stick.active) return;
+    stick.active = true;
+    stick.touchId = e.pointerId;
+    stick.baseX = e.clientX;
+    stick.baseY = e.clientY;
+    stick.knobX = 0;
+    stick.knobY = 0;
+    stick.rawMagnitude = 0;
+    stick.exceededDeadzone = false;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    forceUpdate((value) => value + 1);
+  };
+
+  const handleSuperPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const stick = superJoystickRef.current;
+    if (!stick.active || stick.touchId !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    let dx = e.clientX - stick.baseX;
+    let dy = e.clientY - stick.baseY;
+    let distance = Math.hypot(dx, dy);
+    if (distance > stick.maxRadius) {
+      dx = dx / distance * stick.maxRadius;
+      dy = dy / distance * stick.maxRadius;
+      distance = stick.maxRadius;
+    }
+    stick.knobX = dx;
+    stick.knobY = dy;
+    stick.rawMagnitude = distance / stick.maxRadius;
+    if (distance > stick.maxRadius * ATTACK_AUTO_AIM_DEADZONE_RATIO) stick.exceededDeadzone = true;
+    forceUpdate((value) => value + 1);
+  };
+
+  const handleSuperPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const stick = superJoystickRef.current;
+    if (!stick.active || stick.touchId !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const distance = Math.hypot(stick.knobX, stick.knobY);
+    const deadzone = stick.maxRadius * ATTACK_AUTO_AIM_DEADZONE_RATIO;
+    const cancelled = e.type === "pointercancel" || (stick.exceededDeadzone && distance <= deadzone);
+    const target = aimingTargetRef.current;
+    const bounds = visibleWorldBoundsRef.current;
+    const autoAimTargetVisible = target.x >= bounds.left && target.x <= bounds.right && target.y >= bounds.top && target.y <= bounds.bottom;
+    if (!cancelled && (stick.exceededDeadzone || autoAimTargetVisible) && !pausedRef.current && !countdownActiveRef.current && playerSuperChargeRef.current >= 1) {
+      const player = playerRef.current;
+      const angle = stick.exceededDeadzone
+        ? Math.atan2(stick.knobY, stick.knobX)
+        : Math.atan2(target.y - player.y, target.x - player.x);
+      if (trialHeroId === "max") {
+        maxSuperRemainingRef.current = MAX_SUPER_DURATION_SECONDS;
+      } else if (trialHeroId === "bea") {
+        for (const omega of BEA_SUPER.angularSpeeds) {
+          bulletsRef.current.push({
+            x: player.x,
+            y: player.y,
+            vx: Math.cos(angle) * BEA_SUPER.speed * BEA_SUPER_UNIT,
+            vy: Math.sin(angle) * BEA_SUPER.speed * BEA_SUPER_UNIT,
+            traveled: 0,
+            id: bulletIdRef.current++,
+            radius: BEA_SUPER.radius * BEA_SUPER_UNIT,
+            texture: "beaSuper",
+            owner: "player",
+            maxDistance: BEA_SUPER.range * BEA_SUPER_UNIT,
+            superTrajectory: { originX: player.x, originY: player.y, angle, omega, elapsed: 0 },
+          });
+        }
+      }
+      playerSuperChargeRef.current = 0;
+    }
+    stick.active = false;
+    stick.touchId = null;
+    stick.knobX = 0;
+    stick.knobY = 0;
+    stick.rawMagnitude = 0;
+    stick.exceededDeadzone = false;
+    forceUpdate((value) => value + 1);
+  };
+
   const isControlUiTarget = (target: EventTarget | null) => target instanceof Element
-    && Boolean(target.closest("button, a, input, select, textarea, [role='button']"));
+    && Boolean(target.closest("button, a, input, select, textarea, [role='button'], [data-joystick-id='super']"));
 
   const handleGamePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (mode !== "joystick" || isControlUiTarget(e.target)) return;
@@ -2501,6 +2640,7 @@ export default function OfflineTrainingGame() {
   const aimJs = aimJoystickRef.current;
   const movementLayout = clampJoystick(controlLayoutRef.current.joysticks.movement, controlViewport.width, controlViewport.height);
   const attackLayout = clampJoystick(controlLayoutRef.current.joysticks.attack, controlViewport.width, controlViewport.height);
+  const superLayout = clampJoystick(controlLayoutRef.current.joysticks.super, controlViewport.width, controlViewport.height);
   const displayedMovementLayout = js.active
     ? { ...movementLayout, x: js.baseX / controlViewport.width, y: js.baseY / controlViewport.height }
     : movementLayout;
@@ -2509,6 +2649,7 @@ export default function OfflineTrainingGame() {
     : attackLayout;
   js.maxRadius = joystickDiameter(movementLayout, controlViewport.width, controlViewport.height) * 0.39;
   aimJs.maxRadius = joystickDiameter(attackLayout, controlViewport.width, controlViewport.height) * 0.39;
+  superJoystickRef.current.maxRadius = joystickDiameter(superLayout, controlViewport.width, controlViewport.height) * 0.39;
 
   const endSnapshot: TrainingSnapshot = {
     stickMag: profilerRef.current?.samplesStickMag ?? [],
@@ -2554,7 +2695,7 @@ export default function OfflineTrainingGame() {
         </div>
       )}
 
-      {!isAimingMode && (
+      {!isAimingMode && !isTrialMode && (
         <div className="training-survival-status" aria-live="polite">
           <div className="training-survival-time">积分 {score.toFixed(1)}</div>
         </div>
@@ -2605,7 +2746,7 @@ export default function OfflineTrainingGame() {
 
         <div className="training-hud-actions" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <div className="training-control-label" style={{ fontSize: "0.8rem", color: "#8899aa", whiteSpace: "nowrap" }}>
-            操作方式: {isAimingMode ? "右侧攻击摇杆" : mode === "joystick" ? "触控摇杆" : "键盘 WASD"}
+            操作方式: {isTrialMode ? "移动、普攻与大招摇杆" : isAimingMode ? "右侧攻击摇杆" : mode === "joystick" ? "触控摇杆" : "键盘 WASD"}
           </div>
           <button
             onClick={toggleFullscreen}
@@ -2668,11 +2809,13 @@ export default function OfflineTrainingGame() {
           <div className="training-game-over-card training-game-over-card-wide">
             <div className={`training-game-over-title ${roundResult === "victory" ? "victory" : ""}`}>
               {roundResult === "victory"
-                ? "预判命中，训练胜利！"
+                ? isTrialMode ? "目标已击破" : "预判命中，训练胜利！"
                 : isAimingMode && roundResult === "defeat" ? "人机达到 15 分，挑战失败" : "本轮结束"}
             </div>
             <div className="training-game-over-time">
-              {isAimingInfinite
+              {isTrialMode
+                ? `累计造成 ${totalDamage} 点伤害 · 目标剩余 ${Math.round(aimingTargetHealthRef.current)} 生命`
+                : isAimingInfinite
                 ? `累计造成 ${totalDamage} 点伤害 · 人机积分 ${aiScore.toFixed(1)}`
                 : roundResult === "victory"
                 ? `成功击败移动目标 · 人机积分 ${aiScore.toFixed(1)}`
@@ -2680,14 +2823,14 @@ export default function OfflineTrainingGame() {
                 ? `人机积分 ${aiScore.toFixed(1)} / 15`
                 : isSurvivalMode ? `最终积分 ${score.toFixed(1)}` : `本局积分 ${score.toFixed(1)}`}
             </div>
-            <TrainingStatsGrid
+            {!isTrialMode && <TrainingStatsGrid
               snapshot={endSnapshot}
               aiming={isAimingMode}
               mode={mode}
               reactionWindowMaxMs={reactionWindowMaxMs}
               aimingMaxLeadDeg={aimingMaxLeadDeg}
               showEmptyAmmoRatio={speedTier === "high"}
-            />
+            />}
             <button
               className="btn-primary"
               onClick={() => {
@@ -2698,7 +2841,7 @@ export default function OfflineTrainingGame() {
             >
               再来一次
             </button>
-            <button className="btn-secondary" onClick={() => navigate(isAimingMode ? "/offline-aiming" : "/offline-training")}>返回设置</button>
+            <button className="btn-secondary" onClick={() => navigate(isTrialMode ? "/character-trial" : isAimingMode ? "/offline-aiming" : "/offline-training")}>返回设置</button>
           </div>
         </div>
       )}
@@ -2715,7 +2858,7 @@ export default function OfflineTrainingGame() {
         />
       )}
 
-      {isAimingMode && (
+      {isPlayerAttackMode && (
         <AdjustableJoystick
           id="attack"
           layout={displayedAttackLayout}
@@ -2723,6 +2866,20 @@ export default function OfflineTrainingGame() {
           selected={false}
           knob={{ x: aimJs.knobX, y: aimJs.knobY }}
           active={aimJs.active}
+        />
+      )}
+
+      {isTrialMode && trialHeroId !== "piper" && (
+        <AdjustableJoystick
+          id="super"
+          layout={superLayout}
+          viewport={controlViewport}
+          selected={false}
+          knob={{ x: superJoystickRef.current.knobX, y: superJoystickRef.current.knobY }}
+          active={superJoystickRef.current.active}
+          onPointerDown={handleSuperPointerDown}
+          onPointerMove={handleSuperPointerMove}
+          onPointerUp={handleSuperPointerUp}
         />
       )}
 
@@ -2816,9 +2973,9 @@ export default function OfflineTrainingGame() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
               <div>
-                <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "#ffffff" }}>训练数据分布</div>
+                <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "#ffffff" }}>{isTrialMode ? "角色试用已暂停" : "训练数据分布"}</div>
                 <div style={{ fontSize: "0.8rem", color: "#8899aa", marginTop: 2 }}>
-                  点击「继续」可回到训练继续采样
+                  点击「继续」返回战斗
                 </div>
               </div>
               <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -2841,14 +2998,14 @@ export default function OfflineTrainingGame() {
               </div>
             </div>
 
-            <TrainingStatsGrid
+            {!isTrialMode && <TrainingStatsGrid
               snapshot={pauseSnapshot}
               aiming={isAimingMode}
               mode={mode}
               reactionWindowMaxMs={reactionWindowMaxMs}
               aimingMaxLeadDeg={aimingMaxLeadDeg}
               showEmptyAmmoRatio={speedTier === "high"}
-            />
+            />}
           </div>
         </div>
       )}

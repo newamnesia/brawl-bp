@@ -54,7 +54,7 @@ export function LandscapeExperienceNotice() {
 }
 
 export function SpeedPicker({ value, onChange }: { value: SpeedTier; onChange: (tier: SpeedTier) => void }) {
-  return <div className="form-group"><label>角色参数（基础数值）</label><div className="toggle-group">{(Object.keys(SPEED_TIERS) as SpeedTier[]).map((tier) => <Choice key={tier} active={value === tier} onClick={() => onChange(tier)} title={SPEED_TIERS[tier].label} detail={`弹速 ${SPEED_TIERS[tier].value} · 宽度 ${SPEED_TIERS[tier].bulletWidth} · 射程 ${SPEED_TIERS[tier].range} · 移速 ${SPEED_TIERS[tier].moveSpeed} · ${SPEED_TIERS[tier].magazineCapacity} 发弹药 · 装填 ${SPEED_TIERS[tier].reloadSeconds} 秒/发`} />)}</div></div>;
+  return <div className="form-group"><label>角色参数（基础数值）</label><div className="toggle-group training-parameter-options">{(Object.keys(SPEED_TIERS) as SpeedTier[]).map((tier) => <Choice key={tier} active={value === tier} onClick={() => onChange(tier)} title={SPEED_TIERS[tier].label} detail={`弹速 ${SPEED_TIERS[tier].value} · 宽度 ${SPEED_TIERS[tier].bulletWidth} · 射程 ${SPEED_TIERS[tier].range} · 移速 ${SPEED_TIERS[tier].moveSpeed} · ${SPEED_TIERS[tier].magazineCapacity} 发弹药 · 装填 ${SPEED_TIERS[tier].reloadSeconds} 秒/发`} />)}</div></div>;
 }
 
 export function Choice({ active, onClick, title, detail, align = "center" }: { active: boolean; onClick: () => void; title: string; detail?: string; align?: "left" | "center" }) {
