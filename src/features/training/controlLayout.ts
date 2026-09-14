@@ -1,10 +1,11 @@
-export type JoystickId = "movement" | "attack";
+export type JoystickId = "movement" | "attack" | "super";
 export type JoystickLayout = { x: number; y: number; size: number };
 export type ControlLayout = { version: 1; updatedAt: number; joysticks: Record<JoystickId, JoystickLayout> };
 
 export const JOYSTICK_DEFINITIONS: Record<JoystickId, { label: string; color: string }> = {
   movement: { label: "移动摇杆", color: "#4fc3f7" },
-  attack: { label: "攻击摇杆", color: "#ffc107" },
+  attack: { label: "普攻摇杆", color: "#ff5252" },
+  super: { label: "大招摇杆", color: "#ffc107" },
 };
 
 const STORAGE_KEY = "brawl-bp:control-layout:v1";
@@ -14,6 +15,7 @@ const DEFAULTS: ControlLayout = {
   joysticks: {
     movement: { x: 0.13, y: 0.78, size: 0.18 },
     attack: { x: 0.87, y: 0.78, size: 0.18 },
+    super: { x: 0.74, y: 0.60, size: 0.15 },
   },
 };
 
@@ -32,6 +34,20 @@ export function clampJoystick(layout: JoystickLayout, width: number, height: num
   };
 }
 
+/** 双摇杆布局：移动摇杆完整留在左半屏，攻击摇杆完整留在右半屏。 */
+export function clampJoystickToSide(layout: JoystickLayout, width: number, height: number, id: JoystickId): JoystickLayout {
+  const clamped = clampJoystick(layout, width, height);
+  const diameter = joystickDiameter(clamped, width, height);
+  const horizontalPad = diameter / 2 + 12;
+  const leftMin = horizontalPad / width;
+  const leftMax = Math.max(leftMin, 0.5 - horizontalPad / width);
+  const rightMax = 1 - horizontalPad / width;
+  const rightMin = Math.min(rightMax, 0.5 + horizontalPad / width);
+  const minX = id === "movement" ? leftMin : rightMin;
+  const maxX = id === "movement" ? leftMax : rightMax;
+  return { ...clamped, x: clamp(clamped.x, minX, maxX) };
+}
+
 export function loadControlLayout(): ControlLayout {
   if (typeof window === "undefined") return structuredClone(DEFAULTS);
   try {
@@ -43,6 +59,7 @@ export function loadControlLayout(): ControlLayout {
       joysticks: {
         movement: { ...DEFAULTS.joysticks.movement, ...value.joysticks.movement },
         attack: { ...DEFAULTS.joysticks.attack, ...value.joysticks.attack },
+        super: { ...DEFAULTS.joysticks.super, ...value.joysticks.super },
       },
     };
   } catch {

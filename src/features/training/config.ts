@@ -1,4 +1,4 @@
-export type SpeedTier = "mid" | "high";
+export type SpeedTier = "mid" | "high" | "max";
 export type AimReactionTier = "diamond" | "legendary" | "master";
 export type AimingRule = "infinite" | "challenge";
 
@@ -16,15 +16,22 @@ export const MOVEMENT_SPEED_TIERS = {
 } as const;
 export const CHARACTER_MOVE_SPEED = MOVEMENT_SPEED_TIERS.fast.value;
 export const tiles = (count: number) => count * TILE_SIZE;
+// Max 的四颗子弹依次出膛；0.10 秒间隔使末弹在攻击开始后约 0.30 秒发射。
+export const MAX_PROJECTILE_INTERVAL_SECONDS = 0.10;
 
 export const SPEED_TIERS: Record<SpeedTier, {
   label: string;
   value: number; // 子弹速度，单位/秒
   reloadSeconds: number;
   bulletWidth: number; // 完整碰撞直径，不是半径
+  range: number; // 射程，单位
+  magazineCapacity: number;
+  moveSpeed: number;
 }> = {
-  mid: { label: "贝亚", value: 3255, reloadSeconds: 0.9, bulletWidth: 300 },
-  high: { label: "佩佩", value: 4000, reloadSeconds: 2.3, bulletWidth: 200 },
+  mid: { label: "贝亚", value: 3255, reloadSeconds: 0.9, bulletWidth: 300, range: 3000, magazineCapacity: 1, moveSpeed: CHARACTER_MOVE_SPEED },
+  high: { label: "佩佩", value: 4000, reloadSeconds: 2.3, bulletWidth: 200, range: 3000, magazineCapacity: 3, moveSpeed: CHARACTER_MOVE_SPEED },
+  // Max 的攻击宽度为 0.33 格，按每格 300 单位换算为约 100 单位。
+  max: { label: "Max", value: 4000, reloadSeconds: 1.3, bulletWidth: 100, range: 2500, magazineCapacity: 4, moveSpeed: MOVEMENT_SPEED_TIERS.veryFast.value },
 };
 
 export const AIM_REACTION_TIERS: Record<AimReactionTier, {
@@ -35,7 +42,7 @@ export const AIM_REACTION_TIERS: Record<AimReactionTier, {
   joystickDragSpeed: number;
   joystickDragExtraSeconds: number;
 }> = {
-  diamond: { label: "钻石", dodgesProjectiles: false, seconds: { high: 0, mid: 0 }, joystickRadiusRatio: 1, joystickDragSpeed: 0, joystickDragExtraSeconds: 0.08 },
-  legendary: { label: "传奇", dodgesProjectiles: true, seconds: { high: 0.27, mid: 0.27 }, joystickRadiusRatio: 0.70, joystickDragSpeed: 370, joystickDragExtraSeconds: 0.08 },
-  master: { label: "Pro", dodgesProjectiles: true, seconds: { high: 0.18, mid: 0.18 }, joystickRadiusRatio: 0.45, joystickDragSpeed: 480, joystickDragExtraSeconds: 0.08 },
+  diamond: { label: "钻石", dodgesProjectiles: false, seconds: { high: 0, mid: 0, max: 0 }, joystickRadiusRatio: 1, joystickDragSpeed: 0, joystickDragExtraSeconds: 0.08 },
+  legendary: { label: "传奇", dodgesProjectiles: true, seconds: { high: 0.27, mid: 0.27, max: 0.27 }, joystickRadiusRatio: 0.70, joystickDragSpeed: 370, joystickDragExtraSeconds: 0.08 },
+  master: { label: "Pro", dodgesProjectiles: true, seconds: { high: 0.18, mid: 0.18, max: 0.18 }, joystickRadiusRatio: 0.45, joystickDragSpeed: 480, joystickDragExtraSeconds: 0.08 },
 };

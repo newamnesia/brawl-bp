@@ -6,10 +6,10 @@ export const BEA_SUPER = {
   angularSpeeds: [2.818, 1.566, 0.598, 0, -0.598, -1.566, -2.818],
 } as const;
 
-export function chargeBeaSuper(charge: number, projectile: "beaNormal" | "beaEnhanced" | "beaSuper" | "high"): number {
+export function chargeBeaSuper(charge: number, projectile: "beaNormal" | "beaEnhanced" | "beaSuper" | "high" | "max"): number {
   // 满充期间忽略命中，不保存溢出；释放后调用方将充能归零。
   if (charge >= 1) return 1;
-  const gain = projectile === "beaSuper" ? 0.175 / 7 : projectile === "high" ? 0 : 0.26;
+  const gain = projectile === "beaSuper" ? 0.175 / 7 : projectile === "high" || projectile === "max" ? 0 : 0.26;
   return Math.min(1, charge + gain);
 }
 
