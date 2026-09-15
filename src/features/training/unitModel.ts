@@ -1,7 +1,7 @@
 import { drawGroundRing, type GroundRingOptions, type GroundRingTeam } from "./groundRing";
 import { drawUnitStatusBars, type UnitRelation } from "./statusBars";
 
-type AmmoStatus = { current: number; capacity: number; reloadProgress: number };
+type AmmoStatus = { current: number; capacity: number; reloadProgress: number; continuousReload?: boolean };
 
 export type TrainingUnitModelOptions = {
   centerX: number;

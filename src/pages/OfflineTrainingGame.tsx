@@ -83,6 +83,27 @@ const BYRON_SUPER_CHARGE = 0.24;
 const BYRON_SUPER_RANGE = 2200;
 const BYRON_SUPER_SPEED = 2000;
 const BYRON_SUPER_RADIUS = 800;
+const PIERCE_NORMAL_DAMAGE = 1900;
+const PIERCE_LAST_DAMAGE = 3000;
+const PIERCE_SHELL_SHOT_DAMAGE = 1200;
+const PIERCE_NORMAL_SUPER_CHARGE = 0.15425;
+const PIERCE_LAST_SUPER_CHARGE = 0.24375;
+const PIERCE_SHELL_SUPER_CHARGE = 0.09;
+const PIERCE_SUPER_DAMAGE = 2800;
+const PIERCE_SUPER_CHARGE = 0.21;
+const PIERCE_SUPER_RANGE = 2500;
+const PIERCE_SUPER_RADIUS = 900;
+const PIERCE_SUPER_WARNING_SECONDS = 0.8;
+const PIERCE_LOCK_SECONDS = 0.35;
+const PIERCE_SUPER_PROJECTILE_SPEED = 4500;
+const PIERCE_SUPER_PROJECTILE_RADIUS = 80;
+const PIERCE_SUPER_STEER_STRENGTH = 4;
+const PIERCE_SUPER_STEER_IGNORE_SECONDS = 0.1;
+const PIERCE_SUPER_STEER_SECONDS = 2;
+const PIERCE_SHELL_LIFETIME_SECONDS = 8;
+const PIERCE_SHELL_PICKUP_RADIUS = 300;
+const PIERCE_SHELL_MIN_DISTANCE = 350;
+const PIERCE_SHELL_MAX_DISTANCE = 700;
 const MAX_SPREAD_DEGREES = [0, -1.5, 1.5, -3] as const;
 const MAX_AIM_EXTENTS_DEGREES = [-3, 1.8] as const;
 const BEA_PROJECTILE_LENGTH_TO_WIDTH = 4 / 3; // 300 × 400；大招按自身宽度同比缩放
@@ -103,6 +124,10 @@ const BULLET_STYLES = {
   max: { color: "#ffd43b", lengthScale: 1.8 },
   byron: { color: "#c94cff", lengthScale: 1.8 },
   byronSuper: { color: "#9b5cff", lengthScale: 1.25 },
+  pierceNormal: { color: "#70e7ff", lengthScale: 1.65 },
+  pierceLast: { color: "#ffe14d", lengthScale: 1.75 },
+  pierceShell: { color: "#83f1ff", lengthScale: 1.45 },
+  pierceSuper: { color: "#ffd94d", lengthScale: 1.7 },
 } as const;
 const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
 const TAUNT_DURATION_MS = 3000;
@@ -124,6 +149,10 @@ function projectileDamage(texture: keyof typeof BULLET_STYLES, traveled: number)
   if (texture === "beaNormal") return BEA_NORMAL_DAMAGE;
   if (texture === "beaEnhanced") return BEA_ENHANCED_DAMAGE;
   if (texture === "max") return MAX_PROJECTILE_DAMAGE;
+  if (texture === "pierceNormal") return PIERCE_NORMAL_DAMAGE;
+  if (texture === "pierceLast") return PIERCE_LAST_DAMAGE;
+  if (texture === "pierceShell") return PIERCE_SHELL_SHOT_DAMAGE;
+  if (texture === "pierceSuper") return PIERCE_SUPER_DAMAGE;
   return PIPER_MIN_DAMAGE
     + (PIPER_MAX_DAMAGE - PIPER_MIN_DAMAGE) * Math.min(1, traveled / BULLET_MAX_DIST);
 }
@@ -142,10 +171,20 @@ type Bullet = {
   spawnDelay?: number;
   superTrajectory?: { originX: number; originY: number; angle: number; omega: number; elapsed: number };
   lobbedImpact?: { x: number; y: number; radius: number; damage: number; heal: number };
+  homing?: { steerStrength: number; ignoreSeconds: number; remainingSeconds: number };
 };
 
 type ByronPoison = { ticksRemaining: number; timeToNextTick: number };
 type ImpactBurst = { x: number; y: number; radius: number; life: number; maxLife: number };
+type PierceShell = { id: number; x: number; y: number; remainingSeconds: number };
+type PierceSuperCast = {
+  id: number;
+  x: number;
+  y: number;
+  phase: "warning" | "locked";
+  remainingSeconds: number;
+  targetLocked: boolean;
+};
 
 type TrainingStar = {
   id: number;
@@ -860,6 +899,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const isBeaMode = trialHeroId ? trialHeroId === "bea" : speedTier === "mid";
   const isMaxMode = trialHeroId ? trialHeroId === "max" : speedTier === "max";
   const isByronMode = trialHeroId === "byron";
+  const isPierceMode = trialHeroId === "pierce";
   const magazineCapacity = projectileConfig.magazineCapacity;
   const controlledMoveSpeed = projectileConfig.moveSpeed;
   const magazineReloadSeconds = projectileConfig.reloadSeconds;
@@ -1047,6 +1087,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const playerSuperChargeRef = useRef(0);
   const playerAttackCooldownRef = useRef(0);
   const maxSuperRemainingRef = useRef(0);
+  const pierceSuperCastsRef = useRef<PierceSuperCast[]>([]);
   const fireTimerRef = useRef(fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin));
   const magazineAmmoRef = useRef(magazineCapacity);
   const magazineReloadTimerRef = useRef(magazineReloadSeconds);
@@ -1208,6 +1249,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     playerSuperChargeRef.current = 0;
     playerAttackCooldownRef.current = 0;
     maxSuperRemainingRef.current = 0;
+    pierceSuperCastsRef.current = [];
     fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
     setMagazineAmmo(magazineCapacity);
     setMagazineReloadProgress(0);
@@ -1241,6 +1283,41 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const hitParticles: HitParticle[] = [];
     const byronPoisons: ByronPoison[] = [];
     const impactBursts: ImpactBurst[] = [];
+    const pierceShells: PierceShell[] = [];
+    let nextPierceShellId = 1;
+
+    const spawnPierceShell = () => {
+      const origin = playerRef.current;
+      for (let attempt = 0; attempt < 24; attempt++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = PIERCE_SHELL_MIN_DISTANCE
+          + Math.random() * (PIERCE_SHELL_MAX_DISTANCE - PIERCE_SHELL_MIN_DISTANCE);
+        const x = origin.x + Math.cos(angle) * distance;
+        const y = origin.y + Math.sin(angle) * distance;
+        if (x < 80 || x > MAP_WIDTH - 80 || y < 80 || y > MAP_HEIGHT - 80) continue;
+        if (pierceShells.some((shell) => Math.hypot(shell.x - x, shell.y - y) < 120)) continue;
+        pierceShells.push({ id: nextPierceShellId++, x, y, remainingSeconds: PIERCE_SHELL_LIFETIME_SECONDS });
+        return;
+      }
+    };
+
+    const firePierceShellShot = () => {
+      const player = playerRef.current;
+      const target = aimingTargetRef.current;
+      const bounds = visibleWorldBoundsRef.current;
+      const targetVisible = aimingTargetHealthRef.current > 0
+        && target.x >= bounds.left && target.x <= bounds.right
+        && target.y >= bounds.top && target.y <= bounds.bottom;
+      if (!targetVisible) return;
+      const angle = Math.atan2(target.y - player.y, target.x - player.x);
+      bulletsRef.current.push({
+        x: player.x, y: player.y,
+        vx: Math.cos(angle) * 4000, vy: Math.sin(angle) * 4000,
+        traveled: 0, id: bulletIdRef.current++, radius: 100,
+        texture: "pierceShell", owner: "player", maxDistance: 3000,
+      });
+      firedShotCountRef.current += 1;
+    };
 
     const spawnStar = () => {
       if (stars.length >= STAR_MAX_ACTIVE) return;
@@ -1822,13 +1899,38 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         const currentReloadSeconds = magazineReloadSeconds * timingScale;
         const currentBulletSpeed = bulletSpeed;
 
+        // 皮尔斯只有清空三发后才开始整匣装填；蛋壳可在装填期间直接补回一发。
+        for (let i = pierceShells.length - 1; i >= 0; i--) {
+          const shell = pierceShells[i];
+          shell.remainingSeconds -= dt;
+          if (shell.remainingSeconds <= 0) {
+            pierceShells.splice(i, 1);
+            continue;
+          }
+          if (isPierceMode && Math.hypot(player.x - shell.x, player.y - shell.y) <= PIERCE_SHELL_PICKUP_RADIUS) {
+            pierceShells.splice(i, 1);
+            if (magazineAmmoRef.current < magazineCapacity) {
+              magazineAmmoRef.current += 1;
+              setMagazineAmmo(magazineAmmoRef.current);
+              magazineReloadTimerRef.current = currentReloadSeconds;
+              setMagazineReloadProgress(0);
+            }
+            firePierceShellShot();
+          }
+        }
+
         // ======== 弹匣恢复 + 随机开火（含最多一次双发追射） ========
-        if (magazineAmmoRef.current < magazineCapacity) {
+        if (isPierceMode && magazineAmmoRef.current > 0) {
+          magazineReloadTimerRef.current = currentReloadSeconds;
+          setMagazineReloadProgress(0);
+        } else if (magazineAmmoRef.current < magazineCapacity) {
           magazineReloadTimerRef.current -= dt;
           if (magazineReloadTimerRef.current <= 0) {
-            magazineAmmoRef.current += 1;
+            magazineAmmoRef.current = isPierceMode ? magazineCapacity : magazineAmmoRef.current + 1;
             setMagazineAmmo(magazineAmmoRef.current);
-            magazineReloadTimerRef.current += currentReloadSeconds;
+            magazineReloadTimerRef.current = isPierceMode
+              ? currentReloadSeconds
+              : magazineReloadTimerRef.current + currentReloadSeconds;
             if (magazineAmmoRef.current >= magazineCapacity) setMagazineReloadProgress(0);
           }
           if (now - lastMagazineUiUpdateRef.current >= 33) {
@@ -1929,6 +2031,39 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           }
         }
 
+        for (let i = pierceSuperCastsRef.current.length - 1; i >= 0; i--) {
+          const cast = pierceSuperCastsRef.current[i];
+          cast.remainingSeconds -= dt;
+          if (cast.remainingSeconds > 0) continue;
+          if (cast.phase === "warning") {
+            const target = aimingTargetRef.current;
+            cast.targetLocked = aimingTargetHealthRef.current > 0
+              && Math.hypot(target.x - cast.x, target.y - cast.y) <= PIERCE_SUPER_RADIUS + ENEMY_RADIUS;
+            cast.phase = "locked";
+            cast.remainingSeconds = PIERCE_LOCK_SECONDS;
+            continue;
+          }
+          if (cast.targetLocked && aimingTargetHealthRef.current > 0) {
+            const source = playerRef.current;
+            const target = aimingTargetRef.current;
+            const angle = Math.atan2(target.y - source.y, target.x - source.x);
+            bulletsRef.current.push({
+              x: source.x, y: source.y,
+              vx: Math.cos(angle) * PIERCE_SUPER_PROJECTILE_SPEED,
+              vy: Math.sin(angle) * PIERCE_SUPER_PROJECTILE_SPEED,
+              traveled: 0, id: bulletIdRef.current++, radius: PIERCE_SUPER_PROJECTILE_RADIUS,
+              texture: "pierceSuper", owner: "player", maxDistance: PIERCE_SUPER_RANGE,
+              homing: {
+                steerStrength: PIERCE_SUPER_STEER_STRENGTH,
+                ignoreSeconds: PIERCE_SUPER_STEER_IGNORE_SECONDS,
+                remainingSeconds: PIERCE_SUPER_STEER_SECONDS,
+              },
+            });
+            firedShotCountRef.current += 1;
+          }
+          pierceSuperCastsRef.current.splice(i, 1);
+        }
+
         // ======== 更新子弹 + 碰撞检测 + 生命周期 + 视野事件 ========
         const bullets = bulletsRef.current;
 
@@ -1967,6 +2102,22 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const previousX = b.x;
           const previousY = b.y;
           const maxDistance = b.maxDistance;
+          if (b.homing) {
+            const homing = b.homing;
+            const ignoredTime = Math.min(homing.ignoreSeconds, movementTime);
+            homing.ignoreSeconds -= ignoredTime;
+            homing.remainingSeconds = Math.max(0, homing.remainingSeconds - movementTime);
+            if (homing.ignoreSeconds <= 0 && homing.remainingSeconds > 0 && aimingTargetHealthRef.current > 0) {
+              const target = aimingTargetRef.current;
+              const currentAngle = Math.atan2(b.vy, b.vx);
+              const desiredAngle = Math.atan2(target.y - b.y, target.x - b.x);
+              const angleDelta = Math.atan2(Math.sin(desiredAngle - currentAngle), Math.cos(desiredAngle - currentAngle));
+              const turn = Math.max(-homing.steerStrength * movementTime, Math.min(homing.steerStrength * movementTime, angleDelta));
+              const speed = Math.hypot(b.vx, b.vy);
+              b.vx = Math.cos(currentAngle + turn) * speed;
+              b.vy = Math.sin(currentAngle + turn) * speed;
+            }
+          }
           if (b.superTrajectory) {
             const trajectory = b.superTrajectory;
             trajectory.elapsed = Math.min(trajectory.elapsed + movementTime, BEA_SUPER.range / BEA_SUPER.speed);
@@ -2052,8 +2203,17 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 const damage = projectileDamage(b.texture, b.traveled);
                 const chargeGain = b.texture === "beaSuper"
                   ? 0.025
-                  : b.texture === "max" ? 0.0735 : b.texture === "beaNormal" || b.texture === "beaEnhanced" ? 0.26 : 0;
+                  : b.texture === "max" ? 0.0735
+                  : b.texture === "beaNormal" || b.texture === "beaEnhanced" ? 0.26
+                  : b.texture === "pierceNormal" ? PIERCE_NORMAL_SUPER_CHARGE
+                  : b.texture === "pierceLast" ? PIERCE_LAST_SUPER_CHARGE
+                  : b.texture === "pierceShell" ? PIERCE_SHELL_SUPER_CHARGE
+                  : b.texture === "pierceSuper" ? PIERCE_SUPER_CHARGE
+                  : 0;
                 damageTrialTarget(damage, chargeGain);
+                if (b.texture === "pierceNormal" || b.texture === "pierceLast" || b.texture === "pierceSuper") {
+                  spawnPierceShell();
+                }
               }
               continue;
             }
@@ -2192,6 +2352,44 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       ctx.closePath();
       ctx.stroke();
 
+      for (const cast of pierceSuperCastsRef.current) {
+        const locked = cast.phase === "locked";
+        ctx.save();
+        ctx.fillStyle = locked ? "rgba(255, 78, 92, 0.24)" : "rgba(255, 199, 69, 0.18)";
+        ctx.strokeStyle = locked ? "rgba(255, 109, 120, 0.95)" : "rgba(255, 224, 132, 0.88)";
+        ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
+        if (!locked) ctx.setLineDash([10, 7]);
+        ctx.beginPath();
+        ctx.ellipse(
+          projectX(cast.x, cast.y), projectY(cast.y),
+          PIERCE_SUPER_RADIUS * scale * widthFactorAt(cast.y), PIERCE_SUPER_RADIUS * scaleY,
+          0, 0, Math.PI * 2,
+        );
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      for (const shell of pierceShells) {
+        const shellX = projectX(shell.x, shell.y);
+        const shellY = projectY(shell.y);
+        const shellRadiusX = 78 * scale * widthFactorAt(shell.y);
+        const shellRadiusY = 78 * scaleY;
+        ctx.save();
+        ctx.translate(shellX, shellY);
+        ctx.fillStyle = "#ffe35b";
+        ctx.strokeStyle = "#8b5b17";
+        ctx.lineWidth = Math.max(1.5, 18 * scale);
+        ctx.beginPath();
+        ctx.arc(0, 0, shellRadiusX, Math.PI * 0.2, Math.PI * 1.8);
+        ctx.lineTo(shellRadiusX * 0.12, shellRadiusY * 0.48);
+        ctx.arc(0, 0, shellRadiusX * 0.48, Math.PI * 1.7, Math.PI * 0.3, true);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
       const renderedEnemy = isPlayerAttackMode ? aimingTargetRef.current : { x: ENEMY_X, y: ENEMY_Y };
       // 两种训练都显示当前角色的实际攻击范围，不展示目标的移动轨迹。
       const enemyCenterPx = projectX(renderedEnemy.x, renderedEnemy.y);
@@ -2283,6 +2481,25 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           : undefined,
       });
 
+      if (pierceSuperCastsRef.current.some((cast) => cast.phase === "locked" && cast.targetLocked)) {
+        ctx.save();
+        ctx.translate(enemyCenterPx, enemyCenterPy);
+        ctx.strokeStyle = "#ffdd55";
+        ctx.fillStyle = "rgba(255, 74, 86, 0.7)";
+        ctx.lineWidth = Math.max(2, enemyRadiusPx * 0.12);
+        ctx.beginPath();
+        ctx.arc(0, 0, enemyRadiusPx * 0.48, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-enemyRadiusPx * 0.62, 0);
+        ctx.lineTo(enemyRadiusPx * 0.62, 0);
+        ctx.moveTo(0, -enemyRadiusPy * 0.62);
+        ctx.lineTo(0, enemyRadiusPy * 0.62);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       // 绘制玩家（圆）
       const playerCenterPx = projectX(player.x, player.y);
       const playerCenterPy = projectY(player.y);
@@ -2307,7 +2524,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           ? () => drawSuperRing(ctx, playerCenterPx, playerCenterPy, playerRadiusPx, playerRadiusPy,
             superRingPhase, superJoystickRef.current.active)
           : undefined,
-        ammo: isPlayerAttackMode ? { current: ammo, capacity: magazineCapacity, reloadProgress } : undefined,
+        ammo: isPlayerAttackMode ? {
+          current: ammo,
+          capacity: magazineCapacity,
+          reloadProgress,
+          continuousReload: isPierceMode && ammo === 0,
+        } : undefined,
       });
 
       if (isPlayerAttackMode && aimJoystickRef.current.active) {
@@ -2392,7 +2614,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           ctx.fill();
           ctx.stroke();
           ctx.restore();
-        } else if (trialHeroId === "byron") {
+        } else if (trialHeroId === "byron" || trialHeroId === "pierce") {
+          const isPierceSuper = trialHeroId === "pierce";
+          const castRange = isPierceSuper ? PIERCE_SUPER_RANGE : BYRON_SUPER_RANGE;
+          const castRadius = isPierceSuper ? PIERCE_SUPER_RADIUS : BYRON_SUPER_RADIUS;
           const target = aimingTargetRef.current;
           const bounds = visibleWorldBoundsRef.current;
           const targetVisible = aimingTargetHealthRef.current > 0
@@ -2406,20 +2631,20 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               : playerMoveDirectionRef.current;
           const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
           const throwDistance = stick.exceededDeadzone && stickDistance > 0
-            ? BYRON_SUPER_RANGE * stick.rawMagnitude
-            : targetVisible ? Math.min(BYRON_SUPER_RANGE, targetDistance) : BYRON_SUPER_RANGE;
+            ? castRange * stick.rawMagnitude
+            : targetVisible ? Math.min(castRange, targetDistance) : castRange;
           const centerX = Math.max(0, Math.min(MAP_WIDTH, player.x + Math.cos(angle) * throwDistance));
           const centerY = Math.max(0, Math.min(MAP_HEIGHT, player.y + Math.sin(angle) * throwDistance));
           ctx.save();
-          ctx.fillStyle = "rgba(170, 76, 255, 0.28)";
-          ctx.strokeStyle = "rgba(230, 195, 255, 0.9)";
+          ctx.fillStyle = isPierceSuper ? "rgba(255, 199, 69, 0.24)" : "rgba(170, 76, 255, 0.28)";
+          ctx.strokeStyle = isPierceSuper ? "rgba(255, 231, 142, 0.92)" : "rgba(230, 195, 255, 0.9)";
           ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
           ctx.beginPath();
           ctx.ellipse(
             projectX(centerX, centerY),
             projectY(centerY),
-            BYRON_SUPER_RADIUS * scale * widthFactorAt(centerY),
-            BYRON_SUPER_RADIUS * scaleY,
+            castRadius * scale * widthFactorAt(centerY),
+            castRadius * scaleY,
             0,
             0,
             Math.PI * 2,
@@ -2563,11 +2788,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       playerSuperChargeRef.current = 0;
       playerAttackCooldownRef.current = 0;
       maxSuperRemainingRef.current = 0;
+      pierceSuperCastsRef.current = [];
       superJoystickRef.current.active = false;
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -2712,11 +2938,15 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         aimingLeadAnglesRef.current.push(Math.round(leadDegrees * 10) / 10);
       }
       const isEnhancedBeaShot = isBeaMode && beaEnhancedShotsRef.current > 0;
+      const isPierceLastShot = isPierceMode && magazineAmmoRef.current === 1;
       const shotSeed = bulletIdRef.current;
       const projectileAngles = attackProjectileAngles(shotAngle, isMaxMode, shotSeed);
       const texture: keyof typeof BULLET_STYLES = isBeaMode
         ? (isEnhancedBeaShot ? "beaEnhanced" : "beaNormal")
-        : isMaxMode ? "max" : isByronMode ? "byron" : "high";
+        : isMaxMode ? "max"
+        : isByronMode ? "byron"
+        : isPierceMode ? (isPierceLastShot ? "pierceLast" : "pierceNormal")
+        : "high";
       for (const [index, angle] of projectileAngles.entries()) {
         bulletsRef.current.push({
           x: player.x,
@@ -2725,7 +2955,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           vy: Math.sin(angle) * bulletSpeed,
           traveled: 0,
           id: bulletIdRef.current++,
-          radius: bulletRadius,
+          radius: isPierceLastShot ? 110 : bulletRadius,
           texture,
           owner: "player",
           maxDistance: projectileRange,
@@ -2851,6 +3081,19 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             damage: BYRON_SUPER_DAMAGE_AND_HEAL,
             heal: BYRON_SUPER_DAMAGE_AND_HEAL,
           },
+        });
+      } else if (trialHeroId === "pierce") {
+        const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
+        const aimDistance = stick.exceededDeadzone
+          ? PIERCE_SUPER_RANGE * stick.rawMagnitude
+          : autoAimTargetVisible ? Math.min(PIERCE_SUPER_RANGE, targetDistance) : PIERCE_SUPER_RANGE;
+        pierceSuperCastsRef.current.push({
+          id: bulletIdRef.current++,
+          x: Math.max(0, Math.min(MAP_WIDTH, player.x + Math.cos(angle) * aimDistance)),
+          y: Math.max(0, Math.min(MAP_HEIGHT, player.y + Math.sin(angle) * aimDistance)),
+          phase: "warning",
+          remainingSeconds: PIERCE_SUPER_WARNING_SECONDS,
+          targetLocked: false,
         });
       }
       playerSuperChargeRef.current = 0;

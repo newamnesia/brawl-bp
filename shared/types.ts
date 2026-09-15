@@ -158,7 +158,7 @@ export const HEROES: Hero[] = [
   { id: "kit", name: "凯特", enName: "Kit", emoji: "🐱", rarity: "legendary", cdnId: 16000076 , traitTags: ["range_close", "dash", "healing", "thrower"], stats: { health: 6200, attack: "2000", reloadMs: 800, range: 3.67, moveSpeed: 855, ammo: 3 }},
   { id: "draco", name: "德拉科", enName: "Draco", emoji: "🐲", rarity: "legendary", cdnId: 16000080 , traitTags: ["tank", "range_close"], stats: { health: 11200, attack: "1400", reloadMs: 1000, range: 4, moveSpeed: 750, ammo: 3 }},
   { id: "kenji", name: "健次", enName: "Kenji", emoji: "🍣", rarity: "legendary", cdnId: 16000085 , traitTags: ["dash", "range_close"], stats: { health: 8000, attack: "1500", reloadMs: 1000, range: 2.67, moveSpeed: 855, ammo: 3 }},
-  { id: "pierce", name: "皮尔斯", enName: "Pierce", emoji: "🏹", rarity: "legendary", cdnId: 16000099 , traitTags: ["range_medium_long", "single_shot"], stats: { health: 6000, attack: "1900", reloadMs: 0, range: 10, moveSpeed: 750, ammo: 3 }},
+  { id: "pierce", name: "皮尔斯", enName: "Pierce", emoji: "🏹", rarity: "legendary", cdnId: 16000099 , traitTags: ["range_medium_long", "single_shot"], stats: { health: 6000, attack: "1900", reloadMs: 3000, range: 10, moveSpeed: 750, ammo: 3 }},
   { id: "nori", name: "阿宪", enName: "Nori", emoji: "🍡", rarity: "legendary", cdnId: 16000107, borderless: true, traitTags: ["range_close", "dash", "team_engage"], stats: { health: 7000, attack: "2000", reloadMs: 100, range: 3.67, moveSpeed: 855, ammo: 1 }},
   // 超凡
   { id: "kaze", name: "风姬", enName: "Kaze", emoji: "🌬️", rarity: "extraordinary", cdnId: 16000094, specialtyModes: ["heist"], traitTags: ["range_close_medium", "dash", "area_control"], stats: { health: 8200, attack: "1500", reloadMs: 1000, range: 2.67, moveSpeed: 855, ammo: 3 }},

@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
 import { HERO_MAP, heroImageUrl } from "../../shared/catalog";
 
-const IDS: TrialBrawlerId[] = ["piper", "bea", "max", "byron"];
+const IDS: TrialBrawlerId[] = ["piper", "bea", "max", "byron", "pierce"];
 
 export default function CharacterTrial() {
   const navigate = useNavigate();

@@ -402,7 +402,7 @@ input:focus {
 
 @media (orientation: landscape) and (max-height: 600px) {
   .character-trial-page .page-subtitle { margin-bottom:.5rem; }
-  .character-trial-grid { grid-template-columns:repeat(5,minmax(0,1fr)); gap:.6rem; margin:.6rem 0; }
+  .character-trial-grid { grid-template-columns:repeat(6,minmax(0,1fr)); gap:.6rem; margin:.6rem 0; }
   .character-trial-choice { min-height:100px; padding:.55rem; }
   .character-trial-emblem { width:42px; height:42px; font-size:1.1rem; }
   .character-trial-avatar { width:min(76px,72%); height:52px; }

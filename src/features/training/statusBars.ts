@@ -6,7 +6,7 @@ export const HEALTH_COLORS: Record<UnitRelation, string> = {
   enemy: "#ef4050",
 };
 
-type AmmoStatus = { current: number; capacity: number; reloadProgress: number };
+type AmmoStatus = { current: number; capacity: number; reloadProgress: number; continuousReload?: boolean };
 type StatusBarsOptions = {
   centerX: number; centerY: number; radiusY: number; width: number;
   health: number; maxHealth: number; relation: UnitRelation; ammo?: AmmoStatus;
@@ -68,22 +68,30 @@ export function drawUnitStatusBars(ctx: CanvasRenderingContext2D, options: Statu
     roundedRect(ctx, left, ammoTop, width, ammoHeight, 2);
     ctx.fillStyle = "rgba(91, 55, 31, 0.72)";
     ctx.fill();
-    for (let index = 0; index < capacity; index++) {
-      const fill = index < options.ammo.current
-        ? 1
-        : index === options.ammo.current ? Math.max(0, Math.min(1, options.ammo.reloadProgress)) : 0;
+    if (options.ammo.continuousReload) {
+      const fill = Math.max(0, Math.min(1, options.ammo.reloadProgress));
       if (fill > 0) {
         ctx.fillStyle = "#c58a4b";
-        ctx.fillRect(left + index * segmentWidth, ammoTop, segmentWidth * fill, ammoHeight);
+        ctx.fillRect(left, ammoTop, width * fill, ammoHeight);
       }
-      if (index > 0) {
-        const x = left + index * segmentWidth;
-        ctx.strokeStyle = "rgba(49, 27, 17, 0.95)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(x, ammoTop);
-        ctx.lineTo(x, ammoTop + ammoHeight);
-        ctx.stroke();
+    } else {
+      for (let index = 0; index < capacity; index++) {
+        const fill = index < options.ammo.current
+          ? 1
+          : index === options.ammo.current ? Math.max(0, Math.min(1, options.ammo.reloadProgress)) : 0;
+        if (fill > 0) {
+          ctx.fillStyle = "#c58a4b";
+          ctx.fillRect(left + index * segmentWidth, ammoTop, segmentWidth * fill, ammoHeight);
+        }
+        if (index > 0) {
+          const x = left + index * segmentWidth;
+          ctx.strokeStyle = "rgba(49, 27, 17, 0.95)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x, ammoTop);
+          ctx.lineTo(x, ammoTop + ammoHeight);
+          ctx.stroke();
+        }
       }
     }
     roundedRect(ctx, left, ammoTop, width, ammoHeight, 2);
