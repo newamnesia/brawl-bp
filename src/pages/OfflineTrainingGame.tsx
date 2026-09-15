@@ -9,6 +9,7 @@ import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, STARTUP_S
 import { AdjustableJoystick } from "../components/AdjustableJoystick";
 import { clampJoystick, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
+import { drawPierceShell, PIERCE_SHELL } from "../features/training/pierceCombat";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
@@ -100,10 +101,6 @@ const PIERCE_SUPER_PROJECTILE_RADIUS = 80;
 const PIERCE_SUPER_STEER_STRENGTH = 4;
 const PIERCE_SUPER_STEER_IGNORE_SECONDS = 0.1;
 const PIERCE_SUPER_STEER_SECONDS = 2;
-const PIERCE_SHELL_LIFETIME_SECONDS = 8;
-const PIERCE_SHELL_PICKUP_RADIUS = 300;
-const PIERCE_SHELL_MIN_DISTANCE = 350;
-const PIERCE_SHELL_MAX_DISTANCE = 700;
 const BROCK_ATTACK_DAMAGE = 2320;
 const BROCK_EXPLOSION_RADIUS = 450;
 const BROCK_FIRE_RADIUS = 300;
@@ -1307,13 +1304,13 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       const origin = playerRef.current;
       for (let attempt = 0; attempt < 24; attempt++) {
         const angle = Math.random() * Math.PI * 2;
-        const distance = PIERCE_SHELL_MIN_DISTANCE
-          + Math.random() * (PIERCE_SHELL_MAX_DISTANCE - PIERCE_SHELL_MIN_DISTANCE);
+        const distance = PIERCE_SHELL.minDistance
+          + Math.random() * (PIERCE_SHELL.maxDistance - PIERCE_SHELL.minDistance);
         const x = origin.x + Math.cos(angle) * distance;
         const y = origin.y + Math.sin(angle) * distance;
         if (x < 80 || x > MAP_WIDTH - 80 || y < 80 || y > MAP_HEIGHT - 80) continue;
         if (pierceShells.some((shell) => Math.hypot(shell.x - x, shell.y - y) < 120)) continue;
-        pierceShells.push({ id: nextPierceShellId++, x, y, remainingSeconds: PIERCE_SHELL_LIFETIME_SECONDS });
+        pierceShells.push({ id: nextPierceShellId++, x, y, remainingSeconds: PIERCE_SHELL.lifetimeSeconds });
         return;
       }
     };
@@ -1956,7 +1953,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             pierceShells.splice(i, 1);
             continue;
           }
-          if (isPierceMode && Math.hypot(player.x - shell.x, player.y - shell.y) <= PIERCE_SHELL_PICKUP_RADIUS) {
+          if (isPierceMode && Math.hypot(player.x - shell.x, player.y - shell.y) <= PIERCE_SHELL.pickupRadius) {
             pierceShells.splice(i, 1);
             if (magazineAmmoRef.current < magazineCapacity) {
               magazineAmmoRef.current += 1;
@@ -2450,23 +2447,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       }
 
       for (const shell of pierceShells) {
-        const shellX = projectX(shell.x, shell.y);
-        const shellY = projectY(shell.y);
-        const shellRadiusX = 78 * scale * widthFactorAt(shell.y);
-        const shellRadiusY = 78 * scaleY;
-        ctx.save();
-        ctx.translate(shellX, shellY);
-        ctx.fillStyle = "#ffe35b";
-        ctx.strokeStyle = "#8b5b17";
-        ctx.lineWidth = Math.max(1.5, 18 * scale);
-        ctx.beginPath();
-        ctx.arc(0, 0, shellRadiusX, Math.PI * 0.2, Math.PI * 1.8);
-        ctx.lineTo(shellRadiusX * 0.12, shellRadiusY * 0.48);
-        ctx.arc(0, 0, shellRadiusX * 0.48, Math.PI * 1.7, Math.PI * 0.3, true);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
+        drawPierceShell(ctx, shell, scale * widthFactorAt(shell.y), scaleY, { projectX, projectY });
       }
 
       const renderedEnemy = isPlayerAttackMode ? aimingTargetRef.current : { x: ENEMY_X, y: ENEMY_Y };

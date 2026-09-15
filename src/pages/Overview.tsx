@@ -87,6 +87,13 @@ export default function Overview() {
         >
           进入角色试用
         </button>
+        <button
+          className="btn-secondary overview-mini-games-button"
+          style={{ marginTop: "0.75rem", width: "100%" }}
+          onClick={() => navigate("/mini-games")}
+        >
+          小游戏关卡
+        </button>
       </div>
 
       <div className="credits-box">
