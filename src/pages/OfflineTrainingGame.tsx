@@ -104,6 +104,12 @@ const PIERCE_SHELL_LIFETIME_SECONDS = 8;
 const PIERCE_SHELL_PICKUP_RADIUS = 300;
 const PIERCE_SHELL_MIN_DISTANCE = 350;
 const PIERCE_SHELL_MAX_DISTANCE = 700;
+const BROCK_ATTACK_DAMAGE = 2320;
+const BROCK_EXPLOSION_RADIUS = 450;
+const BROCK_FIRE_RADIUS = 300;
+const BROCK_FIRE_DAMAGE = 688;
+const BROCK_FIRE_DURATION_SECONDS = 2.9;
+const BROCK_FIRE_FIRST_TICK_SECONDS = 0.9;
 const MAX_SPREAD_DEGREES = [0, -1.5, 1.5, -3] as const;
 const MAX_AIM_EXTENTS_DEGREES = [-3, 1.8] as const;
 const BEA_PROJECTILE_LENGTH_TO_WIDTH = 4 / 3; // 300 × 400；大招按自身宽度同比缩放
@@ -128,9 +134,13 @@ const BULLET_STYLES = {
   pierceLast: { color: "#ffe14d", lengthScale: 1.75 },
   pierceShell: { color: "#83f1ff", lengthScale: 1.45 },
   pierceSuper: { color: "#ffd94d", lengthScale: 1.7 },
+  brock: { color: "#ff9f2f", lengthScale: 2.15 },
 } as const;
 const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
 const TAUNT_DURATION_MS = 3000;
+const TAUNT_SPIN_DURATION_MS = 900;
+const TAUNT_SPIN_MIN_RPS = 3;
+const TAUNT_SPIN_MAX_RPS = 4;
 const TAUNT_DODGES_MIN = 2;
 const TAUNT_DODGES_MAX = 5;
 const TAUNT_DELAY_MIN_MS = 500;
@@ -153,6 +163,7 @@ function projectileDamage(texture: keyof typeof BULLET_STYLES, traveled: number)
   if (texture === "pierceLast") return PIERCE_LAST_DAMAGE;
   if (texture === "pierceShell") return PIERCE_SHELL_SHOT_DAMAGE;
   if (texture === "pierceSuper") return PIERCE_SUPER_DAMAGE;
+  if (texture === "brock") return BROCK_ATTACK_DAMAGE;
   return PIPER_MIN_DAMAGE
     + (PIPER_MAX_DAMAGE - PIPER_MIN_DAMAGE) * Math.min(1, traveled / BULLET_MAX_DIST);
 }
@@ -171,11 +182,11 @@ type Bullet = {
   spawnDelay?: number;
   superTrajectory?: { originX: number; originY: number; angle: number; omega: number; elapsed: number };
   lobbedImpact?: { x: number; y: number; radius: number; damage: number; heal: number };
-  homing?: { steerStrength: number; ignoreSeconds: number; remainingSeconds: number };
+  homing?: { targetId: "trainingTarget"; steerStrength: number; ignoreSeconds: number; remainingSeconds: number };
 };
 
 type ByronPoison = { ticksRemaining: number; timeToNextTick: number };
-type ImpactBurst = { x: number; y: number; radius: number; life: number; maxLife: number };
+type ImpactBurst = { x: number; y: number; radius: number; life: number; maxLife: number; kind?: "byron" | "brock" };
 type PierceShell = { id: number; x: number; y: number; remainingSeconds: number };
 type PierceSuperCast = {
   id: number;
@@ -185,6 +196,7 @@ type PierceSuperCast = {
   remainingSeconds: number;
   targetLocked: boolean;
 };
+type BrockFire = { x: number; y: number; remainingSeconds: number; timeToNextTick: number };
 
 type TrainingStar = {
   id: number;
@@ -900,6 +912,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const isMaxMode = trialHeroId ? trialHeroId === "max" : speedTier === "max";
   const isByronMode = trialHeroId === "byron";
   const isPierceMode = trialHeroId === "pierce";
+  const isBrockMode = trialHeroId === "brock";
   const magazineCapacity = projectileConfig.magazineCapacity;
   const controlledMoveSpeed = projectileConfig.moveSpeed;
   const magazineReloadSeconds = projectileConfig.reloadSeconds;
@@ -1193,6 +1206,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     let tauntDodgeGoal = randomTauntDodgeGoal();
     let tauntDelayRemainingMs: number | null = null;
     let tauntVisibleRemainingMs = 0;
+    let tauntSpinRemainingMs = 0;
+    let tauntSpinHeading = 0;
+    let tauntSpinAngularSpeed = 0;
     const stars: TrainingStar[] = [];
     let nextStarId = 1;
     let starSpawnTimer = isTrialMode ? Number.POSITIVE_INFINITY : STAR_SPAWN_MIN_SECONDS + Math.random() * (STAR_SPAWN_MAX_SECONDS - STAR_SPAWN_MIN_SECONDS);
@@ -1284,6 +1300,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const byronPoisons: ByronPoison[] = [];
     const impactBursts: ImpactBurst[] = [];
     const pierceShells: PierceShell[] = [];
+    const brockFires: BrockFire[] = [];
     let nextPierceShellId = 1;
 
     const spawnPierceShell = () => {
@@ -1308,15 +1325,29 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       const targetVisible = aimingTargetHealthRef.current > 0
         && target.x >= bounds.left && target.x <= bounds.right
         && target.y >= bounds.top && target.y <= bounds.bottom;
-      if (!targetVisible) return;
-      const angle = Math.atan2(target.y - player.y, target.x - player.x);
+      // 蛋壳射击只要求目标处于玩家视野，不检查墙体；没有目标则沿当前移动方向射出。
+      const angle = targetVisible
+        ? Math.atan2(target.y - player.y, target.x - player.x)
+        : playerMoveDirectionRef.current;
       bulletsRef.current.push({
         x: player.x, y: player.y,
         vx: Math.cos(angle) * 4000, vy: Math.sin(angle) * 4000,
         traveled: 0, id: bulletIdRef.current++, radius: 100,
-        texture: "pierceShell", owner: "player", maxDistance: 3000,
+        texture: "pierceShell", owner: "player", maxDistance: TRIAL_BRAWLERS.pierce.range,
       });
       firedShotCountRef.current += 1;
+    };
+
+    const spawnBrockImpact = (x: number, y: number) => {
+      impactBursts.push({
+        x, y, radius: BROCK_EXPLOSION_RADIUS,
+        life: 0.3, maxLife: 0.3, kind: "brock",
+      });
+      brockFires.push({
+        x, y,
+        remainingSeconds: BROCK_FIRE_DURATION_SECONDS,
+        timeToNextTick: BROCK_FIRE_FIRST_TICK_SECONDS,
+      });
     };
 
     const spawnStar = () => {
@@ -1496,11 +1527,20 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
         if (tauntVisibleRemainingMs > 0) {
           tauntVisibleRemainingMs = Math.max(0, tauntVisibleRemainingMs - dtMs);
+          tauntSpinRemainingMs = Math.max(0, tauntSpinRemainingMs - dtMs);
         } else if (tauntDelayRemainingMs !== null) {
           tauntDelayRemainingMs -= dtMs;
           if (tauntDelayRemainingMs <= 0) {
             tauntDelayRemainingMs = null;
             tauntVisibleRemainingMs = TAUNT_DURATION_MS;
+            tauntSpinRemainingMs = TAUNT_SPIN_DURATION_MS;
+            const target = aimingTargetRef.current;
+            const player = playerRef.current;
+            const spinSign = Math.random() < 0.5 ? -1 : 1;
+            const radialAngle = Math.atan2(target.y - player.y, target.x - player.x);
+            tauntSpinHeading = radialAngle + spinSign * Math.PI / 2;
+            tauntSpinAngularSpeed = spinSign * Math.PI * 2
+              * (TAUNT_SPIN_MIN_RPS + Math.random() * (TAUNT_SPIN_MAX_RPS - TAUNT_SPIN_MIN_RPS));
             dodgesSinceTaunt = 0;
             tauntDodgeGoal = randomTauntDodgeGoal();
           }
@@ -1645,13 +1685,17 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           }
 
           // 子弹飞行达到当前段位反应时间后，开始把模拟摇杆拖向弹道的垂直方向。
-          const threat = aimingDodgesProjectiles
+          const tauntSpinning = tauntSpinRemainingMs > 0;
+          const threat = !tauntSpinning && aimingDodgesProjectiles
             ? bulletsRef.current
               .filter((bullet) => bullet.owner === "player" && (bullet.spawnDelay ?? 0) <= 0 && !ai.reactedBulletIds.has(bullet.id))
               .filter((bullet) => bullet.traveled / Math.max(0.01, Math.hypot(bullet.vx, bullet.vy)) >= aimingReactionSeconds)
               .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0]
             : undefined;
-          if (threat) {
+          if (tauntSpinning) {
+            // 嘲讽转圈直接连续改变移动方向；不经过普通转向加速，保持满速形成极小圆轨迹。
+            aiDodgeTurn = null;
+          } else if (threat) {
             const bulletHeading = Math.atan2(threat.vy, threat.vx);
             const projectileSpeed = Math.max(0.01, Math.hypot(threat.vx, threat.vy));
             const perpendicularX = -threat.vy / projectileSpeed;
@@ -1734,7 +1778,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             ai.changeTimer = 0.3 + Math.random() * 0.7;
           }
 
-          if (aiDodgeTurn) {
+          if (tauntSpinning) {
+            tauntSpinHeading += tauntSpinAngularSpeed * dt;
+            ai.heading = tauntSpinHeading;
+            ai.desiredHeading = tauntSpinHeading;
+            aiMovementElapsed = STARTUP_SECONDS;
+          } else if (aiDodgeTurn) {
             aiDodgeTurn.elapsed = Math.min(aiDodgeTurn.duration, aiDodgeTurn.elapsed + dt);
             const progress = aiDodgeTurn.duration > 0 ? aiDodgeTurn.elapsed / aiDodgeTurn.duration : 1;
             ai.heading = aiDodgeTurn.start + aiDodgeTurn.delta * progress;
@@ -1755,7 +1804,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const targetBeforeMoveY = target.y;
           let aiMoveX = Math.cos(ai.heading);
           let aiMoveY = Math.sin(ai.heading);
-          if (radialDistance > tiles(8.4)) {
+          if (!tauntSpinning && radialDistance > tiles(8.4)) {
             const outwardX = radialX / radialDistance;
             const outwardY = radialY / radialDistance;
             const outwardAmount = Math.max(0, aiMoveX * outwardX + aiMoveY * outwardY);
@@ -1807,7 +1856,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const touchedBoundary = Math.abs(sectorOffset) >= AIMING_SECTOR_HALF_ANGLE - 0.025
             || rawDistance <= AIMING_MIN_DISTANCE + tiles(0.04)
             || rawDistance >= AIMING_MAX_DISTANCE - tiles(0.04);
-          if (touchedBoundary && !aiRetreating && ai.dodgeLockTimer <= 0) {
+          if (touchedBoundary && !tauntSpinning && !aiRetreating && ai.dodgeLockTimer <= 0) {
             const centerX = player.x + Math.cos(AIMING_FRONT_ANGLE) * tiles(9);
             const centerY = player.y + Math.sin(AIMING_FRONT_ANGLE) * tiles(9);
             setAiDirection(Math.atan2(centerY - target.y, centerX - target.x) + (Math.random() - 0.5) * 0.35);
@@ -2054,6 +2103,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               traveled: 0, id: bulletIdRef.current++, radius: PIERCE_SUPER_PROJECTILE_RADIUS,
               texture: "pierceSuper", owner: "player", maxDistance: PIERCE_SUPER_RANGE,
               homing: {
+                targetId: "trainingTarget",
                 steerStrength: PIERCE_SUPER_STEER_STRENGTH,
                 ignoreSeconds: PIERCE_SUPER_STEER_IGNORE_SECONDS,
                 remainingSeconds: PIERCE_SUPER_STEER_SECONDS,
@@ -2108,7 +2158,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             homing.ignoreSeconds -= ignoredTime;
             homing.remainingSeconds = Math.max(0, homing.remainingSeconds - movementTime);
             if (homing.ignoreSeconds <= 0 && homing.remainingSeconds > 0 && aimingTargetHealthRef.current > 0) {
-              const target = aimingTargetRef.current;
+              const target = homing.targetId === "trainingTarget" ? aimingTargetRef.current : null;
+              if (!target) continue;
               const currentAngle = Math.atan2(b.vy, b.vx);
               const desiredAngle = Math.atan2(target.y - b.y, target.x - b.x);
               const angleDelta = Math.atan2(Math.sin(desiredAngle - currentAngle), Math.cos(desiredAngle - currentAngle));
@@ -2169,7 +2220,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             }
           }
 
-          // 子弹运动线段 vs 目标圆，避免高速子弹单帧穿透。
+          // 追踪目标只控制转向；碰撞独立检查敌方单位，皮尔斯大招会被沿途先碰到的敌人挡下。
           const collisionTarget = b.owner === "player" ? aimingTargetRef.current : player;
           const segmentX = b.x - previousX;
           const segmentY = b.y - previousY;
@@ -2214,6 +2265,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 if (b.texture === "pierceNormal" || b.texture === "pierceLast" || b.texture === "pierceSuper") {
                   spawnPierceShell();
                 }
+                if (b.texture === "brock") spawnBrockImpact(closestX, closestY);
               }
               continue;
             }
@@ -2248,6 +2300,17 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             }
           } else if (b.traveled >= maxDistance) {
             // 先检查最后一段轨迹的命中，再移除到达射程终点的子弹。
+            if (b.owner === "player" && b.texture === "brock") {
+              spawnBrockImpact(b.x, b.y);
+              const target = aimingTargetRef.current;
+              if (aimingTargetHealthRef.current > 0
+                && Math.hypot(target.x - b.x, target.y - b.y) <= BROCK_EXPLOSION_RADIUS + ENEMY_RADIUS) {
+                hitCountRef.current += 1;
+                setHitCount(hitCountRef.current);
+                damageTrialTarget(BROCK_ATTACK_DAMAGE);
+                spawnHitParticles(target.x, target.y);
+              }
+            }
             if (isAimingMode && b.owner === "player") recordAiShotOutcome(false);
             if (
               isAimingMode &&
@@ -2260,6 +2323,22 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             profileBulletRemoved(prof, b.id);
             aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
           }
+        }
+
+        for (let i = brockFires.length - 1; i >= 0; i--) {
+          const fire = brockFires[i];
+          fire.remainingSeconds -= dt;
+          fire.timeToNextTick -= dt;
+          while (fire.timeToNextTick <= 0 && fire.remainingSeconds > 0) {
+            fire.timeToNextTick += 1;
+            const target = aimingTargetRef.current;
+            if (aimingTargetHealthRef.current > 0
+              && Math.hypot(target.x - fire.x, target.y - fire.y) <= BROCK_FIRE_RADIUS + ENEMY_RADIUS) {
+              damageTrialTarget(BROCK_FIRE_DAMAGE);
+              spawnHitParticles(target.x, target.y);
+            }
+          }
+          if (fire.remainingSeconds <= 0) brockFires.splice(i, 1);
         }
 
         for (let i = hitParticles.length - 1; i >= 0; i--) {
@@ -2440,6 +2519,26 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ctx.restore();
       }
 
+      for (const fire of brockFires) {
+        const fireX = projectX(fire.x, fire.y);
+        const fireY = projectY(fire.y);
+        const flicker = 0.9 + Math.sin(fire.remainingSeconds * 15) * 0.1;
+        ctx.save();
+        ctx.fillStyle = "rgba(255, 111, 25, 0.28)";
+        ctx.strokeStyle = "rgba(255, 191, 66, 0.78)";
+        ctx.lineWidth = Math.max(2, tiles(0.05) * scale);
+        ctx.beginPath();
+        ctx.ellipse(
+          fireX, fireY,
+          BROCK_FIRE_RADIUS * flicker * scale * widthFactorAt(fire.y),
+          BROCK_FIRE_RADIUS * flicker * scaleY,
+          0, 0, Math.PI * 2,
+        );
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
       for (const burst of impactBursts) {
         const progress = 1 - burst.life / burst.maxLife;
         const radius = burst.radius * (0.35 + progress * 0.65);
@@ -2447,8 +2546,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         const burstY = projectY(burst.y);
         ctx.save();
         ctx.globalAlpha = Math.max(0, 1 - progress) * 0.55;
-        ctx.fillStyle = "#a54cff";
-        ctx.strokeStyle = "#e2b8ff";
+        ctx.fillStyle = burst.kind === "brock" ? "#ff7a24" : "#a54cff";
+        ctx.strokeStyle = burst.kind === "brock" ? "#ffd56a" : "#e2b8ff";
         ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
         ctx.beginPath();
         ctx.ellipse(
@@ -2946,6 +3045,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         : isMaxMode ? "max"
         : isByronMode ? "byron"
         : isPierceMode ? (isPierceLastShot ? "pierceLast" : "pierceNormal")
+        : isBrockMode ? "brock"
         : "high";
       for (const [index, angle] of projectileAngles.entries()) {
         bulletsRef.current.push({
@@ -2980,7 +3080,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   };
 
   const handleSuperPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isTrialMode || trialHeroId === "piper" || pausedRef.current || playerSuperChargeRef.current < 1) return;
+    if (!isTrialMode || trialHeroId === "piper" || trialHeroId === "brock" || pausedRef.current || playerSuperChargeRef.current < 1) return;
     e.preventDefault();
     e.stopPropagation();
     const stick = superJoystickRef.current;
@@ -3376,7 +3476,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         />
       )}
 
-      {isTrialMode && trialHeroId !== "piper" && (
+      {isTrialMode && trialHeroId !== "piper" && trialHeroId !== "brock" && (
         <AdjustableJoystick
           id="super"
           layout={superLayout}
