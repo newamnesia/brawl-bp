@@ -416,7 +416,8 @@ input:focus {
 .tidal-wave-game canvas { display:block; width:100%; height:100%; }
 .tidal-wave-hud { position:absolute; z-index:4; top:12px; left:50%; display:flex; align-items:center; gap:.75rem; transform:translateX(-50%); padding:.55rem .9rem; border:2px solid rgba(255,255,255,.5); border-radius:14px; background:rgba(22,27,36,.82); color:#fff; box-shadow:0 5px 18px rgba(0,0,0,.3); white-space:nowrap; }
 .tidal-wave-hud strong { color:#76e6ff; }
-.tidal-wave-exit { position:absolute; z-index:5; top:12px; right:12px; padding:.55rem .9rem; border:1px solid rgba(255,255,255,.45); border-radius:10px; background:rgba(20,25,34,.78); color:#fff; }
+.tidal-wave-actions { position:absolute; z-index:5; top:12px; right:12px; display:flex; gap:.45rem; }
+.tidal-wave-actions button { padding:.55rem .9rem; border:1px solid rgba(255,255,255,.45); border-radius:10px; background:rgba(20,25,34,.78); color:#fff; }
 .tidal-wave-result-backdrop { position:absolute; z-index:20; inset:0; display:grid; place-items:center; padding:1rem; background:rgba(8,12,20,.72); backdrop-filter:blur(4px); }
 .tidal-wave-result { width:min(390px,100%); display:flex; flex-direction:column; gap:.75rem; padding:1.5rem; border:2px solid rgba(117,225,255,.6); border-radius:20px; background:#182333; color:#fff; text-align:center; box-shadow:0 18px 60px rgba(0,0,0,.5); }
 .tidal-wave-result h1,.tidal-wave-result p { margin:0; }
@@ -424,7 +425,8 @@ input:focus {
 @media (max-width:700px) {
   .tidal-wave-hud { top:8px; gap:.42rem; padding:.4rem .55rem; font-size:.78rem; }
   .tidal-wave-hud strong { display:none; }
-  .tidal-wave-exit { top:52px; right:8px; padding:.4rem .6rem; }
+  .tidal-wave-actions { top:52px; right:8px; }
+  .tidal-wave-actions button { padding:.4rem .6rem; }
 }
 
 @media (max-width: 560px) {

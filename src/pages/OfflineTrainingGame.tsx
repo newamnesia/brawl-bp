@@ -9,7 +9,7 @@ import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, STARTUP_S
 import { AdjustableJoystick } from "../components/AdjustableJoystick";
 import { clampJoystick, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
-import { drawPierceShell, PIERCE_SHELL } from "../features/training/pierceCombat";
+import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
@@ -90,17 +90,6 @@ const PIERCE_SHELL_SHOT_DAMAGE = 1200;
 const PIERCE_NORMAL_SUPER_CHARGE = 0.15425;
 const PIERCE_LAST_SUPER_CHARGE = 0.24375;
 const PIERCE_SHELL_SUPER_CHARGE = 0.09;
-const PIERCE_SUPER_DAMAGE = 2800;
-const PIERCE_SUPER_CHARGE = 0.21;
-const PIERCE_SUPER_RANGE = 2500;
-const PIERCE_SUPER_RADIUS = 900;
-const PIERCE_SUPER_WARNING_SECONDS = 0.8;
-const PIERCE_LOCK_SECONDS = 0.35;
-const PIERCE_SUPER_PROJECTILE_SPEED = 4500;
-const PIERCE_SUPER_PROJECTILE_RADIUS = 80;
-const PIERCE_SUPER_STEER_STRENGTH = 4;
-const PIERCE_SUPER_STEER_IGNORE_SECONDS = 0.1;
-const PIERCE_SUPER_STEER_SECONDS = 2;
 const BROCK_ATTACK_DAMAGE = 2320;
 const BROCK_EXPLOSION_RADIUS = 450;
 const BROCK_FIRE_RADIUS = 300;
@@ -159,7 +148,7 @@ function projectileDamage(texture: keyof typeof BULLET_STYLES, traveled: number)
   if (texture === "pierceNormal") return PIERCE_NORMAL_DAMAGE;
   if (texture === "pierceLast") return PIERCE_LAST_DAMAGE;
   if (texture === "pierceShell") return PIERCE_SHELL_SHOT_DAMAGE;
-  if (texture === "pierceSuper") return PIERCE_SUPER_DAMAGE;
+  if (texture === "pierceSuper") return PIERCE_SUPER.damage;
   if (texture === "brock") return BROCK_ATTACK_DAMAGE;
   return PIPER_MIN_DAMAGE
     + (PIPER_MAX_DAMAGE - PIPER_MIN_DAMAGE) * Math.min(1, traveled / BULLET_MAX_DIST);
@@ -2084,9 +2073,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           if (cast.phase === "warning") {
             const target = aimingTargetRef.current;
             cast.targetLocked = aimingTargetHealthRef.current > 0
-              && Math.hypot(target.x - cast.x, target.y - cast.y) <= PIERCE_SUPER_RADIUS + ENEMY_RADIUS;
+              && Math.hypot(target.x - cast.x, target.y - cast.y) <= PIERCE_SUPER.radius + ENEMY_RADIUS;
             cast.phase = "locked";
-            cast.remainingSeconds = PIERCE_LOCK_SECONDS;
+            cast.remainingSeconds = PIERCE_SUPER.lockSeconds;
             continue;
           }
           if (cast.targetLocked && aimingTargetHealthRef.current > 0) {
@@ -2095,15 +2084,15 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             const angle = Math.atan2(target.y - source.y, target.x - source.x);
             bulletsRef.current.push({
               x: source.x, y: source.y,
-              vx: Math.cos(angle) * PIERCE_SUPER_PROJECTILE_SPEED,
-              vy: Math.sin(angle) * PIERCE_SUPER_PROJECTILE_SPEED,
-              traveled: 0, id: bulletIdRef.current++, radius: PIERCE_SUPER_PROJECTILE_RADIUS,
-              texture: "pierceSuper", owner: "player", maxDistance: PIERCE_SUPER_RANGE,
+              vx: Math.cos(angle) * PIERCE_SUPER.projectileSpeed,
+              vy: Math.sin(angle) * PIERCE_SUPER.projectileSpeed,
+              traveled: 0, id: bulletIdRef.current++, radius: PIERCE_SUPER.projectileRadius,
+              texture: "pierceSuper", owner: "player", maxDistance: PIERCE_SUPER.range,
               homing: {
                 targetId: "trainingTarget",
-                steerStrength: PIERCE_SUPER_STEER_STRENGTH,
-                ignoreSeconds: PIERCE_SUPER_STEER_IGNORE_SECONDS,
-                remainingSeconds: PIERCE_SUPER_STEER_SECONDS,
+                steerStrength: PIERCE_SUPER.steerStrength,
+                ignoreSeconds: PIERCE_SUPER.steerIgnoreSeconds,
+                remainingSeconds: PIERCE_SUPER.steerSeconds,
               },
             });
             firedShotCountRef.current += 1;
@@ -2256,7 +2245,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   : b.texture === "pierceNormal" ? PIERCE_NORMAL_SUPER_CHARGE
                   : b.texture === "pierceLast" ? PIERCE_LAST_SUPER_CHARGE
                   : b.texture === "pierceShell" ? PIERCE_SHELL_SUPER_CHARGE
-                  : b.texture === "pierceSuper" ? PIERCE_SUPER_CHARGE
+                  : b.texture === "pierceSuper" ? PIERCE_SUPER.chargePerHit
                   : 0;
                 damageTrialTarget(damage, chargeGain);
                 if (b.texture === "pierceNormal" || b.texture === "pierceLast" || b.texture === "pierceSuper") {
@@ -2438,7 +2427,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ctx.beginPath();
         ctx.ellipse(
           projectX(cast.x, cast.y), projectY(cast.y),
-          PIERCE_SUPER_RADIUS * scale * widthFactorAt(cast.y), PIERCE_SUPER_RADIUS * scaleY,
+          PIERCE_SUPER.radius * scale * widthFactorAt(cast.y), PIERCE_SUPER.radius * scaleY,
           0, 0, Math.PI * 2,
         );
         ctx.fill();
@@ -2696,8 +2685,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           ctx.restore();
         } else if (trialHeroId === "byron" || trialHeroId === "pierce") {
           const isPierceSuper = trialHeroId === "pierce";
-          const castRange = isPierceSuper ? PIERCE_SUPER_RANGE : BYRON_SUPER_RANGE;
-          const castRadius = isPierceSuper ? PIERCE_SUPER_RADIUS : BYRON_SUPER_RADIUS;
+          const castRange = isPierceSuper ? PIERCE_SUPER.range : BYRON_SUPER_RANGE;
+          const castRadius = isPierceSuper ? PIERCE_SUPER.radius : BYRON_SUPER_RADIUS;
           const target = aimingTargetRef.current;
           const bounds = visibleWorldBoundsRef.current;
           const targetVisible = aimingTargetHealthRef.current > 0
@@ -3166,14 +3155,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       } else if (trialHeroId === "pierce") {
         const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
         const aimDistance = stick.exceededDeadzone
-          ? PIERCE_SUPER_RANGE * stick.rawMagnitude
-          : autoAimTargetVisible ? Math.min(PIERCE_SUPER_RANGE, targetDistance) : PIERCE_SUPER_RANGE;
+          ? PIERCE_SUPER.range * stick.rawMagnitude
+          : autoAimTargetVisible ? Math.min(PIERCE_SUPER.range, targetDistance) : PIERCE_SUPER.range;
         pierceSuperCastsRef.current.push({
           id: bulletIdRef.current++,
           x: Math.max(0, Math.min(MAP_WIDTH, player.x + Math.cos(angle) * aimDistance)),
           y: Math.max(0, Math.min(MAP_HEIGHT, player.y + Math.sin(angle) * aimDistance)),
           phase: "warning",
-          remainingSeconds: PIERCE_SUPER_WARNING_SECONDS,
+          remainingSeconds: PIERCE_SUPER.warningSeconds,
           targetLocked: false,
         });
       }

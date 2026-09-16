@@ -6,6 +6,20 @@ export const PIERCE_SHELL = {
   visualRadius: 78,
 } as const;
 
+export const PIERCE_SUPER = {
+  damage: 2800,
+  chargePerHit: 0.21,
+  range: 2500,
+  radius: 900,
+  warningSeconds: 0.8,
+  lockSeconds: 0.35,
+  projectileSpeed: 4500,
+  projectileRadius: 80,
+  steerStrength: 4,
+  steerIgnoreSeconds: 0.1,
+  steerSeconds: 2,
+} as const;
+
 type Projection = {
   projectX: (x: number, y: number) => number;
   projectY: (y: number) => number;

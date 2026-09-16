@@ -6,14 +6,15 @@ import { TILE_SIZE, tiles } from "../features/training/config";
 import { loadControlLayout, joystickDiameter } from "../features/training/controlLayout";
 import { advanceMovement, resolveSquareMovement } from "../features/training/movement";
 import { drawTrainingUnitModel } from "../features/training/unitModel";
-import { drawPierceAimCorridor, drawPierceShell, PIERCE_SHELL } from "../features/training/pierceCombat";
+import { drawPierceAimCorridor, drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
 
 type Vec = { x: number; y: number };
 type TargetKind = "player" | "vault";
 type MiniBrock = { id: number; x: number; y: number; health: number; ammo: number; reload: number; state: "selecting" | "moving" | "aiming"; timer: number; target: TargetKind | null };
-type Shot = { id: number; owner: "player" | "enemy"; x: number; y: number; vx: number; vy: number; traveled: number; maxDistance: number; damage: number; radius: number; target?: TargetKind; createsShell?: boolean };
+type Shot = { id: number; owner: "player" | "enemy"; x: number; y: number; vx: number; vy: number; traveled: number; maxDistance: number; damage: number; radius: number; target?: TargetKind; createsShell?: boolean; chargeGain?: number; homingTargetId?: number; homingIgnore?: number; homingRemaining?: number };
 type Blast = { x: number; y: number; radius: number; life: number };
 type PierceShellPickup = { id: number; x: number; y: number; remainingSeconds: number };
+type PierceSuperCast = { id: number; x: number; y: number; phase: "warning" | "locked"; remainingSeconds: number; targetId: number | null };
 
 const PLAYER_RADIUS = tiles(0.5);
 const PLAYER_SPEED = 750;
@@ -42,6 +43,9 @@ export default function TidalWave() {
   const keysRef = useRef(new Set<string>());
   const movementRef = useRef<Vec>({ x: 0, y: 0 });
   const attackRef = useRef<Vec>({ x: 0, y: 0 });
+  const superRef = useRef<Vec>({ x: 0, y: 0 });
+  const stickOriginRef = useRef({ movement: { x: 0, y: 0 }, attack: { x: 0, y: 0 }, super: { x: 0, y: 0 } });
+  const exceededDeadzoneRef = useRef({ attack: false, super: false });
   const movementElapsedRef = useRef(0);
   const playerVelocityRef = useRef<Vec>({ x: 0, y: 0 });
   const playerRef = useRef<{ x: number; y: number; health: number; ammo: number; reload: number; attackCooldown: number }>({ x: columnCenter(TIDAL_WAVE.playerSpawn.column), y: lowerRowCenter(TIDAL_WAVE.playerSpawn.rowFromBottom), health: PLAYER_HEALTH, ammo: PLAYER_AMMO, reload: PLAYER_RELOAD, attackCooldown: 0 });
@@ -50,19 +54,23 @@ export default function TidalWave() {
   const shotsRef = useRef<Shot[]>([]);
   const blastsRef = useRef<Blast[]>([]);
   const shellsRef = useRef<PierceShellPickup[]>([]);
+  const superCastsRef = useRef<PierceSuperCast[]>([]);
+  const superChargeRef = useRef(0);
   const elapsedRef = useRef(0);
   const spawnTimerRef = useRef(TIDAL_WAVE.spawnIntervalSeconds);
   const idsRef = useRef(1);
   const transformRef = useRef({ scale: 1, ox: 0, oy: 0 });
   const resultRef = useRef<"victory" | "defeat" | null>(null);
   const [result, setResult] = useState<"victory" | "defeat" | null>(null);
+  const [superCharge, setSuperCharge] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(Boolean(document.fullscreenElement));
   const [countdown, setCountdown] = useState(3);
   const countdownRef = useRef(3);
   const [hud, setHud] = useState<{ time: number; vault: number; player: number; enemies: number }>({ time: 30, vault: TIDAL_WAVE.vaultHealth, player: PLAYER_HEALTH, enemies: 0 });
   const [viewport, setViewport] = useState({ width: innerWidth, height: innerHeight });
   const layoutRef = useRef(loadControlLayout());
-  const [sticks, setSticks] = useState({ movement: { x: 0, y: 0, active: false }, attack: { x: 0, y: 0, active: false } });
-  const pointerIds = useRef<{ movement: number | null; attack: number | null }>({ movement: null, attack: null });
+  const [sticks, setSticks] = useState({ movement: { x: 0, y: 0, active: false }, attack: { x: 0, y: 0, active: false }, super: { x: 0, y: 0, active: false } });
+  const pointerIds = useRef<{ movement: number | null; attack: number | null; super: number | null }>({ movement: null, attack: null, super: null });
 
   const finish = (next: "victory" | "defeat") => {
     if (resultRef.current) return;
@@ -80,47 +88,93 @@ export default function TidalWave() {
     player.ammo -= 1;
     player.attackCooldown = 0.65;
     if (player.ammo === 0) player.reload = PLAYER_RELOAD;
-    shotsRef.current.push({ id: idsRef.current++, owner: "player", x: player.x, y: player.y, vx: direction.x / length * PLAYER_BULLET_SPEED, vy: direction.y / length * PLAYER_BULLET_SPEED, traveled: 0, maxDistance: PLAYER_RANGE, damage: lastShot ? 3000 : PLAYER_DAMAGE, radius: lastShot ? 110 : PLAYER_BULLET_RADIUS, createsShell: true });
+    shotsRef.current.push({ id: idsRef.current++, owner: "player", x: player.x, y: player.y, vx: direction.x / length * PLAYER_BULLET_SPEED, vy: direction.y / length * PLAYER_BULLET_SPEED, traveled: 0, maxDistance: PLAYER_RANGE, damage: lastShot ? 3000 : PLAYER_DAMAGE, radius: lastShot ? 110 : PLAYER_BULLET_RADIUS, createsShell: true, chargeGain: lastShot ? 0.24375 : 0.15425 });
   };
 
-  const updateStick = (id: "movement" | "attack", event: ReactPointerEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
+  const castSuper = (direction: Vec, rawMagnitude: number, autoAim: boolean) => {
+    if (resultRef.current || countdownRef.current > 0 || superChargeRef.current < 1) return;
+    const player = playerRef.current;
+    const nearest = enemiesRef.current.reduce<MiniBrock | null>((best, enemy) => !best || Math.hypot(enemy.x - player.x, enemy.y - player.y) < Math.hypot(best.x - player.x, best.y - player.y) ? enemy : best, null);
+    const fallback = nearest ? { x: nearest.x - player.x, y: nearest.y - player.y } : { x: 0, y: -1 };
+    const aim = autoAim ? fallback : direction;
+    const length = Math.hypot(aim.x, aim.y) || 1;
+    const targetDistance = nearest ? Math.hypot(nearest.x - player.x, nearest.y - player.y) : PIERCE_SUPER.range;
+    const distance = autoAim ? Math.min(PIERCE_SUPER.range, targetDistance) : PIERCE_SUPER.range * rawMagnitude;
+    superCastsRef.current.push({ id: idsRef.current++, x: clamp(player.x + aim.x / length * distance, 0, TIDAL_WAVE_WORLD.width), y: clamp(player.y + aim.y / length * distance, TIDAL_WAVE_WORLD.lowerTop, TIDAL_WAVE_WORLD.height), phase: "warning", remainingSeconds: PIERCE_SUPER.warningSeconds, targetId: null });
+    superChargeRef.current = 0;
+    setSuperCharge(0);
+  };
+
+  const updateStick = (id: "movement" | "attack" | "super", event: ReactPointerEvent<HTMLDivElement>) => {
     const diameter = joystickDiameter(layoutRef.current.joysticks[id], viewport.width, viewport.height);
-    const max = diameter * 0.3;
-    const rawX = event.clientX - (rect.left + rect.width / 2), rawY = event.clientY - (rect.top + rect.height / 2);
+    const max = diameter * 0.39;
+    const origin = stickOriginRef.current[id];
+    const rawX = event.clientX - origin.x, rawY = event.clientY - origin.y;
     const length = Math.hypot(rawX, rawY);
     const ratio = length > max ? max / length : 1;
     const knob = { x: rawX * ratio, y: rawY * ratio, active: true };
     setSticks(value => ({ ...value, [id]: knob }));
-    if (id === "movement") movementRef.current = { x: knob.x / max, y: knob.y / max };
-    else attackRef.current = { x: knob.x, y: knob.y };
+    const deadzone = max * 0.16;
+    if (id === "movement") {
+      const usable = Math.max(0, Math.min(1, (length - deadzone) / (max - deadzone)));
+      movementRef.current = length > 0 ? { x: rawX / length * usable, y: rawY / length * usable } : { x: 0, y: 0 };
+    } else {
+      if (length > deadzone) exceededDeadzoneRef.current[id] = true;
+      const target = id === "attack" ? attackRef : superRef;
+      target.current = { x: knob.x, y: knob.y };
+    }
   };
 
-  const stickDown = (id: "movement" | "attack") => (event: ReactPointerEvent<HTMLDivElement>) => {
+  const stickDown = (id: "movement" | "attack" | "super") => (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault(); event.stopPropagation();
+    if (id === "super" && superChargeRef.current < 1) return;
     pointerIds.current[id] = event.pointerId;
+    stickOriginRef.current[id] = { x: event.clientX, y: event.clientY };
+    if (id !== "movement") exceededDeadzoneRef.current[id] = false;
     event.currentTarget.setPointerCapture(event.pointerId);
-    updateStick(id, event);
+    setSticks(value => ({ ...value, [id]: { x: 0, y: 0, active: true } }));
   };
-  const stickMove = (id: "movement" | "attack") => (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (pointerIds.current[id] === event.pointerId) updateStick(id, event);
+  const stickMove = (id: "movement" | "attack" | "super") => (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (pointerIds.current[id] === event.pointerId) { event.preventDefault(); event.stopPropagation(); updateStick(id, event); }
   };
-  const stickUp = (id: "movement" | "attack") => (event: ReactPointerEvent<HTMLDivElement>) => {
+  const stickUp = (id: "movement" | "attack" | "super") => (event: ReactPointerEvent<HTMLDivElement>) => {
     if (pointerIds.current[id] !== event.pointerId) return;
-    if (id === "attack") firePlayer(attackRef.current);
-    else movementRef.current = { x: 0, y: 0 };
+    event.preventDefault(); event.stopPropagation();
+    const max = joystickDiameter(layoutRef.current.joysticks[id], viewport.width, viewport.height) * 0.39;
+    const target = id === "attack" ? attackRef.current : superRef.current;
+    const length = Math.hypot(target.x, target.y);
+    const cancelled = event.type === "pointercancel" || (id !== "movement" && exceededDeadzoneRef.current[id] && length <= max * 0.16);
+    if (!cancelled && id === "attack") {
+      if (exceededDeadzoneRef.current.attack) firePlayer(target);
+      else {
+        const player = playerRef.current;
+        const nearest = enemiesRef.current.reduce<MiniBrock | null>((best, enemy) => !best || Math.hypot(enemy.x - player.x, enemy.y - player.y) < Math.hypot(best.x - player.x, best.y - player.y) ? enemy : best, null);
+        if (nearest) firePlayer({ x: nearest.x - player.x, y: nearest.y - player.y });
+      }
+    } else if (!cancelled && id === "super") castSuper(target, Math.min(1, length / max), !exceededDeadzoneRef.current.super);
+    if (id === "movement") movementRef.current = { x: 0, y: 0 };
     if (id === "attack") attackRef.current = { x: 0, y: 0 };
+    if (id === "super") superRef.current = { x: 0, y: 0 };
     pointerIds.current[id] = null;
     setSticks(value => ({ ...value, [id]: { x: 0, y: 0, active: false } }));
+  };
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch { /* 浏览器不允许全屏时保持当前显示。 */ }
   };
 
   const restart = () => location.reload();
 
   useEffect(() => {
     const resize = () => setViewport({ width: innerWidth, height: innerHeight });
+    const fullscreen = () => setIsFullscreen(Boolean(document.fullscreenElement));
     const down = (event: KeyboardEvent) => keysRef.current.add(event.key.toLowerCase());
     const up = (event: KeyboardEvent) => keysRef.current.delete(event.key.toLowerCase());
-    addEventListener("resize", resize); addEventListener("keydown", down); addEventListener("keyup", up);
-    return () => { removeEventListener("resize", resize); removeEventListener("keydown", down); removeEventListener("keyup", up); };
+    addEventListener("resize", resize); addEventListener("keydown", down); addEventListener("keyup", up); document.addEventListener("fullscreenchange", fullscreen);
+    return () => { removeEventListener("resize", resize); removeEventListener("keydown", down); removeEventListener("keyup", up); document.removeEventListener("fullscreenchange", fullscreen); };
   }, []);
 
   useEffect(() => {
@@ -208,7 +262,7 @@ export default function TidalWave() {
             const nearest = enemiesRef.current.reduce<MiniBrock | null>((best, enemy) => !best || Math.hypot(enemy.x - player.x, enemy.y - player.y) < Math.hypot(best.x - player.x, best.y - player.y) ? enemy : best, null);
             if (nearest) {
               const dx = nearest.x - player.x, dy = nearest.y - player.y, distance = Math.hypot(dx, dy) || 1;
-              shotsRef.current.push({ id: idsRef.current++, owner: "player", x: player.x, y: player.y, vx: dx / distance * PLAYER_BULLET_SPEED, vy: dy / distance * PLAYER_BULLET_SPEED, traveled: 0, maxDistance: PLAYER_RANGE, damage: 1200, radius: PLAYER_BULLET_RADIUS });
+              shotsRef.current.push({ id: idsRef.current++, owner: "player", x: player.x, y: player.y, vx: dx / distance * PLAYER_BULLET_SPEED, vy: dy / distance * PLAYER_BULLET_SPEED, traveled: 0, maxDistance: PLAYER_RANGE, damage: 1200, radius: PLAYER_BULLET_RADIUS, chargeGain: 0.09 });
             }
           }
         }
@@ -236,14 +290,51 @@ export default function TidalWave() {
           }
         }
 
+        for (let i = superCastsRef.current.length - 1; i >= 0; i--) {
+          const cast = superCastsRef.current[i];
+          cast.remainingSeconds -= dt;
+          if (cast.remainingSeconds > 0) continue;
+          if (cast.phase === "warning") {
+            const candidates = enemiesRef.current.filter(enemy => Math.hypot(enemy.x - cast.x, enemy.y - cast.y) <= PIERCE_SUPER.radius + ENEMY_RADIUS);
+            const locked = candidates.reduce<MiniBrock | null>((best, enemy) => !best || Math.hypot(enemy.x - cast.x, enemy.y - cast.y) < Math.hypot(best.x - cast.x, best.y - cast.y) ? enemy : best, null);
+            cast.targetId = locked?.id ?? null;
+            cast.phase = "locked";
+            cast.remainingSeconds = PIERCE_SUPER.lockSeconds;
+            continue;
+          }
+          const target = enemiesRef.current.find(enemy => enemy.id === cast.targetId);
+          if (target) {
+            const dx = target.x - player.x, dy = target.y - player.y, distance = Math.hypot(dx, dy) || 1;
+            shotsRef.current.push({ id: idsRef.current++, owner: "player", x: player.x, y: player.y, vx: dx / distance * PIERCE_SUPER.projectileSpeed, vy: dy / distance * PIERCE_SUPER.projectileSpeed, traveled: 0, maxDistance: PIERCE_SUPER.range, damage: PIERCE_SUPER.damage, radius: PIERCE_SUPER.projectileRadius, createsShell: true, chargeGain: PIERCE_SUPER.chargePerHit, homingTargetId: target.id, homingIgnore: PIERCE_SUPER.steerIgnoreSeconds, homingRemaining: PIERCE_SUPER.steerSeconds });
+          }
+          superCastsRef.current.splice(i, 1);
+        }
+
         for (let i = shotsRef.current.length - 1; i >= 0; i--) {
           const shot = shotsRef.current[i], from = { x: shot.x, y: shot.y };
+          if (shot.homingTargetId !== undefined) {
+            shot.homingIgnore = Math.max(0, (shot.homingIgnore ?? 0) - dt);
+            shot.homingRemaining = Math.max(0, (shot.homingRemaining ?? 0) - dt);
+            const target = enemiesRef.current.find(enemy => enemy.id === shot.homingTargetId);
+            if ((shot.homingIgnore ?? 0) <= 0 && (shot.homingRemaining ?? 0) > 0 && target) {
+              const current = Math.atan2(shot.vy, shot.vx), desired = Math.atan2(target.y - shot.y, target.x - shot.x);
+              const delta = Math.atan2(Math.sin(desired - current), Math.cos(desired - current));
+              const turn = clamp(delta, -PIERCE_SUPER.steerStrength * dt, PIERCE_SUPER.steerStrength * dt);
+              const velocity = Math.hypot(shot.vx, shot.vy);
+              shot.vx = Math.cos(current + turn) * velocity; shot.vy = Math.sin(current + turn) * velocity;
+            }
+          }
           const speed = Math.hypot(shot.vx, shot.vy), step = Math.min(speed * dt, shot.maxDistance - shot.traveled);
           shot.x += shot.vx / speed * step; shot.y += shot.vy / speed * step; shot.traveled += step;
           const to = { x: shot.x, y: shot.y };
           if (shot.owner === "player") {
             const hit = enemiesRef.current.find(enemy => distanceToSegment(enemy, from, to) <= ENEMY_RADIUS + shot.radius);
-            if (hit) { hit.health -= shot.damage; if (shot.createsShell) spawnPierceShell(); shotsRef.current.splice(i, 1); continue; }
+            if (hit) {
+              hit.health -= shot.damage;
+              if (shot.createsShell) spawnPierceShell();
+              if ((shot.chargeGain ?? 0) > 0) { superChargeRef.current = Math.min(1, superChargeRef.current + (shot.chargeGain ?? 0)); setSuperCharge(superChargeRef.current); }
+              shotsRef.current.splice(i, 1); continue;
+            }
           } else {
             const target = shot.target === "player" ? player : vaultRef.current;
             const radius = shot.target === "player" ? PLAYER_RADIUS : VAULT_RADIUS;
@@ -275,6 +366,7 @@ export default function TidalWave() {
       }
       for (const shot of shotsRef.current) { const x = sx(shot.x), y = sy(shot.y), angle = Math.atan2(shot.vy, shot.vx), length = (shot.owner === "player" ? 210 : 150) * scale, width = shot.radius * 2 * scale; ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.fillStyle = shot.owner === "player" ? "#79e8ff" : "#ff7c37"; ctx.beginPath(); ctx.moveTo(length / 2, 0); ctx.lineTo(-length / 2, -width / 2); ctx.lineTo(-length / 2, width / 2); ctx.closePath(); ctx.fill(); ctx.restore(); }
       for (const blast of blastsRef.current) { ctx.fillStyle = `rgba(255,110,35,${blast.life / .32 * .42})`; ctx.beginPath(); ctx.arc(sx(blast.x), sy(blast.y), blast.radius * scale * (1.25 - blast.life), 0, Math.PI * 2); ctx.fill(); }
+      for (const cast of superCastsRef.current) { const locked = cast.phase === "locked"; ctx.save(); ctx.fillStyle = locked ? "rgba(255,78,92,.24)" : "rgba(255,199,69,.18)"; ctx.strokeStyle = locked ? "rgba(255,109,120,.95)" : "rgba(255,224,132,.88)"; ctx.lineWidth = Math.max(2, 24 * scale); if (!locked) ctx.setLineDash([10, 7]); ctx.beginPath(); ctx.arc(sx(cast.x), sy(cast.y), PIERCE_SUPER.radius * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore(); }
 
       const player = playerRef.current, px = sx(player.x), py = sy(player.y), pr = PLAYER_RADIUS * scale;
       drawTrainingUnitModel(ctx, { centerX: px, centerY: py, radiusX: pr, radiusY: pr, statusWidth: TILE_SIZE * scale, health: player.health, maxHealth: PLAYER_HEALTH, team: "player", relation: "self", ammo: { current: player.ammo, capacity: PLAYER_AMMO, reloadProgress: player.ammo === 0 ? 1 - player.reload / PLAYER_RELOAD : 0, continuousReload: player.ammo === 0 }, afterGroundRing: () => { ctx.fillStyle = "#55d9ff"; ctx.beginPath(); ctx.arc(px, py, pr * .74, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#132b37"; ctx.font = `900 ${Math.max(10, pr * .42)}px Nunito`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("P", px, py); } });
@@ -282,6 +374,12 @@ export default function TidalWave() {
       const activeAim = attackRef.current;
       if (Math.hypot(activeAim.x, activeAim.y) > 1) {
         drawPierceAimCorridor(ctx, player, Math.atan2(activeAim.y, activeAim.x), PLAYER_RANGE, PLAYER_BULLET_RADIUS, { projectX: (x) => sx(x), projectY: sy });
+      }
+      const activeSuper = superRef.current;
+      if (pointerIds.current.super !== null && Math.hypot(activeSuper.x, activeSuper.y) > 1) {
+        const length = Math.hypot(activeSuper.x, activeSuper.y), distance = PIERCE_SUPER.range * Math.min(1, length / (joystickDiameter(layoutRef.current.joysticks.super, innerWidth, innerHeight) * .39));
+        const targetX = clamp(player.x + activeSuper.x / length * distance, 0, TIDAL_WAVE_WORLD.width), targetY = clamp(player.y + activeSuper.y / length * distance, TIDAL_WAVE_WORLD.lowerTop, TIDAL_WAVE_WORLD.height);
+        ctx.save(); ctx.fillStyle = "rgba(255,199,69,.18)"; ctx.strokeStyle = "rgba(255,231,142,.92)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx(targetX), sy(targetY), PIERCE_SUPER.radius * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
       }
       frame = requestAnimationFrame(tick);
     };
@@ -299,9 +397,10 @@ export default function TidalWave() {
     <canvas ref={canvasRef} onPointerDown={canvasFire} />
     <div className="tidal-wave-hud"><strong>排山倒海</strong><span>剩余 {hud.time.toFixed(1)}s</span><span>金库 {Math.ceil(hud.vault)}</span><span>敌人 {hud.enemies}</span></div>
     {countdown > 0 && <div className="training-countdown"><span>{countdown}</span></div>}
-    <button className="tidal-wave-exit" onClick={() => navigate("/mini-games")}>退出</button>
+    <div className="tidal-wave-actions"><button onClick={toggleFullscreen}>{isFullscreen ? "退出全屏" : "全屏"}</button><button onClick={() => navigate("/mini-games")}>退出</button></div>
     <AdjustableJoystick id="movement" layout={layoutRef.current.joysticks.movement} viewport={viewport} knob={sticks.movement} active={sticks.movement.active} onPointerDown={stickDown("movement")} onPointerMove={stickMove("movement")} onPointerUp={stickUp("movement")} />
     <AdjustableJoystick id="attack" layout={layoutRef.current.joysticks.attack} viewport={viewport} knob={sticks.attack} active={sticks.attack.active} onPointerDown={stickDown("attack")} onPointerMove={stickMove("attack")} onPointerUp={stickUp("attack")} />
+    <AdjustableJoystick id="super" layout={layoutRef.current.joysticks.super} viewport={viewport} knob={sticks.super} active={sticks.super.active} charge={superCharge} onPointerDown={stickDown("super")} onPointerMove={stickMove("super")} onPointerUp={stickUp("super")} />
     {result && <div className="tidal-wave-result-backdrop"><section className="tidal-wave-result"><div className={`mini-game-result-star ${result === "victory" ? "lit" : ""}`}>★</div><h1>{result === "victory" ? "守卫成功" : "金库失守"}</h1><p>{result === "victory" ? "坚持 30 秒，排山倒海已获得一颗星！" : "保护金库并坚持到倒计时结束。"}</p><button className="btn-primary" onClick={restart}>再试一次</button><button className="btn-secondary" onClick={() => navigate("/mini-games")}>返回关卡</button></section></div>}
   </main>;
 }
