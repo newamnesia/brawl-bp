@@ -7,14 +7,15 @@ import { loadControlLayout, joystickDiameter } from "../features/training/contro
 import { advanceMovement, resolveSquareMovement } from "../features/training/movement";
 import { drawTrainingUnitModel } from "../features/training/unitModel";
 import { drawPierceAimCorridor, drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
+import { battleCanvasDpr } from "../features/training/performance";
 
 type Vec = { x: number; y: number };
 type TargetKind = "player" | "vault";
-type MiniBrock = { id: number; x: number; y: number; health: number; ammo: number; reload: number; state: "selecting" | "moving" | "aiming"; timer: number; target: TargetKind | null };
+type MiniBrock = { id: number; x: number; y: number; health: number; ammo: number; reload: number; state: "selecting" | "moving" | "aiming"; timer: number; target: TargetKind | null; unitClass: "hero" };
 type Shot = { id: number; owner: "player" | "enemy"; x: number; y: number; vx: number; vy: number; traveled: number; maxDistance: number; damage: number; radius: number; target?: TargetKind; createsShell?: boolean; chargeGain?: number; homingTargetId?: number; homingIgnore?: number; homingRemaining?: number };
 type Blast = { x: number; y: number; radius: number; life: number };
 type PierceShellPickup = { id: number; x: number; y: number; remainingSeconds: number };
-type PierceSuperCast = { id: number; x: number; y: number; phase: "warning" | "locked"; remainingSeconds: number; targetId: number | null };
+type PierceSuperCast = { id: number; x: number; y: number; phase: "warning" | "locked"; remainingSeconds: number; targetIds: number[] };
 
 const PLAYER_RADIUS = tiles(0.5);
 const PLAYER_SPEED = 750;
@@ -100,7 +101,7 @@ export default function TidalWave() {
     const length = Math.hypot(aim.x, aim.y) || 1;
     const targetDistance = nearest ? Math.hypot(nearest.x - player.x, nearest.y - player.y) : PIERCE_SUPER.range;
     const distance = autoAim ? Math.min(PIERCE_SUPER.range, targetDistance) : PIERCE_SUPER.range * rawMagnitude;
-    superCastsRef.current.push({ id: idsRef.current++, x: clamp(player.x + aim.x / length * distance, 0, TIDAL_WAVE_WORLD.width), y: clamp(player.y + aim.y / length * distance, TIDAL_WAVE_WORLD.lowerTop, TIDAL_WAVE_WORLD.height), phase: "warning", remainingSeconds: PIERCE_SUPER.warningSeconds, targetId: null });
+    superCastsRef.current.push({ id: idsRef.current++, x: clamp(player.x + aim.x / length * distance, 0, TIDAL_WAVE_WORLD.width), y: clamp(player.y + aim.y / length * distance, TIDAL_WAVE_WORLD.lowerTop, TIDAL_WAVE_WORLD.height), phase: "warning", remainingSeconds: PIERCE_SUPER.warningSeconds, targetIds: [] });
     superChargeRef.current = 0;
     setSuperCharge(0);
   };
@@ -194,7 +195,7 @@ export default function TidalWave() {
 
     const spawnEnemy = () => {
       const column = Math.floor(Math.random() * TIDAL_WAVE.mapColumns);
-      enemiesRef.current.push({ id: idsRef.current++, x: columnCenter(column), y: TIDAL_WAVE_WORLD.lowerTop + TILE_SIZE / 2, health: TIDAL_WAVE.miniBrock.health, ammo: TIDAL_WAVE.miniBrock.ammoCapacity, reload: TIDAL_WAVE.miniBrock.reloadSeconds, state: "selecting", timer: TIDAL_WAVE.miniBrock.selectSeconds, target: null });
+      enemiesRef.current.push({ id: idsRef.current++, x: columnCenter(column), y: TIDAL_WAVE_WORLD.lowerTop + TILE_SIZE / 2, health: TIDAL_WAVE.miniBrock.health, ammo: TIDAL_WAVE.miniBrock.ammoCapacity, reload: TIDAL_WAVE.miniBrock.reloadSeconds, state: "selecting", timer: TIDAL_WAVE.miniBrock.selectSeconds, target: null, unitClass: "hero" });
     };
 
     const spawnPierceShell = () => {
@@ -219,7 +220,7 @@ export default function TidalWave() {
 
     const tick = (now: number) => {
       const dt = Math.min(0.035, (now - previous) / 1000); previous = now;
-      const dpr = devicePixelRatio || 1;
+      const dpr = battleCanvasDpr(devicePixelRatio, matchMedia("(pointer: coarse)").matches);
       if (canvas.width !== innerWidth * dpr || canvas.height !== innerHeight * dpr) { canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr; canvas.style.width = `${innerWidth}px`; canvas.style.height = `${innerHeight}px`; }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const scale = Math.min(innerWidth / (TIDAL_WAVE_WORLD.width + 40), innerHeight / (lowerHeight + TILE_SIZE + 40));
@@ -295,15 +296,16 @@ export default function TidalWave() {
           cast.remainingSeconds -= dt;
           if (cast.remainingSeconds > 0) continue;
           if (cast.phase === "warning") {
-            const candidates = enemiesRef.current.filter(enemy => Math.hypot(enemy.x - cast.x, enemy.y - cast.y) <= PIERCE_SUPER.radius + ENEMY_RADIUS);
-            const locked = candidates.reduce<MiniBrock | null>((best, enemy) => !best || Math.hypot(enemy.x - cast.x, enemy.y - cast.y) < Math.hypot(best.x - cast.x, best.y - cast.y) ? enemy : best, null);
-            cast.targetId = locked?.id ?? null;
+            cast.targetIds = enemiesRef.current
+              .filter(enemy => Math.hypot(enemy.x - cast.x, enemy.y - cast.y) <= PIERCE_SUPER.radius + ENEMY_RADIUS)
+              .map(enemy => enemy.id);
             cast.phase = "locked";
             cast.remainingSeconds = PIERCE_SUPER.lockSeconds;
             continue;
           }
-          const target = enemiesRef.current.find(enemy => enemy.id === cast.targetId);
-          if (target) {
+          for (const targetId of cast.targetIds) {
+            const target = enemiesRef.current.find(enemy => enemy.id === targetId);
+            if (!target) continue;
             const dx = target.x - player.x, dy = target.y - player.y, distance = Math.hypot(dx, dy) || 1;
             shotsRef.current.push({ id: idsRef.current++, owner: "player", x: player.x, y: player.y, vx: dx / distance * PIERCE_SUPER.projectileSpeed, vy: dy / distance * PIERCE_SUPER.projectileSpeed, traveled: 0, maxDistance: PIERCE_SUPER.range, damage: PIERCE_SUPER.damage, radius: PIERCE_SUPER.projectileRadius, createsShell: true, chargeGain: PIERCE_SUPER.chargePerHit, homingTargetId: target.id, homingIgnore: PIERCE_SUPER.steerIgnoreSeconds, homingRemaining: PIERCE_SUPER.steerSeconds });
           }
@@ -331,7 +333,7 @@ export default function TidalWave() {
             const hit = enemiesRef.current.find(enemy => distanceToSegment(enemy, from, to) <= ENEMY_RADIUS + shot.radius);
             if (hit) {
               hit.health -= shot.damage;
-              if (shot.createsShell) spawnPierceShell();
+              if (shot.createsShell && hit.unitClass === "hero") spawnPierceShell();
               if ((shot.chargeGain ?? 0) > 0) { superChargeRef.current = Math.min(1, superChargeRef.current + (shot.chargeGain ?? 0)); setSuperCharge(superChargeRef.current); }
               shotsRef.current.splice(i, 1); continue;
             }

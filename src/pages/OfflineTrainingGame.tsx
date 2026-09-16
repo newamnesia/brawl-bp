@@ -10,6 +10,7 @@ import { AdjustableJoystick } from "../components/AdjustableJoystick";
 import { clampJoystick, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
+import { battleCanvasDpr } from "../features/training/performance";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming";
@@ -168,10 +169,11 @@ type Bullet = {
   spawnDelay?: number;
   superTrajectory?: { originX: number; originY: number; angle: number; omega: number; elapsed: number };
   lobbedImpact?: { x: number; y: number; radius: number; damage: number; heal: number };
-  homing?: { targetId: "trainingTarget"; steerStrength: number; ignoreSeconds: number; remainingSeconds: number };
+  homing?: { targetId: string; steerStrength: number; ignoreSeconds: number; remainingSeconds: number };
 };
 
 type ByronPoison = { ticksRemaining: number; timeToNextTick: number };
+type CombatUnitClass = "hero" | "vault" | "summon" | "humanoidSummon";
 type ImpactBurst = { x: number; y: number; radius: number; life: number; maxLife: number; kind?: "byron" | "brock" };
 type PierceShell = { id: number; x: number; y: number; remainingSeconds: number };
 type PierceSuperCast = {
@@ -180,7 +182,7 @@ type PierceSuperCast = {
   y: number;
   phase: "warning" | "locked";
   remainingSeconds: number;
-  targetLocked: boolean;
+  lockedTargetIds: string[];
 };
 type BrockFire = { x: number; y: number; remainingSeconds: number; timeToNextTick: number };
 
@@ -1283,11 +1285,25 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const tauntEmoteImage = new Image();
     tauntEmoteImage.src = TAUNT_EMOTE_TEXTURE;
     const hitParticles: HitParticle[] = [];
+    const hitParticlePool: HitParticle[] = [];
+    let combatUiDirty = false;
+    let combatUiRefreshRemaining = 0;
     const byronPoisons: ByronPoison[] = [];
     const impactBursts: ImpactBurst[] = [];
     const pierceShells: PierceShell[] = [];
     const brockFires: BrockFire[] = [];
     let nextPierceShellId = 1;
+    const trainingTargetUnitClass: CombatUnitClass = "hero";
+
+    // 统一枚举场上可被皮尔斯大招锁定的敌人；列表不设数量上限。
+    const getPierceEnemyTargets = () => [{
+      id: "trainingTarget",
+      x: aimingTargetRef.current.x,
+      y: aimingTargetRef.current.y,
+      radius: ENEMY_RADIUS,
+      alive: aimingTargetHealthRef.current > 0,
+      unitClass: trainingTargetUnitClass,
+    }];
 
     const spawnPierceShell = () => {
       const origin = playerRef.current;
@@ -1380,21 +1396,26 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     };
 
     const spawnHitParticles = (x: number, y: number) => {
-      const count = 7 + Math.floor(Math.random() * 4);
+      // 控制命中瞬间的对象分配峰值；短粒子复用比在 32 位浏览器中频繁 GC 更稳定。
+      const count = 4 + Math.floor(Math.random() * 2);
       for (let i = 0; i < count; i++) {
         const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.45;
         const speed = tiles(2.2 + Math.random() * 2.4);
         const maxLife = 0.28 + Math.random() * 0.22;
-        hitParticles.push({
-          x,
-          y,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          life: maxLife,
-          maxLife,
-          size: tiles(0.055 + Math.random() * 0.07),
-        });
+        const particle = hitParticlePool.pop() ?? { x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 0, size: 0 };
+        particle.x = x; particle.y = y;
+        particle.vx = Math.cos(angle) * speed; particle.vy = Math.sin(angle) * speed;
+        particle.life = maxLife; particle.maxLife = maxLife;
+        particle.size = tiles(0.055 + Math.random() * 0.07);
+        hitParticles.push(particle);
       }
+    };
+
+    const refreshCombatUi = () => {
+      setHitCount(hitCountRef.current);
+      setTotalDamage(Math.round(totalDamageRef.current));
+      combatUiDirty = false;
+      combatUiRefreshRemaining = 0.125;
     };
 
     const damageTrialTarget = (damage: number, chargeGain = 0) => {
@@ -1402,10 +1423,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         playerSuperChargeRef.current = Math.min(1, playerSuperChargeRef.current + chargeGain);
       }
       totalDamageRef.current += damage;
-      setTotalDamage(Math.round(totalDamageRef.current));
+      combatUiDirty = true;
       aimingTargetHealthRef.current = Math.max(0, aimingTargetHealthRef.current - damage);
       aimingTargetSecondsSinceDamageRef.current = 0;
       if ((isTrialMode || (isAimingMode && !isAimingInfinite)) && aimingTargetHealthRef.current <= 0) {
+        refreshCombatUi();
         pausedRef.current = true;
         setRoundResult("victory");
       }
@@ -1417,7 +1439,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     let offsetX = 0;
 
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = battleCanvasDpr(window.devicePixelRatio, window.matchMedia("(pointer: coarse)").matches);
       const cssWidth = container.clientWidth;
       const cssHeight = container.clientHeight;
 
@@ -2071,16 +2093,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           cast.remainingSeconds -= dt;
           if (cast.remainingSeconds > 0) continue;
           if (cast.phase === "warning") {
-            const target = aimingTargetRef.current;
-            cast.targetLocked = aimingTargetHealthRef.current > 0
-              && Math.hypot(target.x - cast.x, target.y - cast.y) <= PIERCE_SUPER.radius + ENEMY_RADIUS;
+            cast.lockedTargetIds = getPierceEnemyTargets()
+              .filter((target) => target.alive
+                && Math.hypot(target.x - cast.x, target.y - cast.y) <= PIERCE_SUPER.radius + target.radius)
+              .map((target) => target.id);
             cast.phase = "locked";
             cast.remainingSeconds = PIERCE_SUPER.lockSeconds;
             continue;
           }
-          if (cast.targetLocked && aimingTargetHealthRef.current > 0) {
+          for (const targetId of cast.lockedTargetIds) {
+            const target = getPierceEnemyTargets().find((candidate) => candidate.id === targetId);
+            if (!target?.alive) continue;
             const source = playerRef.current;
-            const target = aimingTargetRef.current;
             const angle = Math.atan2(target.y - source.y, target.x - source.x);
             bulletsRef.current.push({
               x: source.x, y: source.y,
@@ -2089,7 +2113,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               traveled: 0, id: bulletIdRef.current++, radius: PIERCE_SUPER.projectileRadius,
               texture: "pierceSuper", owner: "player", maxDistance: PIERCE_SUPER.range,
               homing: {
-                targetId: "trainingTarget",
+                targetId,
                 steerStrength: PIERCE_SUPER.steerStrength,
                 ignoreSeconds: PIERCE_SUPER.steerIgnoreSeconds,
                 remainingSeconds: PIERCE_SUPER.steerSeconds,
@@ -2143,9 +2167,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             const ignoredTime = Math.min(homing.ignoreSeconds, movementTime);
             homing.ignoreSeconds -= ignoredTime;
             homing.remainingSeconds = Math.max(0, homing.remainingSeconds - movementTime);
-            if (homing.ignoreSeconds <= 0 && homing.remainingSeconds > 0 && aimingTargetHealthRef.current > 0) {
-              const target = homing.targetId === "trainingTarget" ? aimingTargetRef.current : null;
-              if (!target) continue;
+            if (homing.ignoreSeconds <= 0 && homing.remainingSeconds > 0) {
+              const target = getPierceEnemyTargets().find((candidate) => candidate.id === homing.targetId);
+              if (!target?.alive) continue;
               const currentAngle = Math.atan2(b.vy, b.vx);
               const desiredAngle = Math.atan2(target.y - b.y, target.x - b.x);
               const angleDelta = Math.atan2(Math.sin(desiredAngle - currentAngle), Math.cos(desiredAngle - currentAngle));
@@ -2178,7 +2202,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             impactBursts.push({ x: impact.x, y: impact.y, radius: impact.radius, life: 0.35, maxLife: 0.35 });
             if (Math.hypot(aimingTargetRef.current.x - impact.x, aimingTargetRef.current.y - impact.y) <= impact.radius + ENEMY_RADIUS) {
               hitCountRef.current += 1;
-              setHitCount(hitCountRef.current);
+              combatUiDirty = true;
               damageTrialTarget(impact.damage, BYRON_SUPER_CHARGE);
               spawnHitParticles(aimingTargetRef.current.x, aimingTargetRef.current.y);
             }
@@ -2228,7 +2252,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               if (isAimingMode) recordAiShotOutcome(true);
               spawnHitParticles(collisionTarget.x, collisionTarget.y);
               hitCountRef.current += 1;
-              setHitCount(hitCountRef.current);
+              combatUiDirty = true;
               if (b.texture === "beaNormal") {
                 beaEnhancedShotsRef.current = 2;
               } else if (b.texture === "beaEnhanced") {
@@ -2248,7 +2272,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   : b.texture === "pierceSuper" ? PIERCE_SUPER.chargePerHit
                   : 0;
                 damageTrialTarget(damage, chargeGain);
-                if (b.texture === "pierceNormal" || b.texture === "pierceLast" || b.texture === "pierceSuper") {
+                if (trainingTargetUnitClass === "hero" && (
+                  b.texture === "pierceNormal" || b.texture === "pierceLast" || b.texture === "pierceSuper"
+                )) {
                   spawnPierceShell();
                 }
                 if (b.texture === "brock") spawnBrockImpact(closestX, closestY);
@@ -2271,7 +2297,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             spawnHitParticles(player.x, player.y);
             if (isSurvivalMode) {
               hitCountRef.current += 1;
-              setHitCount(hitCountRef.current);
+              combatUiDirty = true;
             }
             if (!isAimingMode) {
               const damage = projectileDamage(b.texture, b.traveled);
@@ -2292,7 +2318,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               if (aimingTargetHealthRef.current > 0
                 && Math.hypot(target.x - b.x, target.y - b.y) <= BROCK_EXPLOSION_RADIUS + ENEMY_RADIUS) {
                 hitCountRef.current += 1;
-                setHitCount(hitCountRef.current);
+                combatUiDirty = true;
                 damageTrialTarget(BROCK_ATTACK_DAMAGE);
                 spawnHitParticles(target.x, target.y);
               }
@@ -2331,7 +2357,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const particle = hitParticles[i];
           particle.life -= dt;
           if (particle.life <= 0) {
-            hitParticles.splice(i, 1);
+            hitParticlePool.push(...hitParticles.splice(i, 1));
             continue;
           }
           particle.x += particle.vx * dt;
@@ -2340,6 +2366,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           particle.vx *= drag;
           particle.vy *= drag;
         }
+        combatUiRefreshRemaining -= dt;
+        if (combatUiDirty && combatUiRefreshRemaining <= 0) refreshCombatUi();
       }
 
       // ======== 渲染（暂停时也继续渲染，画面定格） ========
@@ -2550,7 +2578,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           : undefined,
       });
 
-      if (pierceSuperCastsRef.current.some((cast) => cast.phase === "locked" && cast.targetLocked)) {
+      if (pierceSuperCastsRef.current.some((cast) => cast.phase === "locked" && cast.lockedTargetIds.includes("trainingTarget"))) {
         ctx.save();
         ctx.translate(enemyCenterPx, enemyCenterPy);
         ctx.strokeStyle = "#ffdd55";
@@ -2783,8 +2811,6 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         const radiusY = particle.size * scaleY * (0.65 + alpha * 0.35);
         ctx.globalAlpha = alpha;
         ctx.fillStyle = alpha > 0.55 ? "#ff5252" : "#d32f2f";
-        ctx.shadowColor = "#ff1744";
-        ctx.shadowBlur = radiusX * 1.5;
         ctx.beginPath();
         ctx.ellipse(px, py, radiusX, radiusY, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -3163,7 +3189,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           y: Math.max(0, Math.min(MAP_HEIGHT, player.y + Math.sin(angle) * aimDistance)),
           phase: "warning",
           remainingSeconds: PIERCE_SUPER.warningSeconds,
-          targetLocked: false,
+          lockedTargetIds: [],
         });
       }
       playerSuperChargeRef.current = 0;
