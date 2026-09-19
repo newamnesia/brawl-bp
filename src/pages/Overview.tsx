@@ -96,22 +96,6 @@ export default function Overview() {
         </button>
       </div>
 
-      <div className="card overview-extra-tools">
-        <h2>其他工具</h2>
-        <button
-          type="button"
-          className="overview-duolingo-entry"
-          onClick={() => navigate("/duolingo-helper")}
-        >
-          <span className="overview-duolingo-icon" aria-hidden="true">译</span>
-          <span className="overview-duolingo-copy">
-            <strong>多邻国答题辅助 <em>移动端原型</em></strong>
-            <small>Android 悬浮翻译 · iOS 画中画实验版</small>
-          </span>
-          <span aria-hidden="true">›</span>
-        </button>
-      </div>
-
       <div className="credits-box">
         <p className="credits-title">创作声明</p>
         <p className="credits-text credits-disclaimer">
