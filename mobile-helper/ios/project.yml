@@ -1,0 +1,29 @@
+name: DuolingoTranslator
+options:
+  bundleIdPrefix: com.example
+settings:
+  base:
+    SWIFT_VERSION: 5.10
+targets:
+  DuolingoTranslator:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources: [App]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.duolingotranslator
+        CODE_SIGN_ENTITLEMENTS: App/App.entitlements
+        INFOPLIST_FILE: App/Info.plist
+    dependencies:
+      - target: ScreenBroadcast
+  ScreenBroadcast:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources: [Broadcast]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.duolingotranslator.broadcast
+        CODE_SIGN_ENTITLEMENTS: Broadcast/Broadcast.entitlements
+        INFOPLIST_FILE: Broadcast/Info.plist
