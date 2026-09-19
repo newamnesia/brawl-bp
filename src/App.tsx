@@ -15,6 +15,7 @@ const CharacterTrial = lazy(() => import("./pages/CharacterTrial"));
 const CharacterTrialGame = lazy(() => import("./pages/CharacterTrialGame"));
 const MiniGames = lazy(() => import("./pages/MiniGames"));
 const TidalWave = lazy(() => import("./pages/TidalWave"));
+const DuolingoHelper = lazy(() => import("./pages/DuolingoHelper"));
 
 export default function App() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/character-trial/game" element={<CharacterTrialGame />} />
           <Route path="/mini-games" element={<MiniGames />} />
           <Route path="/mini-games/tidal-wave" element={<TidalWave />} />
+          <Route path="/duolingo-helper" element={<DuolingoHelper />} />
         </Routes>
       </Suspense>
     </>
