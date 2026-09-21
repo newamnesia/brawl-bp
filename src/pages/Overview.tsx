@@ -3,14 +3,6 @@ import { useNavigate } from "react-router-dom";
 
 const UPDATE_NOTICES = [
   {
-    date: "2026-09-21",
-    title: "近期更新说明",
-    details: [
-      "近期一段时间内，网站不会再主动更新。",
-      "仍然欢迎大家随时提出建议和想法；如果方案可行，我会考虑更新并落实。",
-    ],
-  },
-  {
     date: "2026-09-13",
     title: "六席赛事房上线",
     details: [
