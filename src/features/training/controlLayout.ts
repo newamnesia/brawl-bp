@@ -1,4 +1,4 @@
-export type JoystickId = "movement" | "attack" | "super";
+export type JoystickId = "movement" | "attack" | "super" | "hyper";
 export type JoystickLayout = { x: number; y: number; size: number };
 export type ControlLayout = { version: 1; updatedAt: number; joysticks: Record<JoystickId, JoystickLayout> };
 
@@ -6,6 +6,7 @@ export const JOYSTICK_DEFINITIONS: Record<JoystickId, { label: string; color: st
   movement: { label: "移动摇杆", color: "#4fc3f7" },
   attack: { label: "普攻摇杆", color: "#ff5252" },
   super: { label: "大招摇杆", color: "#ffc107" },
+  hyper: { label: "超充按键", color: "#ad64ff" },
 };
 
 const STORAGE_KEY = "brawl-bp:control-layout:v1";
@@ -16,6 +17,7 @@ const DEFAULTS: ControlLayout = {
     movement: { x: 0.13, y: 0.78, size: 0.18 },
     attack: { x: 0.87, y: 0.78, size: 0.18 },
     super: { x: 0.74, y: 0.60, size: 0.15 },
+    hyper: { x: 0.65, y: 0.43, size: 0.13 },
   },
 };
 
@@ -60,6 +62,7 @@ export function loadControlLayout(): ControlLayout {
         movement: { ...DEFAULTS.joysticks.movement, ...value.joysticks.movement },
         attack: { ...DEFAULTS.joysticks.attack, ...value.joysticks.attack },
         super: { ...DEFAULTS.joysticks.super, ...value.joysticks.super },
+        hyper: { ...DEFAULTS.joysticks.hyper, ...value.joysticks.hyper },
       },
     };
   } catch {

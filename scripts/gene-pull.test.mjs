@@ -1,6 +1,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { advanceGenePull } from "../src/features/training/geneCombat.ts";
+import { GENE, advanceGenePull, destroyWallsAlongGenePull, geneSuperAngles } from "../src/features/training/geneCombat.ts";
+
+test("Gene Hypercharge uses current close and split hit charge values", () => {
+  assert.equal(GENE.hyperDirectCharge, 0.0875);
+  assert.equal(GENE.hyperSplitCharge, 0.0145);
+  assert.equal(GENE.hyperDirectCharge / GENE.directSuperCharge, 0.35);
+});
+
+test("all three Hypercharge hands use the same unmodified base range", () => {
+  assert.equal(geneSuperAngles(0, true).length, 3);
+  assert.equal(GENE.superRange - GENE.baseSuperRange, 300);
+});
+
+test("normal Gene pull destroys only walls touched by the return path", () => {
+  const walls = new Set(["1,0", "2,0", "2,3"]);
+  const destroyed = destroyWallsAlongGenePull(walls, { x: 1000, y: 150 }, { x: 150, y: 150 }, 300, 150);
+  assert.equal(destroyed, 2);
+  assert.deepEqual([...walls], ["2,3"]);
+});
 
 test("Gene releases a target in the same frame it reaches his side", () => {
   // This diagonal pull used to finish at 300.0000000000001 units, leaving

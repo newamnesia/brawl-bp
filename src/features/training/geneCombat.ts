@@ -33,6 +33,42 @@ export function geneSuperAngles(heading: number, hypercharged: boolean): number[
   return [heading, heading - sideAngle, heading + sideAngle];
 }
 
+/** 普通魔术手的回拉路径会摧毁触及的障碍格；超充魔术手不调用此函数。 */
+export function destroyWallsAlongGenePull(
+  walls: Set<`${number},${number}`>,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  tileSize: number,
+  targetRadius: number,
+): number {
+  let destroyed = 0;
+  for (const cell of walls) {
+    const [column, row] = cell.split(",").map(Number);
+    const minX = column * tileSize - targetRadius;
+    const maxX = (column + 1) * tileSize + targetRadius;
+    const minY = row * tileSize - targetRadius;
+    const maxY = (row + 1) * tileSize + targetRadius;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    let entry = 0;
+    let exit = 1;
+    for (const [origin, delta, low, high] of [[start.x, dx, minX, maxX], [start.y, dy, minY, maxY]]) {
+      if (Math.abs(delta) < 1e-9) {
+        if (origin < low || origin > high) { entry = 2; break; }
+      } else {
+        const first = (low - origin) / delta;
+        const second = (high - origin) / delta;
+        entry = Math.max(entry, Math.min(first, second));
+        exit = Math.min(exit, Math.max(first, second));
+      }
+    }
+    if (entry > exit) continue;
+    walls.delete(cell);
+    destroyed += 1;
+  }
+  return destroyed;
+}
+
 export function geneSplitAngles(heading: number): number[] {
   const halfSpread = GENE.spreadDegrees * Math.PI / 360;
   return Array.from({ length: GENE.splitCount }, (_, index) =>

@@ -9,7 +9,7 @@ import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, STARTUP_S
 import { AdjustableJoystick } from "../components/AdjustableJoystick";
 import { clampJoystick, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
-import { GENE, advanceGenePull, geneSplitAngles, geneSuperAngles } from "../features/training/geneCombat";
+import { GENE, advanceGenePull, destroyWallsAlongGenePull, geneSplitAngles, geneSuperAngles } from "../features/training/geneCombat";
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
 import { battleCanvasDpr } from "../features/training/performance";
 
@@ -1306,8 +1306,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const impactBursts: ImpactBurst[] = [];
     const pierceShells: PierceShell[] = [];
     const brockFires: BrockFire[] = [];
+    const wallTiles = new Set(WALL_TILES);
     let genePullActive = false;
     let genePullSpeed: number = GENE.pullSpeed;
+    let genePullBreaksWalls = false;
     let nextPierceShellId = 1;
     const trainingTargetUnitClass: CombatUnitClass = "hero";
 
@@ -1601,7 +1603,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           mapWidth: MAP_WIDTH,
           mapHeight: MAP_HEIGHT,
           tileSize: TILE_SIZE,
-          walls: WALL_TILES,
+          walls: wallTiles,
         });
         player.x = resolvedPlayerMove.x;
         player.y = resolvedPlayerMove.y;
@@ -1850,7 +1852,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             mapWidth: MAP_WIDTH,
             mapHeight: MAP_HEIGHT,
             tileSize: TILE_SIZE,
-            walls: WALL_TILES,
+            walls: wallTiles,
           });
           let nextX = resolvedAiMove.x;
           let nextY = resolvedAiMove.y;
@@ -1875,7 +1877,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             mapWidth: MAP_WIDTH,
             mapHeight: MAP_HEIGHT,
             tileSize: TILE_SIZE,
-            walls: WALL_TILES,
+            walls: wallTiles,
           });
           nextX = finalAiMove.x;
           nextY = finalAiMove.y;
@@ -1982,6 +1984,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             genePullActive = false;
           } else {
             const next = advanceGenePull(grabbed, player, dt, PLAYER_RADIUS + ENEMY_RADIUS, genePullSpeed);
+            if (genePullBreaksWalls) destroyWallsAlongGenePull(wallTiles, grabbed, next, TILE_SIZE, ENEMY_RADIUS);
             grabbed.x = next.x;
             grabbed.y = next.y;
             genePullActive = !next.finished;
@@ -2295,6 +2298,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               } else if (b.texture === "geneSuper") {
                 genePullActive = true;
                 genePullSpeed = b.geneHyperHand ? GENE.hyperPullSpeed : GENE.pullSpeed;
+                genePullBreaksWalls = !b.geneHyperHand;
               } else {
                 const damage = projectileDamage(b.texture, b.traveled) * (b.damageMultiplier ?? 1);
                 const chargeGain = b.texture === "beaSuper"
@@ -3348,6 +3352,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const movementLayout = clampJoystick(controlLayoutRef.current.joysticks.movement, controlViewport.width, controlViewport.height);
   const attackLayout = clampJoystick(controlLayoutRef.current.joysticks.attack, controlViewport.width, controlViewport.height);
   const superLayout = clampJoystick(controlLayoutRef.current.joysticks.super, controlViewport.width, controlViewport.height);
+  const hyperLayout = clampJoystick(controlLayoutRef.current.joysticks.hyper, controlViewport.width, controlViewport.height);
   const displayedMovementLayout = js.active
     ? { ...movementLayout, x: js.baseX / controlViewport.width, y: js.baseY / controlViewport.height }
     : movementLayout;
@@ -3605,12 +3610,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           }}
           style={{
             position: "absolute",
-            left: Math.max(36, superLayout.x * controlViewport.width - 48),
-            top: Math.max(36, superLayout.y * controlViewport.height - joystickDiameter(superLayout, controlViewport.width, controlViewport.height) - 44),
+            left: hyperLayout.x * controlViewport.width,
+            top: hyperLayout.y * controlViewport.height,
             transform: "translate(-50%, -50%)",
             zIndex: 6,
-            width: 66,
-            height: 66,
+            width: joystickDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+            height: joystickDiameter(hyperLayout, controlViewport.width, controlViewport.height),
             borderRadius: "50%",
             border: "3px solid #2c194e",
             color: "#fff",

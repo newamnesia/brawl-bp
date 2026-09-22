@@ -17,6 +17,7 @@ const ZERO_KNOBS: Record<JoystickId, { x: number; y: number }> = {
   movement: { x: 0, y: 0 },
   attack: { x: 0, y: 0 },
   super: { x: 0, y: 0 },
+  hyper: { x: 0, y: 0 },
 };
 
 export default function ControlLayoutEditor() {
@@ -24,7 +25,7 @@ export default function ControlLayoutEditor() {
   const { kind } = useParams();
   const isTrialLayout = kind === "trial";
   const singleJoystickId: JoystickId = kind === "aiming" ? "attack" : "movement";
-  const visibleIds: JoystickId[] = isTrialLayout ? ["movement", "attack", "super"] : [singleJoystickId];
+  const visibleIds: JoystickId[] = isTrialLayout ? ["movement", "attack", "super", "hyper"] : [singleJoystickId];
   const backPath = isTrialLayout ? "/character-trial" : kind === "aiming" ? "/offline-aiming" : "/offline-training";
   const [viewport, setViewport] = useState({ width: innerWidth, height: innerHeight });
   const [layout, setLayout] = useState(loadControlLayout);
@@ -141,7 +142,7 @@ export default function ControlLayoutEditor() {
     }}>{editing ? "完成调整" : "调整按键"}</button></div>
     <button className="layout-back" onClick={() => navigate(backPath)}>返回设置</button>
     {editing && selected && selectedItem && <div className="layout-size-control">
-      <span>{selected === "movement" ? "移动" : selected === "attack" ? "普攻" : "大招"}按键大小</span>
+      <span>{selected === "movement" ? "移动" : selected === "attack" ? "普攻" : selected === "super" ? "大招" : "超充"}按键大小</span>
       <input aria-label="按键大小" type="range" min="0.13" max="0.32" step="0.005" value={selectedItem.size}
         onChange={event => updateJoystick(selected, { ...selectedItem, size: Number(event.target.value) })} />
       <output>{Math.round(selectedItem.size * 100)}%</output>
@@ -161,6 +162,6 @@ export default function ControlLayoutEditor() {
     }}>恢复默认</button>}
     <div className="layout-editor-hint">{editing
       ? isTrialLayout ? "移动摇杆限于左半屏，普攻与大招摇杆限于右半屏；选择摇杆可调整大小" : "按住并拖动摇杆改变位置；选择摇杆可调整大小"
-      : isTrialLayout ? "蓝色移动、红色普攻、黄色大招" : singleJoystickId === "movement" ? "空白地图操作预览" : "拖动普攻摇杆预览瞄准方向"}</div>
+      : isTrialLayout ? "蓝色移动、红色普攻、黄色大招、紫色超充" : singleJoystickId === "movement" ? "空白地图操作预览" : "拖动普攻摇杆预览瞄准方向"}</div>
   </div>;
 }
