@@ -9,6 +9,7 @@ import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, STARTUP_S
 import { AdjustableJoystick } from "../components/AdjustableJoystick";
 import { clampJoystick, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
+import { GENE, advanceGenePull, geneSplitAngles } from "../features/training/geneCombat";
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
 import { battleCanvasDpr } from "../features/training/performance";
 
@@ -122,6 +123,9 @@ const BULLET_STYLES = {
   pierceShell: { color: "#83f1ff", lengthScale: 1.45 },
   pierceSuper: { color: "#ffd94d", lengthScale: 1.7 },
   brock: { color: "#ff9f2f", lengthScale: 2.15 },
+  geneDirect: { color: "#c78afa", lengthScale: 1.25 },
+  geneSplit: { color: "#dfb5ff", lengthScale: 1.15 },
+  geneSuper: { color: "#fae99a", lengthScale: 1.8 },
 } as const;
 const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
 const TAUNT_DURATION_MS = 3000;
@@ -151,6 +155,9 @@ function projectileDamage(texture: keyof typeof BULLET_STYLES, traveled: number)
   if (texture === "pierceShell") return PIERCE_SHELL_SHOT_DAMAGE;
   if (texture === "pierceSuper") return PIERCE_SUPER.damage;
   if (texture === "brock") return BROCK_ATTACK_DAMAGE;
+  if (texture === "geneDirect") return GENE.directDamage;
+  if (texture === "geneSplit") return GENE.splitDamage;
+  if (texture === "geneSuper") return 0;
   return PIPER_MIN_DAMAGE
     + (PIPER_MAX_DAMAGE - PIPER_MIN_DAMAGE) * Math.min(1, traveled / BULLET_MAX_DIST);
 }
@@ -901,6 +908,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const isByronMode = trialHeroId === "byron";
   const isPierceMode = trialHeroId === "pierce";
   const isBrockMode = trialHeroId === "brock";
+  const isGeneMode = trialHeroId === "gene";
   const magazineCapacity = projectileConfig.magazineCapacity;
   const controlledMoveSpeed = projectileConfig.moveSpeed;
   const magazineReloadSeconds = projectileConfig.reloadSeconds;
@@ -1292,6 +1300,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const impactBursts: ImpactBurst[] = [];
     const pierceShells: PierceShell[] = [];
     const brockFires: BrockFire[] = [];
+    let genePullActive = false;
     let nextPierceShellId = 1;
     const trainingTargetUnitClass: CombatUnitClass = "hero";
 
@@ -1956,6 +1965,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         const currentReloadSeconds = magazineReloadSeconds * timingScale;
         const currentBulletSpeed = bulletSpeed;
 
+        if (genePullActive) {
+          const grabbed = aimingTargetRef.current;
+          if (aimingTargetHealthRef.current <= 0) {
+            genePullActive = false;
+          } else {
+            const next = advanceGenePull(grabbed, player, dt, PLAYER_RADIUS + ENEMY_RADIUS);
+            grabbed.x = next.x;
+            grabbed.y = next.y;
+            genePullActive = !next.finished;
+          }
+        }
+
         // 皮尔斯只有清空三发后才开始整匣装填；蛋壳可在装填期间直接补回一发。
         for (let i = pierceShells.length - 1; i >= 0; i--) {
           const shell = pierceShells[i];
@@ -2260,6 +2281,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               }
               if (b.texture === "byron") {
                 byronPoisons.push({ ticksRemaining: BYRON_TICK_COUNT, timeToNextTick: 0 });
+              } else if (b.texture === "geneSuper") {
+                genePullActive = true;
               } else {
                 const damage = projectileDamage(b.texture, b.traveled);
                 const chargeGain = b.texture === "beaSuper"
@@ -2270,6 +2293,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   : b.texture === "pierceLast" ? PIERCE_LAST_SUPER_CHARGE
                   : b.texture === "pierceShell" ? PIERCE_SHELL_SUPER_CHARGE
                   : b.texture === "pierceSuper" ? PIERCE_SUPER.chargePerHit
+                  : b.texture === "geneDirect" ? GENE.directSuperCharge
+                  : b.texture === "geneSplit" ? GENE.splitSuperCharge
                   : 0;
                 damageTrialTarget(damage, chargeGain);
                 if (trainingTargetUnitClass === "hero" && (
@@ -2312,6 +2337,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             }
           } else if (b.traveled >= maxDistance) {
             // 先检查最后一段轨迹的命中，再移除到达射程终点的子弹。
+            if (b.owner === "player" && b.texture === "geneDirect") {
+              const heading = Math.atan2(b.vy, b.vx);
+              for (const angle of geneSplitAngles(heading)) {
+                bullets.push({
+                  x: b.x, y: b.y,
+                  vx: Math.cos(angle) * bulletSpeed, vy: Math.sin(angle) * bulletSpeed,
+                  traveled: GENE.directRange, id: bulletIdRef.current++, radius: GENE.splitWidth / 2,
+                  texture: "geneSplit", owner: "player", maxDistance: GENE.totalRange,
+                });
+              }
+              firedShotCountRef.current += GENE.splitCount;
+            }
             if (b.owner === "player" && b.texture === "brock") {
               spawnBrockImpact(b.x, b.y);
               const target = aimingTargetRef.current;
@@ -2643,7 +2680,21 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             ? Math.atan2(target.y - player.y, target.x - player.x)
             : playerMoveDirectionRef.current;
         let corners: { x: number; y: number }[];
-        if (isMaxMode) {
+        if (isGeneMode) {
+          const splitX = player.x + Math.cos(angle) * GENE.directRange;
+          const splitY = player.y + Math.sin(angle) * GENE.directRange;
+          const [leftAngle, , , , , rightAngle] = geneSplitAngles(angle);
+          const sideX = -Math.sin(angle) * bulletRadius;
+          const sideY = Math.cos(angle) * bulletRadius;
+          corners = [
+            { x: player.x - sideX, y: player.y - sideY },
+            { x: splitX - sideX, y: splitY - sideY },
+            { x: splitX + Math.cos(leftAngle) * (GENE.totalRange - GENE.directRange), y: splitY + Math.sin(leftAngle) * (GENE.totalRange - GENE.directRange) },
+            { x: splitX + Math.cos(rightAngle) * (GENE.totalRange - GENE.directRange), y: splitY + Math.sin(rightAngle) * (GENE.totalRange - GENE.directRange) },
+            { x: splitX + sideX, y: splitY + sideY },
+            { x: player.x + sideX, y: player.y + sideY },
+          ];
+        } else if (isMaxMode) {
           const upperAngle = angle + MAX_AIM_EXTENTS_DEGREES[0] * Math.PI / 180;
           const lowerAngle = angle + MAX_AIM_EXTENTS_DEGREES[1] * Math.PI / 180;
           corners = [
@@ -2693,7 +2744,22 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
       if (isTrialMode && superJoystickRef.current.active) {
         const stick = superJoystickRef.current;
-        if (trialHeroId === "max") {
+        if (isGeneMode) {
+          const target = aimingTargetRef.current;
+          const angle = stick.exceededDeadzone
+            ? Math.atan2(stick.knobY, stick.knobX)
+            : Math.atan2(target.y - player.y, target.x - player.x);
+          const endX = player.x + Math.cos(angle) * GENE.superRange;
+          const endY = player.y + Math.sin(angle) * GENE.superRange;
+          ctx.save();
+          ctx.strokeStyle = "rgba(250, 233, 154, 0.8)";
+          ctx.lineWidth = GENE.superWidth * scale * widthFactorAt(player.y);
+          ctx.beginPath();
+          ctx.moveTo(projectX(player.x, player.y), projectY(player.y));
+          ctx.lineTo(projectX(endX, endY), projectY(endY));
+          ctx.stroke();
+          ctx.restore();
+        } else if (trialHeroId === "max") {
           ctx.save();
           ctx.fillStyle = "rgba(255, 213, 79, 0.24)";
           ctx.strokeStyle = "rgba(255, 235, 120, 0.82)";
@@ -2888,7 +2954,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, isGeneMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -3042,6 +3108,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         : isByronMode ? "byron"
         : isPierceMode ? (isPierceLastShot ? "pierceLast" : "pierceNormal")
         : isBrockMode ? "brock"
+        : isGeneMode ? "geneDirect"
         : "high";
       for (const [index, angle] of projectileAngles.entries()) {
         bulletsRef.current.push({
@@ -3054,7 +3121,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           radius: isPierceLastShot ? 110 : bulletRadius,
           texture,
           owner: "player",
-          maxDistance: projectileRange,
+          maxDistance: isGeneMode ? GENE.directRange : projectileRange,
           spawnDelay: isMaxMode ? index * MAX_PROJECTILE_INTERVAL_SECONDS : 0,
         });
       }
@@ -3190,6 +3257,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           phase: "warning",
           remainingSeconds: PIERCE_SUPER.warningSeconds,
           lockedTargetIds: [],
+        });
+      } else if (trialHeroId === "gene") {
+        bulletsRef.current.push({
+          x: player.x, y: player.y,
+          vx: Math.cos(angle) * GENE.superSpeed,
+          vy: Math.sin(angle) * GENE.superSpeed,
+          traveled: 0, id: bulletIdRef.current++, radius: GENE.superWidth / 2,
+          texture: "geneSuper", owner: "player", maxDistance: GENE.superRange,
         });
       }
       playerSuperChargeRef.current = 0;
