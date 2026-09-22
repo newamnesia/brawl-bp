@@ -65,12 +65,12 @@ export default function ControlLayoutEditor() {
 
   const displayedItem = (id: JoystickId) => isTrialLayout
     ? clampJoystickToSide(layout.joysticks[id], viewport.width, viewport.height, id)
-    : clampJoystick(layout.joysticks[id], viewport.width, viewport.height);
+    : clampJoystick(layout.joysticks[id], viewport.width, viewport.height, id);
 
   const updateJoystick = (id: JoystickId, next: typeof layout.joysticks.movement) => {
     const clamped = isTrialLayout
       ? clampJoystickToSide(next, viewport.width, viewport.height, id)
-      : clampJoystick(next, viewport.width, viewport.height);
+      : clampJoystick(next, viewport.width, viewport.height, id);
     setLayout(current => saveControlLayout({ ...current, joysticks: { ...current.joysticks, [id]: clamped } }));
   };
 
@@ -97,7 +97,7 @@ export default function ControlLayoutEditor() {
         offsetY: event.clientY - item.y * viewport.height,
       };
       setSelected(id);
-    } else moveKnob(id, event);
+    } else if (id !== "hyper") moveKnob(id, event);
   };
 
   const pointerMove = (id: JoystickId, event: React.PointerEvent<HTMLDivElement>) => {
@@ -109,7 +109,7 @@ export default function ControlLayoutEditor() {
         x: (event.clientX - drag.offsetX) / viewport.width,
         y: (event.clientY - drag.offsetY) / viewport.height,
       });
-    } else if (event.currentTarget.hasPointerCapture(event.pointerId)) moveKnob(id, event);
+    } else if (id !== "hyper" && event.currentTarget.hasPointerCapture(event.pointerId)) moveKnob(id, event);
   };
 
   const pointerUp = (id: JoystickId, event: React.PointerEvent<HTMLDivElement>) => {
@@ -143,7 +143,8 @@ export default function ControlLayoutEditor() {
     <button className="layout-back" onClick={() => navigate(backPath)}>返回设置</button>
     {editing && selected && selectedItem && <div className="layout-size-control">
       <span>{selected === "movement" ? "移动" : selected === "attack" ? "普攻" : selected === "super" ? "大招" : "超充"}按键大小</span>
-      <input aria-label="按键大小" type="range" min="0.13" max="0.32" step="0.005" value={selectedItem.size}
+      <input aria-label="按键大小" type="range" min={selected === "hyper" ? "0.07" : "0.13"}
+        max={selected === "hyper" ? "0.13" : "0.32"} step="0.005" value={selectedItem.size}
         onChange={event => updateJoystick(selected, { ...selectedItem, size: Number(event.target.value) })} />
       <output>{Math.round(selectedItem.size * 100)}%</output>
     </div>}
@@ -161,7 +162,7 @@ export default function ControlLayoutEditor() {
       setSelected(null);
     }}>恢复默认</button>}
     <div className="layout-editor-hint">{editing
-      ? isTrialLayout ? "移动摇杆限于左半屏，普攻与大招摇杆限于右半屏；选择摇杆可调整大小" : "按住并拖动摇杆改变位置；选择摇杆可调整大小"
+      ? isTrialLayout ? "移动摇杆限于左半屏，普攻、大招摇杆及超充按键限于右半屏；选择控件可调整大小" : "按住并拖动摇杆改变位置；选择摇杆可调整大小"
       : isTrialLayout ? "蓝色移动、红色普攻、黄色大招、紫色超充" : singleJoystickId === "movement" ? "空白地图操作预览" : "拖动普攻摇杆预览瞄准方向"}</div>
   </div>;
 }

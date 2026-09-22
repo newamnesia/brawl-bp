@@ -1,5 +1,5 @@
 import type { CSSProperties, PointerEventHandler } from "react";
-import { JOYSTICK_DEFINITIONS, joystickDiameter, type JoystickId, type JoystickLayout } from "../features/training/controlLayout";
+import { JOYSTICK_DEFINITIONS, hyperButtonDiameter, joystickDiameter, type JoystickId, type JoystickLayout } from "../features/training/controlLayout";
 
 export function AdjustableJoystick({ id, layout, viewport, selected, knob = { x: 0, y: 0 }, active, charge, onPointerDown, onPointerMove, onPointerUp, onClick }: {
   id: JoystickId; layout: JoystickLayout; viewport: { width: number; height: number };
@@ -8,6 +8,22 @@ export function AdjustableJoystick({ id, layout, viewport, selected, knob = { x:
   onPointerDown?: PointerEventHandler<HTMLDivElement>; onPointerMove?: PointerEventHandler<HTMLDivElement>;
   onPointerUp?: PointerEventHandler<HTMLDivElement>; onClick?: PointerEventHandler<HTMLDivElement>;
 }) {
+  if (id === "hyper") {
+    const diameter = hyperButtonDiameter(layout, viewport.width, viewport.height);
+    return <div data-joystick-id={id} aria-label="超充按键"
+      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp} onClick={onClick}
+      style={{ position: "fixed", zIndex: 12, left: layout.x * viewport.width - diameter / 2,
+        top: layout.y * viewport.height - diameter / 2, width: diameter, height: diameter,
+        display: "grid", placeItems: "center", borderRadius: "50%", touchAction: "none",
+        background: "linear-gradient(145deg,#bd79ff,#63319e)", color: "#fff", fontWeight: 900,
+        fontSize: Math.max(11, diameter * 0.21), border: "3px solid #e2baff",
+        outline: selected ? "3px solid #fff" : undefined, outlineOffset: 4,
+        boxShadow: "0 4px 14px #17102599" }}>
+      超充
+      {selected && <span className="adjustable-joystick-label">超充按键</span>}
+    </div>;
+  }
   const diameter = joystickDiameter(layout, viewport.width, viewport.height);
   const radius = diameter / 2;
   const knobSize = diameter * 0.4;

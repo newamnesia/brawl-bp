@@ -7,7 +7,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { AIM_REACTION_TIERS, CHARACTER_MOVE_SPEED, MAX_PROJECTILE_INTERVAL_SECONDS, SPEED_TIERS, TILE_SIZE, tiles, type AimReactionTier } from "../features/training/config";
 import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, STARTUP_SECONDS, type WallCell } from "../features/training/movement";
 import { AdjustableJoystick } from "../components/AdjustableJoystick";
-import { clampJoystick, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
+import { clampJoystick, hyperButtonDiameter, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
 import { GENE, advanceGenePull, destroyWallsAlongGenePull, geneSplitAngles, geneSuperAngles } from "../features/training/geneCombat";
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
@@ -3352,7 +3352,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const movementLayout = clampJoystick(controlLayoutRef.current.joysticks.movement, controlViewport.width, controlViewport.height);
   const attackLayout = clampJoystick(controlLayoutRef.current.joysticks.attack, controlViewport.width, controlViewport.height);
   const superLayout = clampJoystick(controlLayoutRef.current.joysticks.super, controlViewport.width, controlViewport.height);
-  const hyperLayout = clampJoystick(controlLayoutRef.current.joysticks.hyper, controlViewport.width, controlViewport.height);
+  const hyperLayout = clampJoystick(controlLayoutRef.current.joysticks.hyper, controlViewport.width, controlViewport.height, "hyper");
   const displayedMovementLayout = js.active
     ? { ...movementLayout, x: js.baseX / controlViewport.width, y: js.baseY / controlViewport.height }
     : movementLayout;
@@ -3614,8 +3614,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             top: hyperLayout.y * controlViewport.height,
             transform: "translate(-50%, -50%)",
             zIndex: 6,
-            width: joystickDiameter(hyperLayout, controlViewport.width, controlViewport.height),
-            height: joystickDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+            width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+            height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
             borderRadius: "50%",
             border: "3px solid #2c194e",
             color: "#fff",

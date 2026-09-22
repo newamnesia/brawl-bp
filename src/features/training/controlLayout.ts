@@ -17,17 +17,23 @@ const DEFAULTS: ControlLayout = {
     movement: { x: 0.13, y: 0.78, size: 0.18 },
     attack: { x: 0.87, y: 0.78, size: 0.18 },
     super: { x: 0.74, y: 0.60, size: 0.15 },
-    hyper: { x: 0.65, y: 0.43, size: 0.13 },
+    hyper: { x: 0.65, y: 0.43, size: 0.085 },
   },
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 export const joystickDiameter = (layout: JoystickLayout, width: number, height: number) =>
   clamp(layout.size * Math.min(width, height), 96, 220);
+export const hyperButtonDiameter = (layout: JoystickLayout, width: number, height: number) =>
+  clamp(layout.size * Math.min(width, height), 44, 80);
 
-export function clampJoystick(layout: JoystickLayout, width: number, height: number): JoystickLayout {
-  const size = clamp(Number.isFinite(layout.size) ? layout.size : 0.18, 0.13, 0.32);
-  const diameter = joystickDiameter({ ...layout, size }, width, height);
+export function clampJoystick(layout: JoystickLayout, width: number, height: number, id: JoystickId = "movement"): JoystickLayout {
+  const isHyper = id === "hyper";
+  const size = clamp(Number.isFinite(layout.size) ? layout.size : isHyper ? 0.085 : 0.18,
+    isHyper ? 0.07 : 0.13, isHyper ? 0.13 : 0.32);
+  const diameter = isHyper
+    ? hyperButtonDiameter({ ...layout, size }, width, height)
+    : joystickDiameter({ ...layout, size }, width, height);
   const pad = diameter / 2 + 12;
   return {
     x: clamp(Number.isFinite(layout.x) ? layout.x : 0.5, pad / width, 1 - pad / width),
@@ -38,8 +44,8 @@ export function clampJoystick(layout: JoystickLayout, width: number, height: num
 
 /** 双摇杆布局：移动摇杆完整留在左半屏，攻击摇杆完整留在右半屏。 */
 export function clampJoystickToSide(layout: JoystickLayout, width: number, height: number, id: JoystickId): JoystickLayout {
-  const clamped = clampJoystick(layout, width, height);
-  const diameter = joystickDiameter(clamped, width, height);
+  const clamped = clampJoystick(layout, width, height, id);
+  const diameter = id === "hyper" ? hyperButtonDiameter(clamped, width, height) : joystickDiameter(clamped, width, height);
   const horizontalPad = diameter / 2 + 12;
   const leftMin = horizontalPad / width;
   const leftMax = Math.max(leftMin, 0.5 - horizontalPad / width);
