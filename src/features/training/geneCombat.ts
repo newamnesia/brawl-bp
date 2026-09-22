@@ -11,12 +11,27 @@ export const GENE = {
   splitWidth: 200,
   directSuperCharge: 0.25,
   splitSuperCharge: 0.0415,
+  hyperDirectCharge: 0.0875,
+  hyperSplitCharge: 0.0145,
+  hyperSpeedMultiplier: 1.2,
+  hyperDamageMultiplier: 1.05,
+  hyperDamageReduction: 0.05,
+  hyperDurationSeconds: 5,
+  hyperHandSpreadDegrees: 50,
   // “伸手说话”神话装备默认生效：基础 7.67 格 + 1 格。
+  baseSuperRange: 2300,
   superRange: 2600,
   superSpeed: 3200,
   pullSpeed: 2000,
+  hyperPullSpeed: 3200,
   superWidth: 400,
 } as const;
+
+export function geneSuperAngles(heading: number, hypercharged: boolean): number[] {
+  if (!hypercharged) return [heading];
+  const sideAngle = GENE.hyperHandSpreadDegrees * Math.PI / 360;
+  return [heading, heading - sideAngle, heading + sideAngle];
+}
 
 export function geneSplitAngles(heading: number): number[] {
   const halfSpread = GENE.spreadDegrees * Math.PI / 360;
@@ -29,6 +44,7 @@ export function advanceGenePull(
   player: { x: number; y: number },
   seconds: number,
   stopDistance: number,
+  pullSpeed: number = GENE.pullSpeed,
 ): { x: number; y: number; finished: boolean } {
   const dx = player.x - target.x;
   const dy = player.y - target.y;
@@ -36,7 +52,7 @@ export function advanceGenePull(
   const remaining = Math.max(0, distance - stopDistance);
   if (remaining <= 0.001) return { ...target, finished: true };
 
-  const travel = Math.min(GENE.pullSpeed * seconds, remaining);
+  const travel = Math.min(pullSpeed * seconds, remaining);
   return {
     x: target.x + dx / distance * travel,
     y: target.y + dy / distance * travel,

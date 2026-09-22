@@ -9,7 +9,7 @@ import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, STARTUP_S
 import { AdjustableJoystick } from "../components/AdjustableJoystick";
 import { clampJoystick, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
-import { GENE, advanceGenePull, geneSplitAngles } from "../features/training/geneCombat";
+import { GENE, advanceGenePull, geneSplitAngles, geneSuperAngles } from "../features/training/geneCombat";
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
 import { battleCanvasDpr } from "../features/training/performance";
 
@@ -173,6 +173,8 @@ type Bullet = {
   texture: keyof typeof BULLET_STYLES;
   owner: "enemy" | "player";
   maxDistance: number;
+  damageMultiplier?: number;
+  geneHyperHand?: boolean;
   spawnDelay?: number;
   superTrajectory?: { originX: number; originY: number; angle: number; omega: number; elapsed: number };
   lobbedImpact?: { x: number; y: number; radius: number; damage: number; heal: number };
@@ -1094,6 +1096,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   // 子弹 + 开火计时（用 ref 避免重渲染）
   const bulletsRef = useRef<Bullet[]>([]);
   const playerSuperChargeRef = useRef(0);
+  const geneHyperChargeRef = useRef(0);
+  const geneHyperRemainingRef = useRef(0);
   const playerAttackCooldownRef = useRef(0);
   const maxSuperRemainingRef = useRef(0);
   const pierceSuperCastsRef = useRef<PierceSuperCast[]>([]);
@@ -1259,6 +1263,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     burstFollowupRef.current = false;
     beaEnhancedShotsRef.current = 0;
     playerSuperChargeRef.current = 0;
+    geneHyperChargeRef.current = 0;
+    geneHyperRemainingRef.current = 0;
     playerAttackCooldownRef.current = 0;
     maxSuperRemainingRef.current = 0;
     pierceSuperCastsRef.current = [];
@@ -1301,6 +1307,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const pierceShells: PierceShell[] = [];
     const brockFires: BrockFire[] = [];
     let genePullActive = false;
+    let genePullSpeed: number = GENE.pullSpeed;
     let nextPierceShellId = 1;
     const trainingTargetUnitClass: CombatUnitClass = "hero";
 
@@ -1570,13 +1577,17 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
         const velocity = playerVelocityRef.current;
         maxSuperRemainingRef.current = Math.max(0, maxSuperRemainingRef.current - dt);
+        if (geneHyperRemainingRef.current > 0) {
+          geneHyperRemainingRef.current = Math.max(0, geneHyperRemainingRef.current - dt);
+          if (geneHyperRemainingRef.current === 0) forceUpdate((value) => value + 1);
+        }
         if (isBeaMode && !isAimingMode) {
           superSlowRemainingMs = Math.max(0, superSlowRemainingMs - dtMs);
         }
         const baseMovementSpeed = isBeaMode && !isAimingMode && !isTrialMode && superSlowRemainingMs > 0
           ? controlledMoveSpeed * BEA_SUPER.slowMultiplier
           : controlledMoveSpeed;
-        const movementSpeed = baseMovementSpeed
+        const movementSpeed = baseMovementSpeed * (isGeneMode && geneHyperRemainingRef.current > 0 ? GENE.hyperSpeedMultiplier : 1)
           + (isTrialMode && isMaxMode && maxSuperRemainingRef.current > 0 ? MAX_SUPER_SPEED_BONUS : 0);
         const movement = advanceMovement(playerMovementElapsedRef.current, dt,
           !isAimingMode && Math.hypot(input.x, input.y) > 0);
@@ -1970,7 +1981,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           if (aimingTargetHealthRef.current <= 0) {
             genePullActive = false;
           } else {
-            const next = advanceGenePull(grabbed, player, dt, PLAYER_RADIUS + ENEMY_RADIUS);
+            const next = advanceGenePull(grabbed, player, dt, PLAYER_RADIUS + ENEMY_RADIUS, genePullSpeed);
             grabbed.x = next.x;
             grabbed.y = next.y;
             genePullActive = !next.finished;
@@ -2283,8 +2294,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 byronPoisons.push({ ticksRemaining: BYRON_TICK_COUNT, timeToNextTick: 0 });
               } else if (b.texture === "geneSuper") {
                 genePullActive = true;
+                genePullSpeed = b.geneHyperHand ? GENE.hyperPullSpeed : GENE.pullSpeed;
               } else {
-                const damage = projectileDamage(b.texture, b.traveled);
+                const damage = projectileDamage(b.texture, b.traveled) * (b.damageMultiplier ?? 1);
                 const chargeGain = b.texture === "beaSuper"
                   ? 0.025
                   : b.texture === "max" ? 0.0735
@@ -2297,6 +2309,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   : b.texture === "geneSplit" ? GENE.splitSuperCharge
                   : 0;
                 damageTrialTarget(damage, chargeGain);
+                if (isGeneMode && geneHyperRemainingRef.current <= 0 && geneHyperChargeRef.current < 1) {
+                  const gain = b.texture === "geneDirect" ? GENE.hyperDirectCharge
+                    : b.texture === "geneSplit" ? GENE.hyperSplitCharge : 0;
+                  geneHyperChargeRef.current = Math.min(1, geneHyperChargeRef.current + gain);
+                }
                 if (trainingTargetUnitClass === "hero" && (
                   b.texture === "pierceNormal" || b.texture === "pierceLast" || b.texture === "pierceSuper"
                 )) {
@@ -2326,7 +2343,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             }
             if (!isAimingMode) {
               const damage = projectileDamage(b.texture, b.traveled);
-              healthRef.current = Math.max(0, healthRef.current - damage);
+              healthRef.current = Math.max(0, healthRef.current - damage * (isGeneMode && geneHyperRemainingRef.current > 0 ? 1 - GENE.hyperDamageReduction : 1));
               secondsSinceDamageRef.current = 0;
               setHealth(Math.round(healthRef.current));
               if (isSurvivalMode && healthRef.current <= 0) {
@@ -2345,6 +2362,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   vx: Math.cos(angle) * bulletSpeed, vy: Math.sin(angle) * bulletSpeed,
                   traveled: GENE.directRange, id: bulletIdRef.current++, radius: GENE.splitWidth / 2,
                   texture: "geneSplit", owner: "player", maxDistance: GENE.totalRange,
+                  damageMultiplier: b.damageMultiplier,
                 });
               }
               firedShotCountRef.current += GENE.splitCount;
@@ -2749,15 +2767,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const angle = stick.exceededDeadzone
             ? Math.atan2(stick.knobY, stick.knobX)
             : Math.atan2(target.y - player.y, target.x - player.x);
-          const endX = player.x + Math.cos(angle) * GENE.superRange;
-          const endY = player.y + Math.sin(angle) * GENE.superRange;
+          const hypercharged = geneHyperRemainingRef.current > 0;
+          const range = hypercharged ? GENE.baseSuperRange : GENE.superRange;
           ctx.save();
           ctx.strokeStyle = "rgba(250, 233, 154, 0.8)";
           ctx.lineWidth = GENE.superWidth * scale * widthFactorAt(player.y);
-          ctx.beginPath();
-          ctx.moveTo(projectX(player.x, player.y), projectY(player.y));
-          ctx.lineTo(projectX(endX, endY), projectY(endY));
-          ctx.stroke();
+          for (const handAngle of geneSuperAngles(angle, hypercharged)) {
+            ctx.beginPath();
+            ctx.moveTo(projectX(player.x, player.y), projectY(player.y));
+            ctx.lineTo(projectX(player.x + Math.cos(handAngle) * range, player.y + Math.sin(handAngle) * range),
+              projectY(player.y + Math.sin(handAngle) * range));
+            ctx.stroke();
+          }
           ctx.restore();
         } else if (trialHeroId === "max") {
           ctx.save();
@@ -2947,6 +2968,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       burstFollowupRef.current = false;
       beaEnhancedShotsRef.current = 0;
       playerSuperChargeRef.current = 0;
+      geneHyperChargeRef.current = 0;
+      geneHyperRemainingRef.current = 0;
       playerAttackCooldownRef.current = 0;
       maxSuperRemainingRef.current = 0;
       pierceSuperCastsRef.current = [];
@@ -3122,6 +3145,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           texture,
           owner: "player",
           maxDistance: isGeneMode ? GENE.directRange : projectileRange,
+          damageMultiplier: isGeneMode && geneHyperRemainingRef.current > 0 ? GENE.hyperDamageMultiplier : 1,
           spawnDelay: isMaxMode ? index * MAX_PROJECTILE_INTERVAL_SECONDS : 0,
         });
       }
@@ -3259,13 +3283,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           lockedTargetIds: [],
         });
       } else if (trialHeroId === "gene") {
-        bulletsRef.current.push({
-          x: player.x, y: player.y,
-          vx: Math.cos(angle) * GENE.superSpeed,
-          vy: Math.sin(angle) * GENE.superSpeed,
-          traveled: 0, id: bulletIdRef.current++, radius: GENE.superWidth / 2,
-          texture: "geneSuper", owner: "player", maxDistance: GENE.superRange,
-        });
+        const hypercharged = geneHyperRemainingRef.current > 0;
+        for (const handAngle of geneSuperAngles(angle, hypercharged)) {
+          bulletsRef.current.push({
+            x: player.x, y: player.y,
+            vx: Math.cos(handAngle) * GENE.superSpeed,
+            vy: Math.sin(handAngle) * GENE.superSpeed,
+            traveled: 0, id: bulletIdRef.current++, radius: GENE.superWidth / 2,
+            texture: "geneSuper", owner: "player",
+            maxDistance: hypercharged ? GENE.baseSuperRange : GENE.superRange,
+            geneHyperHand: hypercharged,
+          });
+        }
       }
       playerSuperChargeRef.current = 0;
     }
@@ -3560,6 +3589,42 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           onPointerMove={handleSuperControlPointerMove}
           onPointerUp={handleSuperControlPointerUp}
         />
+      )}
+
+      {isTrialMode && isGeneMode && (
+        <button
+          type="button"
+          aria-label={geneHyperRemainingRef.current > 0 ? "超充生效中" : `基恩超充 ${Math.round(geneHyperChargeRef.current * 100)}%`}
+          disabled={geneHyperChargeRef.current < 1 || geneHyperRemainingRef.current > 0 || paused}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            if (pausedRef.current || geneHyperChargeRef.current < 1 || geneHyperRemainingRef.current > 0) return;
+            geneHyperChargeRef.current = 0;
+            geneHyperRemainingRef.current = GENE.hyperDurationSeconds;
+            forceUpdate((value) => value + 1);
+          }}
+          style={{
+            position: "absolute",
+            left: Math.max(36, superLayout.x * controlViewport.width - 48),
+            top: Math.max(36, superLayout.y * controlViewport.height - joystickDiameter(superLayout, controlViewport.width, controlViewport.height) - 44),
+            transform: "translate(-50%, -50%)",
+            zIndex: 6,
+            width: 66,
+            height: 66,
+            borderRadius: "50%",
+            border: "3px solid #2c194e",
+            color: "#fff",
+            fontWeight: 800,
+            fontSize: 12,
+            background: geneHyperRemainingRef.current > 0 ? "#9c4bff"
+              : `conic-gradient(#ba65ff ${geneHyperChargeRef.current * 100}%, #332346 0)`,
+            boxShadow: "0 2px 9px #21132caa",
+            opacity: geneHyperChargeRef.current >= 1 || geneHyperRemainingRef.current > 0 ? 1 : 0.8,
+            touchAction: "none",
+          }}
+        >
+          {geneHyperRemainingRef.current > 0 ? "生效中" : geneHyperChargeRef.current >= 1 ? "超充" : `${Math.round(geneHyperChargeRef.current * 100)}%`}
+        </button>
       )}
 
       {/* 键盘操作提示 */}
