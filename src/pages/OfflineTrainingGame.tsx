@@ -3618,18 +3618,13 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
             borderRadius: "50%",
             border: "3px solid #2c194e",
-            color: "#fff",
-            fontWeight: 800,
-            fontSize: 12,
             background: geneHyperRemainingRef.current > 0 ? "#9c4bff"
               : `conic-gradient(#ba65ff ${geneHyperChargeRef.current * 100}%, #332346 0)`,
             boxShadow: "0 2px 9px #21132caa",
             opacity: geneHyperChargeRef.current >= 1 || geneHyperRemainingRef.current > 0 ? 1 : 0.8,
             touchAction: "none",
           }}
-        >
-          {geneHyperRemainingRef.current > 0 ? "生效中" : geneHyperChargeRef.current >= 1 ? "超充" : `${Math.round(geneHyperChargeRef.current * 100)}%`}
-        </button>
+        />
       )}
 
       {/* 键盘操作提示 */}

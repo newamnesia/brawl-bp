@@ -15,14 +15,10 @@ export function AdjustableJoystick({ id, layout, viewport, selected, knob = { x:
       onPointerCancel={onPointerUp} onClick={onClick}
       style={{ position: "fixed", zIndex: 12, left: layout.x * viewport.width - diameter / 2,
         top: layout.y * viewport.height - diameter / 2, width: diameter, height: diameter,
-        display: "grid", placeItems: "center", borderRadius: "50%", touchAction: "none",
-        background: "linear-gradient(145deg,#bd79ff,#63319e)", color: "#fff", fontWeight: 900,
-        fontSize: Math.max(11, diameter * 0.21), border: "3px solid #e2baff",
+        borderRadius: "50%", touchAction: "none",
+        background: "linear-gradient(145deg,#bd79ff,#63319e)", border: "3px solid #e2baff",
         outline: selected ? "3px solid #fff" : undefined, outlineOffset: 4,
-        boxShadow: "0 4px 14px #17102599" }}>
-      超充
-      {selected && <span className="adjustable-joystick-label">超充按键</span>}
-    </div>;
+        boxShadow: "0 4px 14px #17102599" }} />;
   }
   const diameter = joystickDiameter(layout, viewport.width, viewport.height);
   const radius = diameter / 2;
