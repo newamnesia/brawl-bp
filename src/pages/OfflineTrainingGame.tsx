@@ -900,6 +900,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     magazineCapacity: trialConfig.ammoCapacity,
     moveSpeed: trialConfig.moveSpeed,
     reloadSeconds: trialConfig.reloadSeconds,
+    reloadDelaySeconds: trialConfig.reloadDelaySeconds,
     attackIntervalSeconds: trialConfig.attackIntervalSeconds,
   } : SPEED_TIERS[speedTier];
   const bulletSpeed = projectileConfig.value;
@@ -914,6 +915,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const magazineCapacity = projectileConfig.magazineCapacity;
   const controlledMoveSpeed = projectileConfig.moveSpeed;
   const magazineReloadSeconds = projectileConfig.reloadSeconds;
+  // 游戏文件中的 Cooldown + ActiveTime；两次攻击之间的额外间隔不阻止装弹。
+  const magazineReloadDelaySeconds = trialConfig?.reloadDelaySeconds
+    ?? TRIAL_BRAWLERS[speedTier === "high" ? "piper" : speedTier === "max" ? "max" : "bea"].reloadDelaySeconds;
   const playerAttackIntervalSeconds = projectileConfig.attackIntervalSeconds;
   const usesRapidFireCadence = isBeaMode || isMaxMode;
   const fireIntervalMin = usesRapidFireCadence ? BEA_FIRE_INTERVAL_MIN : FIRE_INTERVAL_MIN;
@@ -1104,6 +1108,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const fireTimerRef = useRef(fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin));
   const magazineAmmoRef = useRef(magazineCapacity);
   const magazineReloadTimerRef = useRef(magazineReloadSeconds);
+  const magazineReloadDelayRef = useRef(0);
   const lastMagazineUiUpdateRef = useRef(0);
   const burstFollowupRef = useRef(false);
   const timingScaleRef = useRef(1);
@@ -1259,6 +1264,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     playerVelocityRef.current = { x: 0, y: 0 };
     magazineAmmoRef.current = magazineCapacity;
     magazineReloadTimerRef.current = magazineReloadSeconds;
+    magazineReloadDelayRef.current = 0;
     timingScaleRef.current = 1;
     burstFollowupRef.current = false;
     beaEnhancedShotsRef.current = 0;
@@ -1972,6 +1978,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         if (timingScale !== timingScaleRef.current) {
           const ratio = timingScale / timingScaleRef.current;
           magazineReloadTimerRef.current *= ratio;
+          magazineReloadDelayRef.current *= ratio;
           fireTimerRef.current *= ratio;
           timingScaleRef.current = timingScale;
         }
@@ -2012,11 +2019,13 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         }
 
         // ======== 弹匣恢复 + 随机开火（含最多一次双发追射） ========
+        const reloadBlockedSeconds = Math.min(dt, magazineReloadDelayRef.current);
+        magazineReloadDelayRef.current -= reloadBlockedSeconds;
         if (isPierceMode && magazineAmmoRef.current > 0) {
           magazineReloadTimerRef.current = currentReloadSeconds;
           setMagazineReloadProgress(0);
         } else if (magazineAmmoRef.current < magazineCapacity) {
-          magazineReloadTimerRef.current -= dt;
+          magazineReloadTimerRef.current -= dt - reloadBlockedSeconds;
           if (magazineReloadTimerRef.current <= 0) {
             magazineAmmoRef.current = isPierceMode ? magazineCapacity : magazineAmmoRef.current + 1;
             setMagazineAmmo(magazineAmmoRef.current);
@@ -2081,6 +2090,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
             magazineAmmoRef.current -= 1;
             setMagazineAmmo(magazineAmmoRef.current);
+            magazineReloadDelayRef.current = magazineReloadDelaySeconds * timingScale;
 
             const nextShot = movementShotDelay(
               usesRapidFireCadence, magazineAmmoRef.current, magazineReloadTimerRef.current,
@@ -2967,6 +2977,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
       magazineAmmoRef.current = magazineCapacity;
       magazineReloadTimerRef.current = magazineReloadSeconds;
+      magazineReloadDelayRef.current = 0;
       timingScaleRef.current = 1;
       lastMagazineUiUpdateRef.current = 0;
       burstFollowupRef.current = false;
@@ -2981,7 +2992,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, isGeneMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, isGeneMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -3159,6 +3170,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
       magazineAmmoRef.current -= 1;
       setMagazineAmmo(magazineAmmoRef.current);
+      magazineReloadDelayRef.current = magazineReloadDelaySeconds * timingScaleRef.current;
       playerAttackCooldownRef.current = playerAttackIntervalSeconds;
     }
     aim.active = false;
