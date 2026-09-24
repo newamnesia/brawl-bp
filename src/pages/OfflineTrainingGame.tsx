@@ -10,6 +10,7 @@ import { AdjustableJoystick } from "../components/AdjustableJoystick";
 import { clampJoystick, hyperButtonDiameter, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
 import { GENE, advanceGenePull, destroyWallsAlongGenePull, geneSplitAngles, geneSuperAngles } from "../features/training/geneCombat";
+import { GRAY, advanceGrayPull, destroyWallsAlongGrayPull, type GrayPortalPair, type GrayPull } from "../features/training/grayCombat";
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
 import { battleCanvasDpr } from "../features/training/performance";
 
@@ -126,6 +127,8 @@ const BULLET_STYLES = {
   geneDirect: { color: "#c78afa", lengthScale: 1.25 },
   geneSplit: { color: "#dfb5ff", lengthScale: 1.15 },
   geneSuper: { color: "#fae99a", lengthScale: 1.8 },
+  gray: { color: "#f4f4f4", lengthScale: 1.35 },
+  grayCane: { color: "#d9c19a", lengthScale: 1.8 },
 } as const;
 const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
 const TAUNT_DURATION_MS = 3000;
@@ -158,6 +161,7 @@ function projectileDamage(texture: keyof typeof BULLET_STYLES, traveled: number)
   if (texture === "geneDirect") return GENE.directDamage;
   if (texture === "geneSplit") return GENE.splitDamage;
   if (texture === "geneSuper") return 0;
+  if (texture === "gray" || texture === "grayCane") return GRAY.damage;
   return PIPER_MIN_DAMAGE
     + (PIPER_MAX_DAMAGE - PIPER_MIN_DAMAGE) * Math.min(1, traveled / BULLET_MAX_DIST);
 }
@@ -912,6 +916,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const isPierceMode = trialHeroId === "pierce";
   const isBrockMode = trialHeroId === "brock";
   const isGeneMode = trialHeroId === "gene";
+  const isGrayMode = trialHeroId === "gray";
   const magazineCapacity = projectileConfig.magazineCapacity;
   const controlledMoveSpeed = projectileConfig.moveSpeed;
   const magazineReloadSeconds = projectileConfig.reloadSeconds;
@@ -1007,6 +1012,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const [restartNonce, setRestartNonce] = useState(0);
   const [, setMagazineAmmo] = useState(magazineCapacity);
   const [, setMagazineReloadProgress] = useState(0);
+  const [grayGadgetCooldownDisplay, setGrayGadgetCooldownDisplay] = useState(0);
 
   // 暂停状态
   const [paused, setPaused] = useState(false);
@@ -1105,6 +1111,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const playerAttackCooldownRef = useRef(0);
   const maxSuperRemainingRef = useRef(0);
   const pierceSuperCastsRef = useRef<PierceSuperCast[]>([]);
+  const grayGadgetArmedRef = useRef(false);
+  const grayGadgetCooldownRef = useRef(0);
+  const grayGadgetCooldownShownRef = useRef(0);
+  const grayPullRef = useRef<GrayPull | null>(null);
+  const grayPortalsRef = useRef<GrayPortalPair | null>(null);
   const fireTimerRef = useRef(fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin));
   const magazineAmmoRef = useRef(magazineCapacity);
   const magazineReloadTimerRef = useRef(magazineReloadSeconds);
@@ -1274,6 +1285,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     playerAttackCooldownRef.current = 0;
     maxSuperRemainingRef.current = 0;
     pierceSuperCastsRef.current = [];
+    grayGadgetArmedRef.current = false;
+    grayGadgetCooldownRef.current = 0;
+    grayGadgetCooldownShownRef.current = 0;
+    grayPullRef.current = null;
+    grayPortalsRef.current = null;
+    setGrayGadgetCooldownDisplay(0);
     fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
     setMagazineAmmo(magazineCapacity);
     setMagazineReloadProgress(0);
@@ -1585,6 +1602,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
         const velocity = playerVelocityRef.current;
         maxSuperRemainingRef.current = Math.max(0, maxSuperRemainingRef.current - dt);
+        if (grayGadgetCooldownRef.current > 0) {
+          grayGadgetCooldownRef.current = Math.max(0, grayGadgetCooldownRef.current - dt);
+          const shownCooldown = Math.ceil(grayGadgetCooldownRef.current * 10) / 10;
+          if (shownCooldown !== grayGadgetCooldownShownRef.current) {
+            grayGadgetCooldownShownRef.current = shownCooldown;
+            setGrayGadgetCooldownDisplay(shownCooldown);
+          }
+        }
         if (geneHyperRemainingRef.current > 0) {
           geneHyperRemainingRef.current = Math.max(0, geneHyperRemainingRef.current - dt);
           if (geneHyperRemainingRef.current === 0) forceUpdate((value) => value + 1);
@@ -1613,6 +1638,27 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         });
         player.x = resolvedPlayerMove.x;
         player.y = resolvedPlayerMove.y;
+        const grayPortals = grayPortalsRef.current;
+        if (grayPortals) {
+          if (grayPortals.cooldownSeconds > 0) {
+            grayPortals.cooldownSeconds = Math.max(0, grayPortals.cooldownSeconds - dt);
+            grayPortals.activationSeconds = 0;
+          } else {
+            const atEntrance = Math.hypot(player.x - grayPortals.entranceX, player.y - grayPortals.entranceY) <= GRAY.portalTriggerRadius;
+            const atExit = Math.hypot(player.x - grayPortals.exitX, player.y - grayPortals.exitY) <= GRAY.portalTriggerRadius;
+            if (atEntrance || atExit) {
+              grayPortals.activationSeconds += dt;
+              if (grayPortals.activationSeconds >= GRAY.portalActivationSeconds) {
+                player.x = atEntrance ? grayPortals.exitX : grayPortals.entranceX;
+                player.y = atEntrance ? grayPortals.exitY : grayPortals.entranceY;
+                grayPortals.cooldownSeconds = GRAY.portalPostUseCooldownSeconds;
+                grayPortals.activationSeconds = 0;
+              }
+            } else {
+              grayPortals.activationSeconds = 0;
+            }
+          }
+        }
         velocity.x = resolvedPlayerMove.blockedX ? 0 : input.x * movementSpeed * movement.speed;
         velocity.y = resolvedPlayerMove.blockedY ? 0 : input.y * movementSpeed * movement.speed;
         let velX = velocity.x;
@@ -1997,6 +2043,20 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             genePullActive = !next.finished;
           }
         }
+        const grayPull = grayPullRef.current;
+        if (grayPull?.active) {
+          const grabbed = aimingTargetRef.current;
+          if (aimingTargetHealthRef.current <= 0) {
+            grayPullRef.current = null;
+          } else {
+            const start = { x: grabbed.x, y: grabbed.y };
+            const next = advanceGrayPull(grayPull, grabbed, dt);
+            if (grayPull.breakWalls) destroyWallsAlongGrayPull(wallTiles, start, next, TILE_SIZE, ENEMY_RADIUS);
+            grabbed.x = next.x;
+            grabbed.y = next.y;
+            if (next.finished) grayPullRef.current = null;
+          }
+        }
 
         // 皮尔斯只有清空三发后才开始整匣装填；蛋壳可在装填期间直接补回一发。
         for (let i = pierceShells.length - 1; i >= 0; i--) {
@@ -2321,8 +2381,21 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   : b.texture === "pierceSuper" ? PIERCE_SUPER.chargePerHit
                   : b.texture === "geneDirect" ? GENE.directSuperCharge
                   : b.texture === "geneSplit" ? GENE.splitSuperCharge
+                  : b.texture === "gray" || b.texture === "grayCane" ? GRAY.superChargePerHit
                   : 0;
                 damageTrialTarget(damage, chargeGain);
+                if (b.texture === "grayCane") {
+                  grayPullRef.current = {
+                    active: true,
+                    destinationX: player.x,
+                    destinationY: player.y,
+                    remainingDistance: Math.min(
+                      GRAY.canePullDistance,
+                      GRAY.canePullDistance * b.traveled / GRAY.range,
+                    ),
+                    breakWalls: true,
+                  };
+                }
                 if (isGeneMode && geneHyperRemainingRef.current <= 0 && geneHyperChargeRef.current < 1) {
                   const gain = b.texture === "geneDirect" ? GENE.hyperDirectCharge
                     : b.texture === "geneSplit" ? GENE.hyperSplitCharge : 0;
@@ -2606,6 +2679,36 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ctx.restore();
       }
 
+      const grayPortals = grayPortalsRef.current;
+      if (grayPortals) {
+        const readiness = grayPortals.cooldownSeconds > 0
+          ? 1 - grayPortals.cooldownSeconds / GRAY.portalPostUseCooldownSeconds
+          : grayPortals.activationSeconds / GRAY.portalActivationSeconds;
+        for (const portal of [
+          { x: grayPortals.entranceX, y: grayPortals.entranceY },
+          { x: grayPortals.exitX, y: grayPortals.exitY },
+        ]) {
+          const x = projectX(portal.x, portal.y);
+          const y = projectY(portal.y);
+          const radiusX = GRAY.portalTriggerRadius * scale * widthFactorAt(portal.y);
+          const radiusY = GRAY.portalTriggerRadius * scaleY;
+          ctx.save();
+          ctx.fillStyle = "rgba(28, 28, 34, 0.72)";
+          ctx.strokeStyle = grayPortals.cooldownSeconds > 0 ? "rgba(180, 180, 190, 0.55)" : "rgba(255, 224, 92, 0.95)";
+          ctx.lineWidth = Math.max(3, tiles(0.1) * scale);
+          ctx.beginPath();
+          ctx.ellipse(x, y, radiusX, radiusY, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.strokeStyle = "rgba(255, 224, 92, 0.8)";
+          ctx.lineWidth = Math.max(2, tiles(0.06) * scale);
+          ctx.beginPath();
+          ctx.ellipse(x, y, radiusX * 0.72, radiusY * 0.72, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(1, readiness)));
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
       for (const burst of impactBursts) {
         const progress = 1 - burst.life / burst.maxLife;
         const radius = burst.radius * (0.35 + progress * 0.65);
@@ -2711,6 +2814,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           : targetVisible
             ? Math.atan2(target.y - player.y, target.x - player.x)
             : playerMoveDirectionRef.current;
+        const activeAimRadius = isGrayMode && grayGadgetArmedRef.current ? GRAY.caneWidth / 2 : bulletRadius;
         let corners: { x: number; y: number }[];
         if (isGeneMode) {
           const splitX = player.x + Math.cos(angle) * GENE.directRange;
@@ -2750,8 +2854,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         } else {
           const directionX = Math.cos(angle);
           const directionY = Math.sin(angle);
-          const perpendicularX = -directionY * bulletRadius;
-          const perpendicularY = directionX * bulletRadius;
+          const perpendicularX = -directionY * activeAimRadius;
+          const perpendicularY = directionX * activeAimRadius;
           const aimEndX = player.x + directionX * projectileRange;
           const aimEndY = player.y + directionY * projectileRange;
           corners = [
@@ -2793,6 +2897,34 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               projectY(player.y + Math.sin(handAngle) * range));
             ctx.stroke();
           }
+          ctx.restore();
+        } else if (trialHeroId === "gray") {
+          const target = aimingTargetRef.current;
+          const bounds = visibleWorldBoundsRef.current;
+          const targetVisible = aimingTargetHealthRef.current > 0
+            && target.x >= bounds.left && target.x <= bounds.right
+            && target.y >= bounds.top && target.y <= bounds.bottom;
+          const angle = stick.exceededDeadzone
+            ? Math.atan2(stick.knobY, stick.knobX)
+            : targetVisible ? Math.atan2(target.y - player.y, target.x - player.x) : playerMoveDirectionRef.current;
+          const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
+          const distance = stick.exceededDeadzone
+            ? GRAY.superRange
+            : targetVisible ? Math.min(GRAY.superRange, targetDistance) : GRAY.superRange;
+          const exitX = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS, player.x + Math.cos(angle) * distance));
+          const exitY = Math.max(PLAYER_RADIUS, Math.min(MAP_HEIGHT - PLAYER_RADIUS, player.y + Math.sin(angle) * distance));
+          ctx.save();
+          ctx.strokeStyle = "rgba(255, 218, 87, 0.9)";
+          ctx.fillStyle = "rgba(236, 236, 236, 0.28)";
+          ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
+          ctx.beginPath();
+          ctx.moveTo(playerCenterPx, playerCenterPy);
+          ctx.lineTo(projectX(exitX, exitY), projectY(exitY));
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.ellipse(projectX(exitX, exitY), projectY(exitY), GRAY.portalTriggerRadius * scale * widthFactorAt(exitY), GRAY.portalTriggerRadius * scaleY, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
           ctx.restore();
         } else if (trialHeroId === "max") {
           ctx.save();
@@ -2992,7 +3124,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, isGeneMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, isGeneMode, isGrayMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -3138,6 +3270,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       }
       const isEnhancedBeaShot = isBeaMode && beaEnhancedShotsRef.current > 0;
       const isPierceLastShot = isPierceMode && magazineAmmoRef.current === 1;
+      const isGrayCaneShot = isGrayMode && grayGadgetArmedRef.current;
       const shotSeed = bulletIdRef.current;
       const projectileAngles = attackProjectileAngles(shotAngle, isMaxMode, shotSeed);
       const texture: keyof typeof BULLET_STYLES = isBeaMode
@@ -3147,16 +3280,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         : isPierceMode ? (isPierceLastShot ? "pierceLast" : "pierceNormal")
         : isBrockMode ? "brock"
         : isGeneMode ? "geneDirect"
+        : isGrayMode ? (isGrayCaneShot ? "grayCane" : "gray")
         : "high";
+      const shotSpeed = isGrayCaneShot ? GRAY.caneOutboundSpeed : bulletSpeed;
       for (const [index, angle] of projectileAngles.entries()) {
         bulletsRef.current.push({
           x: player.x,
           y: player.y,
-          vx: Math.cos(angle) * bulletSpeed,
-          vy: Math.sin(angle) * bulletSpeed,
+          vx: Math.cos(angle) * shotSpeed,
+          vy: Math.sin(angle) * shotSpeed,
           traveled: 0,
           id: bulletIdRef.current++,
-          radius: isPierceLastShot ? 110 : bulletRadius,
+          radius: isGrayCaneShot ? GRAY.caneWidth / 2 : isPierceLastShot ? 110 : bulletRadius,
           texture,
           owner: "player",
           maxDistance: isGeneMode ? GENE.directRange : projectileRange,
@@ -3168,6 +3303,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       playerShotHistoryRef.current.push({ at: performance.now(), angle: shotAngle });
       if (playerShotHistoryRef.current.length > 12) playerShotHistoryRef.current.shift();
       if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
+      if (isGrayCaneShot) {
+        grayGadgetArmedRef.current = false;
+        grayGadgetCooldownRef.current = GRAY.gadgetCooldownSeconds;
+        grayGadgetCooldownShownRef.current = GRAY.gadgetCooldownSeconds;
+        setGrayGadgetCooldownDisplay(GRAY.gadgetCooldownSeconds);
+      }
       magazineAmmoRef.current -= 1;
       setMagazineAmmo(magazineAmmoRef.current);
       magazineReloadDelayRef.current = magazineReloadDelaySeconds * timingScaleRef.current;
@@ -3311,6 +3452,34 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             geneHyperHand: hypercharged,
           });
         }
+      } else if (trialHeroId === "gray") {
+        const originalX = player.x;
+        const originalY = player.y;
+        const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
+        const portalDistance = stick.exceededDeadzone
+          ? GRAY.superRange
+          : autoAimTargetVisible ? Math.min(GRAY.superRange, targetDistance) : GRAY.superRange;
+        const exitX = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS, player.x + Math.cos(angle) * portalDistance));
+        const exitY = Math.max(PLAYER_RADIUS, Math.min(MAP_HEIGHT - PLAYER_RADIUS, player.y + Math.sin(angle) * portalDistance));
+        grayPortalsRef.current = {
+          entranceX: originalX,
+          entranceY: originalY,
+          exitX,
+          exitY,
+          cooldownSeconds: GRAY.portalPostUseCooldownSeconds,
+          activationSeconds: 0,
+        };
+        if (grayPullRef.current?.active) {
+          grayPullRef.current.destinationX = originalX;
+          grayPullRef.current.destinationY = originalY;
+          grayPullRef.current.remainingDistance = Math.hypot(
+            aimingTargetRef.current.x - originalX,
+            aimingTargetRef.current.y - originalY,
+          );
+          grayPullRef.current.breakWalls = false;
+        }
+        player.x = exitX;
+        player.y = exitY;
       }
       playerSuperChargeRef.current = 0;
     }
@@ -3637,6 +3806,45 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             touchAction: "none",
           }}
         />
+      )}
+
+      {isTrialMode && isGrayMode && (
+        <button
+          type="button"
+          aria-label={grayGadgetArmedRef.current
+            ? "手杖妙具已强化下一次普攻"
+            : grayGadgetCooldownDisplay > 0 ? `手杖妙具冷却 ${grayGadgetCooldownDisplay.toFixed(1)} 秒` : "启用手杖妙具"}
+          disabled={grayGadgetCooldownDisplay > 0 || paused}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            if (pausedRef.current || grayGadgetCooldownRef.current > 0) return;
+            grayGadgetArmedRef.current = !grayGadgetArmedRef.current;
+            forceUpdate((value) => value + 1);
+          }}
+          style={{
+            position: "absolute",
+            left: hyperLayout.x * controlViewport.width,
+            top: hyperLayout.y * controlViewport.height,
+            transform: "translate(-50%, -50%)",
+            zIndex: 6,
+            width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+            height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+            borderRadius: "50%",
+            border: grayGadgetArmedRef.current ? "3px solid #f1ffd1" : "3px solid #b9ec85",
+            color: "#fff",
+            fontWeight: 900,
+            fontSize: "1rem",
+            background: grayGadgetArmedRef.current
+              ? "radial-gradient(circle,#d7ff81 0 38%,#58a82f 42% 100%)"
+              : grayGadgetCooldownDisplay > 0
+                ? `conic-gradient(#335024 ${(1 - grayGadgetCooldownDisplay / GRAY.gadgetCooldownSeconds) * 100}%,#182118 0)`
+                : "linear-gradient(145deg,#8ed34f,#347c2d)",
+            boxShadow: grayGadgetArmedRef.current ? "0 0 18px #bfff66" : "0 3px 10px #10240daa",
+            touchAction: "none",
+          }}
+        >
+          {grayGadgetArmedRef.current ? "✓" : grayGadgetCooldownDisplay > 0 ? Math.ceil(grayGadgetCooldownDisplay) : "钩"}
+        </button>
       )}
 
       {/* 键盘操作提示 */}
