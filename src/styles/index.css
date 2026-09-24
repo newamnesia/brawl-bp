@@ -367,6 +367,9 @@ input:focus {
 .adjustable-joystick.super-meter.ready .adjustable-super-charge-ring { background:#ffc928; box-shadow:0 0 16px rgba(255,193,7,.6),inset 0 0 0 2px rgba(255,255,255,.28); }
 .adjustable-joystick.super-meter.ready .adjustable-super-charge-ring::after { background:rgba(82,48,9,.86); }
 .adjustable-joystick.super-meter.ready .adjustable-joystick-knob { background:linear-gradient(145deg,#ffe275,#f5a900); border-color:#fff0a6; color:#6e3900; }
+.gene-hyper-duration-ring { position:absolute; inset:-7px; border-radius:50%; pointer-events:none; background:conic-gradient(from -90deg,#ffe37b 0deg var(--hyper-duration-angle),transparent var(--hyper-duration-angle) 360deg); -webkit-mask-image:radial-gradient(farthest-side,transparent calc(100% - 6px),#000 calc(100% - 5px)); mask-image:radial-gradient(farthest-side,transparent calc(100% - 6px),#000 calc(100% - 5px)); filter:drop-shadow(0 0 4px #ffe37b); }
+.training-gadget-button { display:grid; place-items:center; padding:0; user-select:none; -webkit-user-select:none; }
+.training-gadget-button > span { font-size:1.45em; line-height:1; pointer-events:none; }
 .adjustable-super-icon { font-size:clamp(15px,2.4vmin,26px); line-height:1; filter:drop-shadow(0 1px 1px rgba(0,0,0,.35)); pointer-events:none; }
 .adjustable-joystick-label { position:absolute; left:50%; top:-28px; transform:translateX(-50%); white-space:nowrap; padding:3px 8px; border-radius:999px; background:#fff; color:#162031; font-size:12px; font-weight:800; pointer-events:none; }
 
@@ -409,6 +412,11 @@ input:focus {
 .mini-game-theme-copy { display:flex; min-width:0; flex:1; flex-direction:column; gap:.25rem; }
 .mini-game-theme-copy strong { font-size:1.25rem; }
 .mini-game-theme-copy small { color:var(--muted); font-weight:750; }
+.mini-game-stars { display:flex; flex:none; flex-wrap:wrap; justify-content:flex-end; max-width:170px; gap:.05rem; }
+.mini-game-level-list { display:grid; gap:.8rem; margin:1.5rem 0; }
+.mini-game-level-card { width:100%; min-height:100px; display:flex; align-items:center; gap:1rem; padding:1rem 1.15rem; border:2px solid rgba(85,217,255,.5); border-radius:16px; color:var(--text); background:linear-gradient(135deg,rgba(85,217,255,.14),rgba(40,83,160,.12)); text-align:left; }
+.mini-game-level-card:hover { transform:translateY(-2px); filter:brightness(1.08); }
+.mini-game-level-number { display:grid; place-items:center; min-width:84px; min-height:56px; flex:none; border-radius:12px; background:rgba(40,120,190,.3); color:#bcefff; font-weight:900; }
 .mini-game-star,.mini-game-result-star { color:#5d6270; text-shadow:0 2px 0 #252936; font-size:2.4rem; transition:.2s; }
 .mini-game-star.lit,.mini-game-result-star.lit { color:#ffd84a; text-shadow:0 0 16px rgba(255,216,74,.8),0 2px 0 #9c6417; }
 .mini-games-back { width:100%; }

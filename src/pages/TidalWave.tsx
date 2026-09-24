@@ -399,10 +399,10 @@ export default function TidalWave() {
     <canvas ref={canvasRef} onPointerDown={canvasFire} />
     <div className="tidal-wave-hud"><strong>排山倒海</strong><span>剩余 {hud.time.toFixed(1)}s</span><span>金库 {Math.ceil(hud.vault)}</span><span>敌人 {hud.enemies}</span></div>
     {countdown > 0 && <div className="training-countdown"><span>{countdown}</span></div>}
-    <div className="tidal-wave-actions"><button onClick={toggleFullscreen}>{isFullscreen ? "退出全屏" : "全屏"}</button><button onClick={() => navigate("/mini-games")}>退出</button></div>
+    <div className="tidal-wave-actions"><button onClick={toggleFullscreen}>{isFullscreen ? "退出全屏" : "全屏"}</button><button onClick={() => navigate("/mini-games/tidal-wave")}>退出</button></div>
     <AdjustableJoystick id="movement" layout={layoutRef.current.joysticks.movement} viewport={viewport} knob={sticks.movement} active={sticks.movement.active} onPointerDown={stickDown("movement")} onPointerMove={stickMove("movement")} onPointerUp={stickUp("movement")} />
     <AdjustableJoystick id="attack" layout={layoutRef.current.joysticks.attack} viewport={viewport} knob={sticks.attack} active={sticks.attack.active} onPointerDown={stickDown("attack")} onPointerMove={stickMove("attack")} onPointerUp={stickUp("attack")} />
     <AdjustableJoystick id="super" layout={layoutRef.current.joysticks.super} viewport={viewport} knob={sticks.super} active={sticks.super.active} charge={superCharge} onPointerDown={stickDown("super")} onPointerMove={stickMove("super")} onPointerUp={stickUp("super")} />
-    {result && <div className="tidal-wave-result-backdrop"><section className="tidal-wave-result"><div className={`mini-game-result-star ${result === "victory" ? "lit" : ""}`}>★</div><h1>{result === "victory" ? "守卫成功" : "金库失守"}</h1><p>{result === "victory" ? "坚持 30 秒，排山倒海已获得一颗星！" : "保护金库并坚持到倒计时结束。"}</p><button className="btn-primary" onClick={restart}>再试一次</button><button className="btn-secondary" onClick={() => navigate("/mini-games")}>返回关卡</button></section></div>}
+    {result && <div className="tidal-wave-result-backdrop"><section className="tidal-wave-result"><div className={`mini-game-result-star ${result === "victory" ? "lit" : ""}`}>★</div><h1>{result === "victory" ? "守卫成功" : "金库失守"}</h1><p>{result === "victory" ? "坚持 30 秒，排山倒海已获得一颗星！" : "保护金库并坚持到倒计时结束。"}</p><button className="btn-primary" onClick={restart}>再试一次</button><button className="btn-secondary" onClick={() => navigate("/mini-games/tidal-wave")}>返回关卡</button></section></div>}
   </main>;
 }

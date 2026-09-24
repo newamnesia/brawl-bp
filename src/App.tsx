@@ -14,6 +14,7 @@ const ControlLayoutEditor = lazy(() => import("./pages/ControlLayoutEditor"));
 const CharacterTrial = lazy(() => import("./pages/CharacterTrial"));
 const CharacterTrialGame = lazy(() => import("./pages/CharacterTrialGame"));
 const MiniGames = lazy(() => import("./pages/MiniGames"));
+const MiniGameThemeLevels = lazy(() => import("./pages/MiniGameThemeLevels"));
 const TidalWave = lazy(() => import("./pages/TidalWave"));
 
 export default function App() {
@@ -34,7 +35,8 @@ export default function App() {
           <Route path="/character-trial" element={<CharacterTrial />} />
           <Route path="/character-trial/game" element={<CharacterTrialGame />} />
           <Route path="/mini-games" element={<MiniGames />} />
-          <Route path="/mini-games/tidal-wave" element={<TidalWave />} />
+          <Route path="/mini-games/:themeId" element={<MiniGameThemeLevels />} />
+          <Route path="/mini-games/tidal-wave/1" element={<TidalWave />} />
         </Routes>
       </Suspense>
     </>

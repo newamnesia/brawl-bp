@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
 import { HERO_MAP, heroImageUrl } from "../../shared/catalog";
 
-const IDS: TrialBrawlerId[] = ["piper", "bea", "max", "byron", "pierce", "brock", "gene", "gray"];
+const IDS: TrialBrawlerId[] = ["piper", "bea", "max", "byron", "pierce", "brock", "gene", "gray", "colt", "mina"];
 
 export default function CharacterTrial() {
   const navigate = useNavigate();
@@ -17,7 +17,7 @@ export default function CharacterTrial() {
           onClick={() => navigate(`/character-trial/game?hero=${id}`)}>
           <img className="character-trial-avatar" src={heroImageUrl(catalogHero)} alt={hero.name} loading="lazy" draggable={false} />
           <strong>{hero.name}</strong>
-          <small>{hero.nameEn} · {id === "gene" ? "神话装备已装备 · 大招 +1 格" : id === "gray" ? "携带随身妙具：手杖" : "进入试用"}</small>
+          <small>{hero.nameEn} · {id === "gene" ? "神话装备已装备 · 大招 +1 格" : id === "gray" ? "携带随身妙具：手杖" : id === "colt" ? "快速装弹 · 特制皮靴 · 全巴菲" : id === "mina" ? "风车妙具 · Zum Zum Zum 星辉" : "进入试用"}</small>
         </button>;
       })}
       <button className="character-trial-choice controls" onClick={() => navigate("/control-layout/trial")}>
@@ -31,6 +31,7 @@ export default function CharacterTrial() {
       <ul className="tutorial-list">
         <li>地图中心有一个 100000 血量的静止敌人。</li>
         <li>左半屏控制移动，右半屏控制普攻；黄色摇杆用于大招。</li>
+        <li>拥有超充或主动妙具的角色会显示对应的紫色、绿色按键。</li>
         <li>顶部“全屏”按钮可隐藏浏览器栏，使用完整横屏战斗区域。</li>
         <li>角色与子弹参数沿用当前战斗系统。</li>
       </ul>
