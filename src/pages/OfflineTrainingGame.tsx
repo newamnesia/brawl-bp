@@ -70,9 +70,17 @@ const SPIKE_DODGE_CENTER_Y = MAP_HEIGHT / 2;
 const SPIKE_DODGE_PLAYER_RADIUS = tiles(5);
 const SPIKE_DODGE_SECTOR_ANGLE = -Math.PI / 2;
 const SPIKE_DODGE_SECTOR_HALF_ANGLE = Math.PI / 6;
-const SPIKE_DODGE_INNER_RADIUS = SPIKE.attackRange - tiles(3);
+const SPIKE_DODGE_INNER_RADIUS = Math.max(
+  SPIKE_DODGE_PLAYER_RADIUS,
+  SPIKE.attackRange - tiles(3),
+);
 const SPIKE_DODGE_OUTER_RADIUS = SPIKE.attackRange + tiles(3);
 const SPIKE_DODGE_ENEMY_SPEED = TRIAL_BRAWLERS.spike.moveSpeed;
+const SPIKE_DODGE_BASE_FIRE_INTERVAL = TRIAL_BRAWLERS.spike.reloadSeconds
+  + TRIAL_BRAWLERS.spike.reloadDelaySeconds;
+const SPIKE_DODGE_FIRE_INTERVAL_VARIANCE = 0.06;
+const SPIKE_DODGE_LANDING_HISTORY_SIZE = 12;
+const SPIKE_DODGE_LANDING_IMBALANCE = 2;
 // 走位训练射击节奏见 firing.ts，普通射击保留两发弹药。
 const BEA_SUPER_UNIT = TILE_SIZE;
 const BULLET_MAX_DIST = tiles(10); // 子弹最远行进 3000 单位
@@ -933,7 +941,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const isAimingMode = trainingMode === "aiming";
   const isSpikeDodgeMode = trainingMode === "spikeDodge";
   const isPlayerAttackMode = isAimingMode || isTrialMode;
-  const playerMaxHealth = trialHeroId ? TRIAL_BRAWLERS[trialHeroId].health : trainingMode === "practice" ? PRACTICE_PLAYER_MAX_HEALTH : PLAYER_MAX_HEALTH;
+  const playerMaxHealth = trialHeroId
+    ? TRIAL_BRAWLERS[trialHeroId].health
+    : trainingMode === "practice" || isSpikeDodgeMode ? PRACTICE_PLAYER_MAX_HEALTH : PLAYER_MAX_HEALTH;
   const aimingRule: AimingRule = searchParams.get("aimingRule") === "infinite" ? "infinite" : "challenge";
   const isAimingInfinite = isAimingMode && aimingRule === "infinite";
   const aimingTargetMaxHealth = isTrialMode ? TRIAL_TARGET_MAX_HEALTH : isAimingInfinite ? AIMING_INFINITE_MAX_HEALTH : PLAYER_MAX_HEALTH;
@@ -1343,6 +1353,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       };
       spikeDodgeRetargetSeconds = 0.8 + Math.random() * 1.2;
     };
+    const nextSpikeDodgeFireInterval = () => SPIKE_DODGE_BASE_FIRE_INTERVAL
+      * (1 + (Math.random() * 2 - 1) * SPIKE_DODGE_FIRE_INTERVAL_VARIANCE);
+    let spikeDodgeFireSeconds = nextSpikeDodgeFireInterval();
+    const spikeDodgeLandingSides: Array<-1 | 1> = [];
     let aiDodgeTurn: { start: number; delta: number; elapsed: number; duration: number } | null = null;
     let dodgesSinceTaunt = 0;
     let tauntDodgeGoal = randomTauntDodgeGoal();
@@ -1574,12 +1588,26 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       spawnHitParticles(aimingTargetRef.current.x, aimingTargetRef.current.y);
     };
 
-    const spawnSpikeExplosion = (x: number, y: number, damageMultiplier: number, scheduleSecond: boolean) => {
+    const spawnSpikeExplosion = (
+      x: number,
+      y: number,
+      damageMultiplier: number,
+      scheduleSecond: boolean,
+      owner: Bullet["owner"] = "player",
+    ) => {
       impactBursts.push({ x, y, radius: SPIKE.explosionRadius, life: 0.32, maxLife: 0.32, kind: "spike" });
-      const target = aimingTargetRef.current;
-      if (aimingTargetHealthRef.current > 0
-        && Math.hypot(target.x - x, target.y - y) <= SPIKE.explosionRadius + ENEMY_RADIUS) {
-        hitWithSpike(SPIKE.attackDamage * damageMultiplier, SPIKE.attackSuperCharge);
+      if (owner === "player") {
+        const target = aimingTargetRef.current;
+        if (aimingTargetHealthRef.current > 0
+          && Math.hypot(target.x - x, target.y - y) <= SPIKE.explosionRadius + ENEMY_RADIUS) {
+          hitWithSpike(SPIKE.attackDamage * damageMultiplier, SPIKE.attackSuperCharge);
+        }
+      } else if (Math.hypot(playerRef.current.x - x, playerRef.current.y - y)
+        <= SPIKE.explosionRadius + PLAYER_RADIUS) {
+        healthRef.current = Math.max(0, healthRef.current - SPIKE.attackDamage * damageMultiplier);
+        secondsSinceDamageRef.current = 0;
+        setHealth(Math.round(healthRef.current));
+        spawnHitParticles(playerRef.current.x, playerRef.current.y);
       }
       for (const angle of spikeShardAngles()) {
         bulletsRef.current.push({
@@ -1590,7 +1618,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           id: bulletIdRef.current++,
           radius: SPIKE.shardWidth / 2,
           texture: "spikeShard",
-          owner: "player",
+          owner,
           maxDistance: SPIKE.shardBaseRange + (SPIKE_LOADOUT.buffies.starPower
             ? SPIKE.curveballBuffieExtraRange : 0),
           damageMultiplier,
@@ -1604,7 +1632,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           ignoreTargetSeconds: 0.08,
         });
       }
-      firedShotCountRef.current += SPIKE.shardCount;
+      if (owner === "player") firedShotCountRef.current += SPIKE.shardCount;
       if (scheduleSecond && SPIKE_LOADOUT.buffies.hypercharge) {
         spikeDelayedExplosions.push({
           x, y,
@@ -2711,6 +2739,85 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           }
         }
 
+        if (isSpikeDodgeMode) {
+          spikeDodgeFireSeconds -= dt;
+          if (spikeDodgeFireSeconds <= 0) {
+            const spike = aimingTargetRef.current;
+            const targetDistance = Math.hypot(player.x - spike.x, player.y - spike.y);
+            if (targetDistance <= SPIKE.attackRange) {
+              const shotId = bulletIdRef.current;
+              const metrics = getMetrics(prof);
+              const prediction = predictAimAngle({
+                playerX: player.x,
+                playerY: player.y,
+                velX,
+                velY,
+                speed: curSpeed,
+                enemyX: spike.x,
+                enemyY: spike.y,
+                bulletSpeed: SPIKE.attackProjectileSpeed,
+                maxDistance: SPIKE.attackRange,
+                targetMoveSpeed: controlledMoveSpeed,
+                shotId,
+                now,
+                p: prof,
+                metrics,
+              });
+
+              const upperLandings = spikeDodgeLandingSides.filter((side) => side < 0).length;
+              const lowerLandings = spikeDodgeLandingSides.length - upperLandings;
+              const naturalSide: -1 | 1 = prediction.predictedY < SPIKE_DODGE_CENTER_Y ? -1 : 1;
+              const overrepresentedSide: -1 | 0 | 1 = upperLandings - lowerLandings >= SPIKE_DODGE_LANDING_IMBALANCE
+                ? -1
+                : lowerLandings - upperLandings >= SPIKE_DODGE_LANDING_IMBALANCE ? 1 : 0;
+              let aimX = prediction.predictedX;
+              let aimY = prediction.predictedY;
+              if (overrepresentedSide !== 0 && naturalSide === overrepresentedSide) {
+                const desiredSide = -overrepresentedSide;
+                const originalOffset = Math.abs(prediction.predictedY - SPIKE_DODGE_CENTER_Y);
+                const correctedOffset = Math.max(tiles(0.75), Math.min(
+                  SPIKE_DODGE_PLAYER_RADIUS * 0.88,
+                  originalOffset,
+                ));
+                aimY = SPIKE_DODGE_CENTER_Y + desiredSide * correctedOffset;
+                const availableHalfWidth = Math.sqrt(Math.max(
+                  0,
+                  SPIKE_DODGE_PLAYER_RADIUS ** 2 - correctedOffset ** 2,
+                ));
+                aimX = Math.max(
+                  SPIKE_DODGE_CENTER_X - availableHalfWidth,
+                  Math.min(SPIKE_DODGE_CENTER_X + availableHalfWidth, aimX),
+                );
+              }
+              const landingSide: -1 | 1 = aimY < SPIKE_DODGE_CENTER_Y ? -1 : 1;
+              spikeDodgeLandingSides.push(landingSide);
+              if (spikeDodgeLandingSides.length > SPIKE_DODGE_LANDING_HISTORY_SIZE) {
+                spikeDodgeLandingSides.shift();
+              }
+
+              const angle = Math.atan2(aimY - spike.y, aimX - spike.x);
+              bulletsRef.current.push({
+                x: spike.x,
+                y: spike.y,
+                vx: Math.cos(angle) * SPIKE.attackProjectileSpeed,
+                vy: Math.sin(angle) * SPIKE.attackProjectileSpeed,
+                traveled: 0,
+                id: bulletIdRef.current++,
+                radius: SPIKE.attackWidth / 2,
+                texture: "spikeBomb",
+                owner: "enemy",
+                maxDistance: SPIKE.attackRange,
+                spikeBomb: { hypercharged: false },
+              });
+              enemyDirectionRef.current = angle;
+              spikeDodgeFireSeconds = nextSpikeDodgeFireInterval();
+            } else {
+              // 离开射程时保持待发状态，重新进入射程后立即按当前轨迹预判。
+              spikeDodgeFireSeconds = 0;
+            }
+          }
+        }
+
         // 满充保持蓝环；进入射程后以金环显示短暂的预判瞄准。
         if (superAim.elapsed === 0) superAim.angle = enemyDirectionRef.current;
         const superDecision = updateBeaSuperAim(superAim, dt,
@@ -3028,11 +3135,17 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               profileBulletRemoved(prof, b.id);
               aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
             }
+            if (b.texture === "spikeBomb" && b.spikeBomb) {
+              spawnSpikeExplosion(
+                closestX,
+                closestY,
+                b.damageMultiplier ?? 1,
+                b.spikeBomb.hypercharged,
+                b.owner,
+              );
+              continue;
+            }
             if (b.owner === "player") {
-              if (b.texture === "spikeBomb" && b.spikeBomb) {
-                spawnSpikeExplosion(closestX, closestY, b.damageMultiplier ?? 1, b.spikeBomb.hypercharged);
-                continue;
-              }
               if (isMinaMode && minaTargetAirborneRef.current > 0) continue;
               if (isAimingMode) recordAiShotOutcome(true);
               spawnHitParticles(collisionTarget.x, collisionTarget.y);
@@ -3215,8 +3328,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 spawnHitParticles(target.x, target.y);
               }
             }
-            if (b.owner === "player" && b.texture === "spikeBomb" && b.spikeBomb) {
-              spawnSpikeExplosion(b.x, b.y, b.damageMultiplier ?? 1, b.spikeBomb.hypercharged);
+            if (b.texture === "spikeBomb" && b.spikeBomb) {
+              spawnSpikeExplosion(
+                b.x,
+                b.y,
+                b.damageMultiplier ?? 1,
+                b.spikeBomb.hypercharged,
+                b.owner,
+              );
             }
             if (isAimingMode && b.owner === "player") recordAiShotOutcome(false);
             if (
