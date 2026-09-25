@@ -4252,15 +4252,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     if (!aim.active || aim.touchId !== event.pointerId) return;
     event.preventDefault();
     event.stopPropagation();
-    const cancelled = event.type === "pointercancel";
     const angle = aim.dragged ? Math.atan2(aim.dy, aim.dx) : undefined;
     aim.active = false;
     aim.touchId = null;
     aim.dx = 0;
     aim.dy = 0;
     aim.dragged = false;
-    if (!cancelled) fireColtSpeedloader(angle);
-    else coltActionRef.current = null;
+    // 妙具从按下时起即视为启动；系统触控取消同样完成本次释放。
+    fireColtSpeedloader(angle);
     forceUpdate((value) => value + 1);
   };
 
@@ -4617,11 +4616,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           aria-label={grayGadgetArmedRef.current
             ? "手杖妙具已强化下一次普攻"
             : grayGadgetCooldownDisplay > 0 ? `手杖妙具冷却 ${grayGadgetCooldownDisplay.toFixed(1)} 秒` : "启用手杖妙具"}
-          disabled={grayGadgetCooldownDisplay > 0 || paused}
+          disabled={grayGadgetCooldownDisplay > 0 || grayGadgetArmedRef.current || paused}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => {
-            if (pausedRef.current || grayGadgetCooldownRef.current > 0) return;
-            grayGadgetArmedRef.current = !grayGadgetArmedRef.current;
+            if (pausedRef.current || grayGadgetCooldownRef.current > 0 || grayGadgetArmedRef.current) return;
+            grayGadgetArmedRef.current = true;
             forceUpdate((value) => value + 1);
           }}
           style={{
