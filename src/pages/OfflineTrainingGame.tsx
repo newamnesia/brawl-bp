@@ -3110,8 +3110,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ]) {
           const x = projectX(portal.x, portal.y);
           const y = projectY(portal.y);
-          const radiusX = GRAY.portalTriggerRadius * scale * widthFactorAt(portal.y);
-          const radiusY = GRAY.portalTriggerRadius * scaleY;
+          const radiusX = GRAY.portalVisualRadius * scale * widthFactorAt(portal.y);
+          const radiusY = GRAY.portalVisualRadius * scaleY;
           ctx.save();
           ctx.fillStyle = "rgba(28, 28, 34, 0.72)";
           ctx.strokeStyle = grayPortals.phase === "cooldown" || grayPortals.phase === "dormant"
@@ -3495,7 +3495,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           ctx.lineTo(projectX(exitX, exitY), projectY(exitY));
           ctx.stroke();
           ctx.beginPath();
-          ctx.ellipse(projectX(exitX, exitY), projectY(exitY), GRAY.portalTriggerRadius * scale * widthFactorAt(exitY), GRAY.portalTriggerRadius * scaleY, 0, 0, Math.PI * 2);
+          ctx.ellipse(projectX(exitX, exitY), projectY(exitY), GRAY.portalVisualRadius * scale * widthFactorAt(exitY), GRAY.portalVisualRadius * scaleY, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           ctx.restore();

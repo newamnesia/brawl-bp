@@ -12,6 +12,7 @@ export const GRAY = {
   superRange: 2000,
   superCastSeconds: 0.3,
   portalTriggerRadius: 300,
+  portalVisualRadius: 150,
   portalActivationSeconds: 1,
   portalEntryDelaySeconds: 1,
   portalActiveSeconds: 1,
