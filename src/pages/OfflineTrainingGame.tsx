@@ -213,7 +213,7 @@ type Bullet = {
   bouncesRemaining?: number;
   grayCaneOrigin?: { x: number; y: number };
   spikeBomb?: { hypercharged: boolean };
-  spikeShard?: { curveRadians: number };
+  spikeShard?: { originX: number; originY: number; baseAngle: number; curveRadians: number };
   spikeSuperImpact?: { x: number; y: number; hypercharged: boolean };
   spikePlantImpact?: { x: number; y: number };
 };
@@ -1560,6 +1560,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             ? SPIKE.curveballBuffieExtraRange : 0),
           damageMultiplier,
           spikeShard: {
+            originX: x,
+            originY: y,
+            baseAngle: angle,
             curveRadians: SPIKE_LOADOUT.starPower === "curveball"
               ? SPIKE.curveballTurnRadians : 0,
           },
@@ -2733,15 +2736,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             b.vx = Math.cos(trajectory.angle + local.heading) * BEA_SUPER.speed * BEA_SUPER_UNIT;
             b.vy = Math.sin(trajectory.angle + local.heading) * BEA_SUPER.speed * BEA_SUPER_UNIT;
             b.traveled = Math.min(maxDistance, trajectory.elapsed * BEA_SUPER.speed * BEA_SUPER_UNIT);
+          } else if (b.spikeShard && Math.abs(b.spikeShard.curveRadians) > 0.0001) {
+            const speed = Math.hypot(b.vx, b.vy);
+            const stepDistance = Math.min(speed * movementTime, Math.max(0, maxDistance - b.traveled));
+            b.traveled = Math.min(maxDistance, b.traveled + stepDistance);
+            const progress = b.traveled / maxDistance;
+            const polarAngle = b.spikeShard.baseAngle + b.spikeShard.curveRadians * progress;
+            b.x = b.spikeShard.originX + Math.cos(polarAngle) * b.traveled;
+            b.y = b.spikeShard.originY + Math.sin(polarAngle) * b.traveled;
+            const tangentAngle = polarAngle + Math.atan(b.spikeShard.curveRadians * progress);
+            b.vx = Math.cos(tangentAngle) * speed;
+            b.vy = Math.sin(tangentAngle) * speed;
           } else {
-            if (b.spikeShard && Math.abs(b.spikeShard.curveRadians) > 0.0001) {
-              const speed = Math.hypot(b.vx, b.vy);
-              const stepDistance = Math.min(speed * movementTime, Math.max(0, maxDistance - b.traveled));
-              const turn = b.spikeShard.curveRadians * stepDistance / maxDistance;
-              const heading = Math.atan2(b.vy, b.vx) + turn;
-              b.vx = Math.cos(heading) * speed;
-              b.vy = Math.sin(heading) * speed;
-            }
             const stepTime = Math.min(movementTime, Math.max(0, maxDistance - b.traveled) / Math.hypot(b.vx, b.vy));
             b.x += b.vx * stepTime;
             b.y += b.vy * stepTime;
