@@ -18,7 +18,7 @@ import { SPIKE, SPIKE_LOADOUT, spikeShardAngles } from "../features/training/spi
 import { battleCanvasDpr } from "../features/training/performance";
 
 type ControlMode = "joystick" | "keyboard";
-type TrainingMode = "practice" | "survival" | "aiming";
+type TrainingMode = "practice" | "survival" | "aiming" | "spikeDodge";
 type AimingRule = "infinite" | "challenge";
 type TrainingSnapshot = {
   stickMag: number[];
@@ -65,6 +65,14 @@ const AIMING_RETREAT_DISTANCE = tiles(8.7);
 const AIMING_RETREAT_REGEN_DISTANCE = tiles(8.5);
 const AIMING_RETREAT_REGEN_DELAY_SECONDS = 1.5;
 const AIMING_RETREAT_REGEN_PER_SECOND = 800;
+const SPIKE_DODGE_CENTER_X = MAP_WIDTH / 2;
+const SPIKE_DODGE_CENTER_Y = MAP_HEIGHT / 2;
+const SPIKE_DODGE_PLAYER_RADIUS = tiles(5);
+const SPIKE_DODGE_SECTOR_ANGLE = -Math.PI / 2;
+const SPIKE_DODGE_SECTOR_HALF_ANGLE = Math.PI / 6;
+const SPIKE_DODGE_INNER_RADIUS = SPIKE.attackRange - tiles(3);
+const SPIKE_DODGE_OUTER_RADIUS = SPIKE.attackRange + tiles(3);
+const SPIKE_DODGE_ENEMY_SPEED = TRIAL_BRAWLERS.spike.moveSpeed;
 // 走位训练射击节奏见 firing.ts，普通射击保留两发弹药。
 const BEA_SUPER_UNIT = TILE_SIZE;
 const BULLET_MAX_DIST = tiles(10); // 子弹最远行进 3000 单位
@@ -918,9 +926,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const requestedTrainingMode = searchParams.get("trainingMode");
   const trainingMode: TrainingMode = requestedTrainingMode === "survival"
     ? "survival"
-    : requestedTrainingMode === "aiming" ? "aiming" : "practice";
+    : requestedTrainingMode === "aiming"
+      ? "aiming"
+      : requestedTrainingMode === "spikeDodge" ? "spikeDodge" : "practice";
   const isSurvivalMode = trainingMode === "survival";
   const isAimingMode = trainingMode === "aiming";
+  const isSpikeDodgeMode = trainingMode === "spikeDodge";
   const isPlayerAttackMode = isAimingMode || isTrialMode;
   const playerMaxHealth = trialHeroId ? TRIAL_BRAWLERS[trialHeroId].health : trainingMode === "practice" ? PRACTICE_PLAYER_MAX_HEALTH : PLAYER_MAX_HEALTH;
   const aimingRule: AimingRule = searchParams.get("aimingRule") === "infinite" ? "infinite" : "challenge";
@@ -949,8 +960,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const bulletSpeed = projectileConfig.value;
   const bulletRadius = projectileConfig.bulletWidth / 2;
   const projectileRange = projectileConfig.range;
-  const isBeaMode = trialHeroId ? trialHeroId === "bea" : speedTier === "mid";
-  const isMaxMode = trialHeroId ? trialHeroId === "max" : speedTier === "max";
+  const isBeaMode = isSpikeDodgeMode ? false : trialHeroId ? trialHeroId === "bea" : speedTier === "mid";
+  const isMaxMode = isSpikeDodgeMode ? false : trialHeroId ? trialHeroId === "max" : speedTier === "max";
   const isByronMode = trialHeroId === "byron";
   const isPierceMode = trialHeroId === "pierce";
   const isBrockMode = trialHeroId === "brock";
@@ -960,7 +971,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const isMinaMode = trialHeroId === "mina";
   const isSpikeMode = trialHeroId === "spike";
   const magazineCapacity = projectileConfig.magazineCapacity;
-  const controlledMoveSpeed = projectileConfig.moveSpeed;
+  const controlledMoveSpeed = isSpikeDodgeMode ? TRIAL_BRAWLERS.max.moveSpeed : projectileConfig.moveSpeed;
   const magazineReloadSeconds = projectileConfig.reloadSeconds;
   // 游戏文件中的 Cooldown + ActiveTime；两次攻击之间的额外间隔不阻止装弹。
   const magazineReloadDelaySeconds = trialConfig?.reloadDelaySeconds
@@ -1312,7 +1323,26 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     let superAiming = false;
     let superRingPhase = 0;
     // 倒计时期间视为人机已完成摇杆起步，正式开局第一帧即保持正常移速。
-    let aiMovementElapsed = isAimingMode ? STARTUP_SECONDS : 0;
+    let aiMovementElapsed = isAimingMode || isSpikeDodgeMode ? STARTUP_SECONDS : 0;
+    let spikeDodgeRetargetSeconds = 0;
+    let spikeDodgeWaypoint = {
+      x: SPIKE_DODGE_CENTER_X,
+      y: SPIKE_DODGE_CENTER_Y - SPIKE.attackRange,
+    };
+    const chooseSpikeDodgeWaypoint = () => {
+      const angle = SPIKE_DODGE_SECTOR_ANGLE
+        + (Math.random() * 2 - 1) * SPIKE_DODGE_SECTOR_HALF_ANGLE;
+      // 对半径平方做均匀采样，使斯派克在整个扇面上均匀选点。
+      const radius = Math.sqrt(
+        SPIKE_DODGE_INNER_RADIUS ** 2
+        + Math.random() * (SPIKE_DODGE_OUTER_RADIUS ** 2 - SPIKE_DODGE_INNER_RADIUS ** 2),
+      );
+      spikeDodgeWaypoint = {
+        x: SPIKE_DODGE_CENTER_X + Math.cos(angle) * radius,
+        y: SPIKE_DODGE_CENTER_Y + Math.sin(angle) * radius,
+      };
+      spikeDodgeRetargetSeconds = 0.8 + Math.random() * 1.2;
+    };
     let aiDodgeTurn: { start: number; delta: number; elapsed: number; duration: number } | null = null;
     let dodgesSinceTaunt = 0;
     let tauntDodgeGoal = randomTauntDodgeGoal();
@@ -1323,7 +1353,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     let tauntSpinAngularSpeed = 0;
     const stars: TrainingStar[] = [];
     let nextStarId = 1;
-    let starSpawnTimer = isTrialMode ? Number.POSITIVE_INFINITY : STAR_SPAWN_MIN_SECONDS + Math.random() * (STAR_SPAWN_MAX_SECONDS - STAR_SPAWN_MIN_SECONDS);
+    let starSpawnTimer = isTrialMode || isSpikeDodgeMode
+      ? Number.POSITIVE_INFINITY
+      : STAR_SPAWN_MIN_SECONDS + Math.random() * (STAR_SPAWN_MAX_SECONDS - STAR_SPAWN_MIN_SECONDS);
     let aiTargetStarId: number | null = null;
     let aiFeintCooldown = 0;
     let aiFeint: { starId: number; phase: "approach" | "break"; remaining: number; startedAt: number; breakHeading: number } | null = null;
@@ -1351,10 +1383,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       ? { x: TRIAL_TARGET_X, y: TRIAL_TARGET_Y + tiles(7) }
       : isAimingMode
       ? { x: ENEMY_X, y: ENEMY_Y }
+      : isSpikeDodgeMode
+      ? { x: SPIKE_DODGE_CENTER_X, y: SPIKE_DODGE_CENTER_Y }
       : { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
     aimingTargetRef.current = {
-      x: isTrialMode ? TRIAL_TARGET_X : ENEMY_X,
-      y: isTrialMode ? TRIAL_TARGET_Y : ENEMY_Y - tiles(9),
+      x: isTrialMode ? TRIAL_TARGET_X : isSpikeDodgeMode ? SPIKE_DODGE_CENTER_X : ENEMY_X,
+      y: isTrialMode ? TRIAL_TARGET_Y : isSpikeDodgeMode ? SPIKE_DODGE_CENTER_Y - SPIKE.attackRange : ENEMY_Y - tiles(9),
       angle: -Math.PI / 2,
       direction: 1,
       switchTimer: 0.7,
@@ -1492,6 +1526,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         return;
       }
     };
+    if (isSpikeDodgeMode) chooseSpikeDodgeWaypoint();
 
     const firePierceShellShot = () => {
       const player = playerRef.current;
@@ -1995,6 +2030,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         const dashDistance = dash ? Math.min(dash.remainingDistance, MINA.dashSpeed * dt) : 0;
         const requestedDx = dash ? dash.dx * dashDistance : input.x * movementSpeed * movement.distance;
         const requestedDy = dash ? dash.dy * dashDistance : input.y * movementSpeed * movement.distance;
+        const playerBeforeMoveX = player.x;
+        const playerBeforeMoveY = player.y;
         const resolvedPlayerMove = resolveSquareMovement({
           x: player.x,
           y: player.y,
@@ -2008,8 +2045,19 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         });
         player.x = resolvedPlayerMove.x;
         player.y = resolvedPlayerMove.y;
+        if (isSpikeDodgeMode) {
+          const centerDx = player.x - SPIKE_DODGE_CENTER_X;
+          const centerDy = player.y - SPIKE_DODGE_CENTER_Y;
+          const centerDistance = Math.hypot(centerDx, centerDy);
+          if (centerDistance > SPIKE_DODGE_PLAYER_RADIUS) {
+            player.x = SPIKE_DODGE_CENTER_X + centerDx / centerDistance * SPIKE_DODGE_PLAYER_RADIUS;
+            player.y = SPIKE_DODGE_CENTER_Y + centerDy / centerDistance * SPIKE_DODGE_PLAYER_RADIUS;
+          }
+        }
+        const actualPlayerDx = player.x - playerBeforeMoveX;
+        const actualPlayerDy = player.y - playerBeforeMoveY;
         if (dash) {
-          const actualDashDistance = Math.hypot(resolvedPlayerMove.dx, resolvedPlayerMove.dy);
+          const actualDashDistance = Math.hypot(actualPlayerDx, actualPlayerDy);
           dash.remainingDistance = Math.max(0, dash.remainingDistance - actualDashDistance);
           if (dash.remainingDistance <= 0.01 || actualDashDistance + 0.01 < dashDistance) minaDashRef.current = null;
         }
@@ -2078,14 +2126,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           grayPortals.playerWasInside = Math.hypot(player.x - grayPortals.entranceX, player.y - grayPortals.entranceY) <= GRAY.portalTriggerRadius
             || Math.hypot(player.x - grayPortals.exitX, player.y - grayPortals.exitY) <= GRAY.portalTriggerRadius;
         }
-        velocity.x = resolvedPlayerMove.blockedX ? 0 : dash ? dash.dx * MINA.dashSpeed : input.x * movementSpeed * movement.speed;
-        velocity.y = resolvedPlayerMove.blockedY ? 0 : dash ? dash.dy * MINA.dashSpeed : input.y * movementSpeed * movement.speed;
+        velocity.x = isSpikeDodgeMode
+          ? (dt > 0 ? actualPlayerDx / dt : 0)
+          : resolvedPlayerMove.blockedX ? 0 : dash ? dash.dx * MINA.dashSpeed : input.x * movementSpeed * movement.speed;
+        velocity.y = isSpikeDodgeMode
+          ? (dt > 0 ? actualPlayerDy / dt : 0)
+          : resolvedPlayerMove.blockedY ? 0 : dash ? dash.dy * MINA.dashSpeed : input.y * movementSpeed * movement.speed;
         let velX = velocity.x;
         let velY = velocity.y;
         let curSpeed = Math.hypot(velX, velY);
-        playerIsMovingRef.current = Math.hypot(resolvedPlayerMove.dx, resolvedPlayerMove.dy) > 1e-7;
+        playerIsMovingRef.current = Math.hypot(actualPlayerDx, actualPlayerDy) > 1e-7;
         if (!isAimingMode && playerIsMovingRef.current) {
-          playerDirectionRef.current = Math.atan2(resolvedPlayerMove.dy, resolvedPlayerMove.dx);
+          playerDirectionRef.current = Math.atan2(actualPlayerDy, actualPlayerDx);
           playerMoveDirectionRef.current = playerDirectionRef.current;
         }
 
@@ -2373,6 +2425,66 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           target.direction = Math.sin(ai.heading - target.angle) >= 0 ? 1 : -1;
         }
 
+        if (isSpikeDodgeMode) {
+          const target = aimingTargetRef.current;
+          spikeDodgeRetargetSeconds -= dt;
+          let waypointDx = spikeDodgeWaypoint.x - target.x;
+          let waypointDy = spikeDodgeWaypoint.y - target.y;
+          let waypointDistance = Math.hypot(waypointDx, waypointDy);
+          if (spikeDodgeRetargetSeconds <= 0 || waypointDistance <= tiles(0.35)) {
+            chooseSpikeDodgeWaypoint();
+            waypointDx = spikeDodgeWaypoint.x - target.x;
+            waypointDy = spikeDodgeWaypoint.y - target.y;
+            waypointDistance = Math.hypot(waypointDx, waypointDy);
+          }
+          const targetBeforeMoveX = target.x;
+          const targetBeforeMoveY = target.y;
+          if (waypointDistance > 0.001) {
+            const heading = Math.atan2(waypointDy, waypointDx);
+            if (resetsMovementOnTurn(enemyDirectionRef.current, heading)) aiMovementElapsed = 0;
+            enemyDirectionRef.current = heading;
+            const enemyMovement = advanceMovement(aiMovementElapsed, dt, true);
+            aiMovementElapsed = enemyMovement.elapsed;
+            const travelDistance = Math.min(
+              waypointDistance,
+              SPIKE_DODGE_ENEMY_SPEED * enemyMovement.distance,
+            );
+            target.x += waypointDx / waypointDistance * travelDistance;
+            target.y += waypointDy / waypointDistance * travelDistance;
+          }
+
+          // 始终把斯派克约束到固定圆心上方的 ±30° 环形扇面内。
+          const relativeX = target.x - SPIKE_DODGE_CENTER_X;
+          const relativeY = target.y - SPIKE_DODGE_CENTER_Y;
+          const rawRadius = Math.hypot(relativeX, relativeY) || SPIKE.attackRange;
+          const rawAngle = Math.atan2(relativeY, relativeX);
+          const angleOffset = Math.max(
+            -SPIKE_DODGE_SECTOR_HALF_ANGLE,
+            Math.min(
+              SPIKE_DODGE_SECTOR_HALF_ANGLE,
+              Math.atan2(
+                Math.sin(rawAngle - SPIKE_DODGE_SECTOR_ANGLE),
+                Math.cos(rawAngle - SPIKE_DODGE_SECTOR_ANGLE),
+              ),
+            ),
+          );
+          const constrainedAngle = SPIKE_DODGE_SECTOR_ANGLE + angleOffset;
+          const constrainedRadius = Math.max(
+            SPIKE_DODGE_INNER_RADIUS,
+            Math.min(SPIKE_DODGE_OUTER_RADIUS, rawRadius),
+          );
+          target.x = SPIKE_DODGE_CENTER_X + Math.cos(constrainedAngle) * constrainedRadius;
+          target.y = SPIKE_DODGE_CENTER_Y + Math.sin(constrainedAngle) * constrainedRadius;
+          enemyIsMovingRef.current = Math.hypot(
+            target.x - targetBeforeMoveX,
+            target.y - targetBeforeMoveY,
+          ) > 1e-7;
+          target.angle = Math.atan2(
+            target.y - SPIKE_DODGE_CENTER_Y,
+            target.x - SPIKE_DODGE_CENTER_X,
+          );
+        }
+
         const starCollector = isAimingMode ? aimingTargetRef.current : player;
         const collectorRadius = isAimingMode ? ENEMY_RADIUS : PLAYER_RADIUS;
         for (let index = stars.length - 1; index >= 0; index--) {
@@ -2538,8 +2650,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           magazineReloadTimerRef.current = currentReloadSeconds;
         }
 
-        if (!isAimingMode && !isTrialMode) fireTimerRef.current -= dt;
-        if (!isAimingMode && !isTrialMode && fireTimerRef.current <= 0) {
+        if (!isAimingMode && !isTrialMode && !isSpikeDodgeMode) fireTimerRef.current -= dt;
+        if (!isAimingMode && !isTrialMode && !isSpikeDodgeMode && fireTimerRef.current <= 0) {
           const dx = player.x - ENEMY_X;
           const dy = player.y - ENEMY_Y;
           // 射程判定：用玩家当前位置
@@ -2602,7 +2714,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         // 满充保持蓝环；进入射程后以金环显示短暂的预判瞄准。
         if (superAim.elapsed === 0) superAim.angle = enemyDirectionRef.current;
         const superDecision = updateBeaSuperAim(superAim, dt,
-          isBeaMode && !isAimingMode && !isTrialMode && superCharge >= 1,
+          isBeaMode && !isAimingMode && !isTrialMode && !isSpikeDodgeMode && superCharge >= 1,
           (player.x - ENEMY_X) / BEA_SUPER_UNIT, (player.y - ENEMY_Y) / BEA_SUPER_UNIT,
           playerVelocityRef.current.x / BEA_SUPER_UNIT, playerVelocityRef.current.y / BEA_SUPER_UNIT);
         superAiming = superDecision.aiming;
@@ -3228,6 +3340,72 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       ctx.closePath();
       ctx.stroke();
 
+      if (isSpikeDodgeMode) {
+        const traceProjectedArc = (
+          centerX: number,
+          centerY: number,
+          radius: number,
+          startAngle: number,
+          endAngle: number,
+          reverse = false,
+        ) => {
+          const steps = 48;
+          for (let step = 0; step <= steps; step++) {
+            const ratio = step / steps;
+            const angle = reverse
+              ? endAngle + (startAngle - endAngle) * ratio
+              : startAngle + (endAngle - startAngle) * ratio;
+            const worldX = centerX + Math.cos(angle) * radius;
+            const worldY = centerY + Math.sin(angle) * radius;
+            if (step === 0) ctx.moveTo(projectX(worldX, worldY), projectY(worldY));
+            else ctx.lineTo(projectX(worldX, worldY), projectY(worldY));
+          }
+        };
+        const sectorStart = SPIKE_DODGE_SECTOR_ANGLE - SPIKE_DODGE_SECTOR_HALF_ANGLE;
+        const sectorEnd = SPIKE_DODGE_SECTOR_ANGLE + SPIKE_DODGE_SECTOR_HALF_ANGLE;
+
+        ctx.save();
+        ctx.fillStyle = "rgba(255, 82, 82, 0.10)";
+        ctx.strokeStyle = "rgba(255, 112, 112, 0.82)";
+        ctx.lineWidth = Math.max(2, tiles(0.06) * scale);
+        ctx.setLineDash([12, 8]);
+        ctx.beginPath();
+        traceProjectedArc(
+          SPIKE_DODGE_CENTER_X,
+          SPIKE_DODGE_CENTER_Y,
+          SPIKE_DODGE_OUTER_RADIUS,
+          sectorStart,
+          sectorEnd,
+        );
+        traceProjectedArc(
+          SPIKE_DODGE_CENTER_X,
+          SPIKE_DODGE_CENTER_Y,
+          SPIKE_DODGE_INNER_RADIUS,
+          sectorStart,
+          sectorEnd,
+          true,
+        );
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = "rgba(72, 190, 255, 0.055)";
+        ctx.strokeStyle = "rgba(87, 205, 255, 0.9)";
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        traceProjectedArc(
+          SPIKE_DODGE_CENTER_X,
+          SPIKE_DODGE_CENTER_Y,
+          SPIKE_DODGE_PLAYER_RADIUS,
+          0,
+          Math.PI * 2,
+        );
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
       for (const area of spikeSuperAreas) {
         const alpha = Math.min(0.38, 0.14 + area.remainingSeconds * 0.045);
         ctx.save();
@@ -3296,30 +3474,34 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         drawPierceShell(ctx, shell, scale * widthFactorAt(shell.y), scaleY, { projectX, projectY });
       }
 
-      const renderedEnemy = isPlayerAttackMode ? aimingTargetRef.current : { x: ENEMY_X, y: ENEMY_Y };
+      const renderedEnemy = isPlayerAttackMode || isSpikeDodgeMode
+        ? aimingTargetRef.current
+        : { x: ENEMY_X, y: ENEMY_Y };
       // 两种训练都显示当前角色的实际攻击范围，不展示目标的移动轨迹。
       const enemyCenterPx = projectX(renderedEnemy.x, renderedEnemy.y);
       const enemyCenterPy = projectY(renderedEnemy.y);
       const enemyRadiusPx = ENEMY_RADIUS * scale * widthFactorAt(renderedEnemy.y);
       const enemyRadiusPy = ENEMY_RADIUS * scaleY;
-      ctx.save();
-      ctx.strokeStyle = "rgba(255, 82, 82, 0.25)";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([6, 6]);
-      ctx.beginPath();
-      for (let i = 0; i <= 72; i++) {
-        const angle = (i / 72) * Math.PI * 2;
-        const circleCenterX = isPlayerAttackMode ? player.x : ENEMY_X;
-        const circleCenterY = isPlayerAttackMode ? player.y : ENEMY_Y;
-        const circleRadius = projectileRange;
-        const worldX = circleCenterX + Math.cos(angle) * circleRadius;
-        const worldY = circleCenterY + Math.sin(angle) * circleRadius;
-        if (i === 0) ctx.moveTo(projectX(worldX, worldY), projectY(worldY));
-        else ctx.lineTo(projectX(worldX, worldY), projectY(worldY));
+      if (!isSpikeDodgeMode) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 82, 82, 0.25)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([6, 6]);
+        ctx.beginPath();
+        for (let i = 0; i <= 72; i++) {
+          const angle = (i / 72) * Math.PI * 2;
+          const circleCenterX = isPlayerAttackMode ? player.x : ENEMY_X;
+          const circleCenterY = isPlayerAttackMode ? player.y : ENEMY_Y;
+          const circleRadius = projectileRange;
+          const worldX = circleCenterX + Math.cos(angle) * circleRadius;
+          const worldY = circleCenterY + Math.sin(angle) * circleRadius;
+          if (i === 0) ctx.moveTo(projectX(worldX, worldY), projectY(worldY));
+          else ctx.lineTo(projectX(worldX, worldY), projectY(worldY));
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
       }
-      ctx.closePath();
-      ctx.stroke();
-      ctx.restore();
 
       for (const star of stars) {
         const starX = projectX(star.x, star.y);
@@ -3438,8 +3620,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         radiusX: enemyRadiusPx,
         radiusY: enemyRadiusPy,
         statusWidth: TILE_SIZE * scale * widthFactorAt(renderedEnemy.y),
-        health: isPlayerAttackMode ? aimingTargetHealthRef.current : PLAYER_MAX_HEALTH,
-        maxHealth: isPlayerAttackMode ? aimingTargetMaxHealth : PLAYER_MAX_HEALTH,
+        health: isPlayerAttackMode ? aimingTargetHealthRef.current : isSpikeDodgeMode ? TRIAL_BRAWLERS.spike.health : PLAYER_MAX_HEALTH,
+        maxHealth: isPlayerAttackMode ? aimingTargetMaxHealth : isSpikeDodgeMode ? TRIAL_BRAWLERS.spike.health : PLAYER_MAX_HEALTH,
         team: "enemy",
         relation: "enemy",
         ammo: isColtMode ? {
@@ -3941,7 +4123,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
       // 移动方向圆点置于最终前景层；位置按移动摇杆推杆比例映射。
       const enemyDirection = enemyDirectionRef.current;
-      if (isAimingMode && enemyIsMovingRef.current) {
+      if ((isAimingMode || isSpikeDodgeMode) && enemyIsMovingRef.current) {
         drawMovementIndicator(
           ctx, enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy,
           Math.cos(enemyDirection), Math.sin(enemyDirection), 1,
@@ -4024,7 +4206,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isSpikeDodgeMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -4805,7 +4987,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         </div>
       )}
 
-      {!isAimingMode && !isTrialMode && (
+      {!isAimingMode && !isTrialMode && !isSpikeDodgeMode && (
         <div className="training-survival-status" aria-live="polite">
           <div className="training-survival-time">积分 {score.toFixed(1)}</div>
         </div>

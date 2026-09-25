@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { SPEED_TIERS, type SpeedTier } from "../features/training/config";
 
 type ControlMode = "joystick" | "keyboard";
-type MovementRule = "practice" | "survival";
+type MovementRule = "practice" | "survival" | "spikeDodge";
 
 export default function MovementTraining() {
   const navigate = useNavigate();
@@ -13,7 +13,8 @@ export default function MovementTraining() {
 
   const start = () => {
     if (!controlMode) return;
-    navigate(`/offline-training/game?mode=${controlMode}&speedTier=${speedTier}&trainingMode=${rule}`);
+    const speed = rule === "spikeDodge" ? "" : `&speedTier=${speedTier}`;
+    navigate(`/offline-training/game?mode=${controlMode}${speed}&trainingMode=${rule}`);
   };
 
   return (
@@ -28,9 +29,10 @@ export default function MovementTraining() {
           <div className="toggle-group">
             <Choice active={rule === "practice"} onClick={() => setRule("practice")} title="无限训练" detail="100000 生命，不会回血，无限练习" />
             <Choice active={rule === "survival"} onClick={() => setRule("survival")} title="挑战模式" detail="6000 生命，无限时；每 10 秒回弹耗时与射击间隔 ×0.95" />
+            <Choice active={rule === "spikeDodge"} onClick={() => setRule("spikeDodge")} title="斯派克躲避特训！" detail="在 5 格半径内移动；斯派克会在上方射程扇面内随机走位" />
           </div>
         </div>
-        <SpeedPicker value={speedTier} onChange={setSpeedTier} />
+        {rule !== "spikeDodge" && <SpeedPicker value={speedTier} onChange={setSpeedTier} />}
         <div className="form-group"><label>选择操作方式</label></div>
         <div className="toggle-group" style={{ flexDirection: "column" }}>
           <Choice active={controlMode === "joystick"} onClick={() => setControlMode("joystick")} title="🕹️ 触控摇杆" detail="自由拖动方向，适合触屏设备" align="left" />
