@@ -48,3 +48,18 @@ export const SPIKE_LOADOUT = {
 export function spikeShardAngles(): number[] {
   return Array.from({ length: SPIKE.shardCount }, (_, index) => index * Math.PI * 2 / SPIKE.shardCount);
 }
+
+// 视频中小刺刚生成时基本沿固定六向直行，随后转弯逐渐明显。
+// 使用二次进度让起始角速度为 0，并在全程末端仍达到原定总偏转角。
+export function spikeShardPolarAngle(baseAngle: number, totalTurnRadians: number, progress: number): number {
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  return baseAngle + totalTurnRadians * clampedProgress * clampedProgress;
+}
+
+export function spikeShardTangentAngle(baseAngle: number, totalTurnRadians: number, progress: number): number {
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const squaredProgress = clampedProgress * clampedProgress;
+  return baseAngle
+    + totalTurnRadians * squaredProgress
+    + Math.atan(2 * totalTurnRadians * squaredProgress);
+}

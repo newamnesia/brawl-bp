@@ -14,7 +14,13 @@ import { GRAY, advanceGrayPull, destroyWallsAlongGrayPull, type GrayPortalPair, 
 import { COLT, COLT_LOADOUT, coltAttackDelay, coltMoveSpeed, destroyWallsAlongColtBullet } from "../features/training/coltCombat";
 import { MINA, MINA_LOADOUT, minaHyperSuperAngles, minaNextAttackStage, minaThirdAttackHitsTarget, minaThirdAttackParts, type MinaAttackStage, type MinaThirdAttackPart } from "../features/training/minaCombat";
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
-import { SPIKE, SPIKE_LOADOUT, spikeShardAngles } from "../features/training/spikeCombat";
+import {
+  SPIKE,
+  SPIKE_LOADOUT,
+  spikeShardAngles,
+  spikeShardPolarAngle,
+  spikeShardTangentAngle,
+} from "../features/training/spikeCombat";
 import { battleCanvasDpr } from "../features/training/performance";
 
 type ControlMode = "joystick" | "keyboard";
@@ -359,6 +365,7 @@ type PendingBulletReaction = {
 };
 
 type Prof = {
+  enabled: boolean;
   // —— 统计累加值 ——
   totalFrames: number;
   deadFrames: number;            // 死区内帧数
@@ -412,8 +419,9 @@ type Prof = {
   samplesTurnIntervalMs: number[]; // 数据3：变向循环间隔（ms）
 };
 
-function createProfiler(now: number): Prof {
+function createProfiler(now: number, enabled = true): Prof {
   return {
+    enabled,
     totalFrames: 0,
     deadFrames: 0,
     stillnessRatio: 0,
@@ -475,6 +483,7 @@ function profileStep(
   rawMag: number,
   isPhysicallyEngaged: boolean,
 ): void {
+  if (!p.enabled) return;
   const mag = Math.hypot(inputX, inputY);
   const inDead = mag < INPUT_DEADZONE_MAG;
   const angle = inDead ? 0 : Math.atan2(inputY, inputX);
@@ -685,6 +694,7 @@ function profileBulletEnterVision(
   remainingLifeMs: number,
   baselineAngle: number | null,
 ) {
+  if (!p.enabled) return;
   if (p.reactionFirstTurnSeen.has(bulletId)) return;
   p.pendingReactions.push({
     bulletId,
@@ -696,6 +706,7 @@ function profileBulletEnterVision(
 
 // 子弹命中或飞出射程后，相关反应观测立即结束，不能被之后的转向“补记”。
 function profileBulletRemoved(p: Prof, bulletId: number) {
+  if (!p.enabled) return;
   const index = p.pendingReactions.findIndex((reaction) => reaction.bulletId === bulletId);
   if (index >= 0) p.pendingReactions.splice(index, 1);
   p.reactionFirstTurnSeen.add(bulletId);
@@ -704,6 +715,7 @@ function profileBulletRemoved(p: Prof, bulletId: number) {
 // 只有“新方向已在容错范围内稳定 TURN_STABLE_MS”的事件才能触发反应样本。
 // 相邻帧角度变化不再参与反应速度判定。
 function profileEffectiveTurnForReaction(p: Prof, now: number, stableAngle: number) {
+  if (!p.enabled) return;
   // 先清理已经失效的子弹记录。
   for (let i = p.pendingReactions.length - 1; i >= 0; i--) {
     const pr = p.pendingReactions[i];
@@ -931,6 +943,39 @@ function predictAimAngle(args: {
     predictedY: predY,
     tFlight: t,
   };
+}
+
+function predictSpikeDodgeTarget(
+  playerX: number,
+  playerY: number,
+  velX: number,
+  velY: number,
+  enemyX: number,
+  enemyY: number,
+): { predictedX: number; predictedY: number } {
+  const maxFlightSeconds = SPIKE.attackRange / SPIKE.attackProjectileSpeed;
+  let flightSeconds = Math.min(
+    maxFlightSeconds,
+    Math.hypot(playerX - enemyX, playerY - enemyY) / SPIKE.attackProjectileSpeed,
+  );
+  let predictedX = playerX;
+  let predictedY = playerY;
+  for (let iteration = 0; iteration < 3; iteration++) {
+    predictedX = playerX + velX * flightSeconds;
+    predictedY = playerY + velY * flightSeconds;
+    const centerDx = predictedX - SPIKE_DODGE_CENTER_X;
+    const centerDy = predictedY - SPIKE_DODGE_CENTER_Y;
+    const centerDistance = Math.hypot(centerDx, centerDy);
+    if (centerDistance > SPIKE_DODGE_PLAYER_RADIUS) {
+      predictedX = SPIKE_DODGE_CENTER_X + centerDx / centerDistance * SPIKE_DODGE_PLAYER_RADIUS;
+      predictedY = SPIKE_DODGE_CENTER_Y + centerDy / centerDistance * SPIKE_DODGE_PLAYER_RADIUS;
+    }
+    flightSeconds = Math.min(
+      maxFlightSeconds,
+      Math.hypot(predictedX - enemyX, predictedY - enemyY) / SPIKE.attackProjectileSpeed,
+    );
+  }
+  return { predictedX, predictedY };
 }
 
 export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: TrialBrawlerId } = {}) {
@@ -1423,7 +1468,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     let superSlowRemainingMs = 0;
 
     // 初始化 Profiler
-    profilerRef.current = createProfiler(nowStart);
+    profilerRef.current = createProfiler(nowStart, !isSpikeDodgeMode);
     playerRef.current = isTrialMode
       ? { x: TRIAL_TARGET_X, y: TRIAL_TARGET_Y + tiles(7) }
       : isAimingMode
@@ -1847,7 +1892,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         if (countdownRemainingMs === 0) {
           countdownActiveRef.current = false;
           // 所有分析计时从正式开局时刻起算，不把倒计时算入反应或稳定移动时间。
-          profilerRef.current = createProfiler(now);
+          profilerRef.current = createProfiler(now, !isSpikeDodgeMode);
         }
       }
 
@@ -2789,24 +2834,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             const spike = aimingTargetRef.current;
             const targetDistance = Math.hypot(player.x - spike.x, player.y - spike.y);
             if (targetDistance <= SPIKE.attackRange) {
-              const shotId = bulletIdRef.current;
-              const metrics = getMetrics(prof);
-              const prediction = predictAimAngle({
-                playerX: player.x,
-                playerY: player.y,
+              const prediction = predictSpikeDodgeTarget(
+                player.x,
+                player.y,
                 velX,
                 velY,
-                speed: curSpeed,
-                enemyX: spike.x,
-                enemyY: spike.y,
-                bulletSpeed: SPIKE.attackProjectileSpeed,
-                maxDistance: SPIKE.attackRange,
-                targetMoveSpeed: controlledMoveSpeed,
-                shotId,
-                now,
-                p: prof,
-                metrics,
-              });
+                spike.x,
+                spike.y,
+              );
 
               const upperLandings = spikeDodgeLandingSides.filter((side) => side < 0).length;
               const lowerLandings = spikeDodgeLandingSides.length - upperLandings;
@@ -3018,10 +3053,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             const stepDistance = Math.min(speed * movementTime, Math.max(0, maxDistance - b.traveled));
             b.traveled = Math.min(maxDistance, b.traveled + stepDistance);
             const progress = b.traveled / maxDistance;
-            const polarAngle = b.spikeShard.baseAngle + b.spikeShard.curveRadians * progress;
+            const polarAngle = spikeShardPolarAngle(
+              b.spikeShard.baseAngle,
+              b.spikeShard.curveRadians,
+              progress,
+            );
             b.x = b.spikeShard.originX + Math.cos(polarAngle) * b.traveled;
             b.y = b.spikeShard.originY + Math.sin(polarAngle) * b.traveled;
-            const tangentAngle = polarAngle + Math.atan(b.spikeShard.curveRadians * progress);
+            const tangentAngle = spikeShardTangentAngle(
+              b.spikeShard.baseAngle,
+              b.spikeShard.curveRadians,
+              progress,
+            );
             b.vx = Math.cos(tangentAngle) * speed;
             b.vy = Math.sin(tangentAngle) * speed;
           } else {
@@ -4275,7 +4318,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             for (let step = 1; step <= steps; step++) {
               const progress = step / steps;
               const distance = shardRange * progress;
-              const angle = baseAngle + curveRadians * progress;
+              const angle = spikeShardPolarAngle(baseAngle, curveRadians, progress);
               const x = hint.x + Math.cos(angle) * distance;
               const y = hint.y + Math.sin(angle) * distance;
               ctx.lineTo(projectX(x, y), projectY(y));
@@ -5344,7 +5387,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 ? isTrialMode ? "目标已击破" : "预判命中，训练胜利！"
                 : isAimingMode && roundResult === "defeat" ? "人机达到 15 分，挑战失败" : "本轮结束"}
             </div>
-            <div className="training-game-over-time">
+            {!isSpikeDodgeMode && <div className="training-game-over-time">
               {isTrialMode
                 ? `累计造成 ${totalDamage} 点伤害 · 目标剩余 ${Math.round(aimingTargetHealthRef.current)} 生命`
                 : isAimingInfinite
@@ -5354,8 +5397,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 : isAimingMode && roundResult === "defeat"
                 ? `人机积分 ${aiScore.toFixed(1)} / 15`
                 : isSurvivalMode ? `最终积分 ${score.toFixed(1)}` : `本局积分 ${score.toFixed(1)}`}
-            </div>
-            {!isTrialMode && <TrainingStatsGrid
+            </div>}
+            {!isTrialMode && !isSpikeDodgeMode && <TrainingStatsGrid
               snapshot={endSnapshot}
               aiming={isAimingMode}
               mode={mode}
