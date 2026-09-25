@@ -2142,6 +2142,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             });
           }
           minaWaveCastsRef.current.splice(index, 1);
+          forceUpdate((value) => value + 1);
         }
         if (isBeaMode && !isAimingMode) {
           superSlowRemainingMs = Math.max(0, superSlowRemainingMs - dtMs);
@@ -4767,6 +4768,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
   const handleSuperPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isTrialMode || trialHeroId === "piper" || trialHeroId === "brock" || pausedRef.current || playerSuperChargeRef.current < 1) return;
+    if (isMinaMode && minaWaveCastsRef.current.length > 0) return;
     if (isColtMode && (coltActionRef.current?.kind === "super" || coltActionRef.current?.kind === "gadget")) return;
     e.preventDefault();
     e.stopPropagation();
@@ -4819,7 +4821,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       && target.y >= bounds.top && target.y <= bounds.bottom;
     const coltSuperBlocked = isColtMode
       && (coltActionRef.current?.kind === "super" || coltActionRef.current?.kind === "gadget");
-    if (!cancelled && !coltSuperBlocked && !pausedRef.current && !countdownActiveRef.current && playerSuperChargeRef.current >= 1) {
+    const minaSuperBlocked = isMinaMode && minaWaveCastsRef.current.length > 0;
+    if (!cancelled && !coltSuperBlocked && !minaSuperBlocked
+      && !pausedRef.current && !countdownActiveRef.current && playerSuperChargeRef.current >= 1) {
       const player = playerRef.current;
       const angle = stick.exceededDeadzone
         ? Math.atan2(stick.knobY, stick.knobX)
@@ -5107,7 +5111,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   };
 
   const activateMinaGadget = () => {
-    if (!isMinaMode || pausedRef.current || countdownActiveRef.current || minaGadgetCooldownRef.current > 0) return;
+    if (!isMinaMode || pausedRef.current || countdownActiveRef.current
+      || minaGadgetCooldownRef.current > 0 || minaWaveCastsRef.current.length > 0) return;
     if (MINA_LOADOUT.gadget === "capoWhat") {
       minaCapoWhatArmedRef.current = true;
       forceUpdate((value) => value + 1);
@@ -5199,6 +5204,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   };
 
   const handleSuperControlPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isMinaMode && minaWaveCastsRef.current.length > 0) return;
     if (playerSuperChargeRef.current >= 1) handleSuperPointerDown(e);
     else handleAimPointerDown(e);
   };
@@ -5779,7 +5785,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             aria-label={minaGadgetCooldownDisplay > 0
               ? `风车冷却 ${minaGadgetCooldownDisplay.toFixed(1)} 秒`
               : MINA_LOADOUT.gadget === "windmill" ? "放置风车阻挡敌方弹道" : "下一次普通大招命中后立即回满大招"}
-            disabled={minaGadgetCooldownDisplay > 0 || paused}
+            disabled={minaGadgetCooldownDisplay > 0 || paused || minaWaveCastsRef.current.length > 0}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={activateMinaGadget}
             style={{
