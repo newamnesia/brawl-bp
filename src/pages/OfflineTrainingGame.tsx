@@ -71,6 +71,7 @@ const PLAYER_MAX_HEALTH = 6000;
 const PRACTICE_PLAYER_MAX_HEALTH = 100000;
 const AIMING_INFINITE_MAX_HEALTH = 100000;
 const TRIAL_TARGET_MAX_HEALTH = 100000;
+const TRIAL_TARGET_RESPAWN_SECONDS = 3;
 const TRIAL_TARGET_X = MAP_WIDTH / 2;
 const TRIAL_TARGET_Y = MAP_HEIGHT / 2;
 const MAX_SUPER_SPEED_BONUS = 300;
@@ -203,6 +204,7 @@ type Bullet = {
   appliesSlowSeconds?: number;
   minaSuper?: { hypercharged: boolean; pullOriginX: number; pullOriginY: number };
   bouncesRemaining?: number;
+  grayCaneOrigin?: { x: number; y: number };
 };
 
 type ByronPoison = { ticksRemaining: number; timeToNextTick: number };
@@ -217,9 +219,10 @@ type PierceSuperCast = {
   remainingSeconds: number;
   lockedTargetIds: string[];
 };
-type MinaWaveCast = { remainingSeconds: number; angle: number; damageMultiplier: number };
+type MinaWaveCast = { remainingSeconds: number; aimX: number; aimY: number; damageMultiplier: number };
 type MinaWaveEffect = { x: number; y: number; parts: MinaThirdAttackPart[]; remainingSeconds: number };
 type MinaDash = { remainingDistance: number; dx: number; dy: number };
+type ColtAction = { kind: "attack" | "super" | "gadget"; remainingSeconds: number };
 type BrockFire = { x: number; y: number; remainingSeconds: number; timeToNextTick: number };
 
 type TrainingStar = {
@@ -1154,6 +1157,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const coltTargetAmmoRef = useRef(3);
   const coltTargetReloadTimerRef = useRef(1.3);
   const coltTargetSlowRemainingRef = useRef(0);
+  const coltActionRef = useRef<ColtAction | null>(null);
   const minaAttackStageRef = useRef<MinaAttackStage>(0);
   const minaComboRemainingRef = useRef(0);
   const minaDashRef = useRef<MinaDash | null>(null);
@@ -1177,6 +1181,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const grayGadgetCooldownShownRef = useRef(0);
   const grayPullRef = useRef<GrayPull | null>(null);
   const grayPortalsRef = useRef<GrayPortalPair | null>(null);
+  const trialTargetRespawnRemainingRef = useRef(0);
   const fireTimerRef = useRef(fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin));
   const magazineAmmoRef = useRef(magazineCapacity);
   const magazineReloadTimerRef = useRef(magazineReloadSeconds);
@@ -1351,6 +1356,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     coltTargetAmmoRef.current = 3;
     coltTargetReloadTimerRef.current = 1.3;
     coltTargetSlowRemainingRef.current = 0;
+    coltActionRef.current = null;
     minaAttackStageRef.current = 0;
     minaComboRemainingRef.current = 0;
     minaDashRef.current = null;
@@ -1374,6 +1380,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     grayGadgetCooldownShownRef.current = 0;
     grayPullRef.current = null;
     grayPortalsRef.current = null;
+    trialTargetRespawnRemainingRef.current = 0;
     setGrayGadgetCooldownDisplay(0);
     setColtGadgetCooldownDisplay(0);
     setMinaGadgetCooldownDisplay(0);
@@ -1546,6 +1553,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     };
 
     const damageTrialTarget = (damage: number, chargeGain = 0) => {
+      if (isTrialMode && (aimingTargetHealthRef.current <= 0 || trialTargetRespawnRemainingRef.current > 0)) return;
       if (isTrialMode && playerSuperChargeRef.current < 1) {
         playerSuperChargeRef.current = Math.min(1, playerSuperChargeRef.current + chargeGain);
       }
@@ -1553,7 +1561,15 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       combatUiDirty = true;
       aimingTargetHealthRef.current = Math.max(0, aimingTargetHealthRef.current - damage);
       aimingTargetSecondsSinceDamageRef.current = 0;
-      if ((isTrialMode || (isAimingMode && !isAimingInfinite)) && aimingTargetHealthRef.current <= 0) {
+      if (isTrialMode && aimingTargetHealthRef.current <= 0) {
+        aimingTargetHealthRef.current = 0;
+        trialTargetRespawnRemainingRef.current = TRIAL_TARGET_RESPAWN_SECONDS;
+        byronPoisons.length = 0;
+        grayPullRef.current = null;
+        minaTargetAirborneRef.current = 0;
+        minaTargetRootRef.current = 0;
+        refreshCombatUi();
+      } else if (isAimingMode && !isAimingInfinite && aimingTargetHealthRef.current <= 0) {
         refreshCombatUi();
         pausedRef.current = true;
         setRoundResult("victory");
@@ -1616,6 +1632,20 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         // —— 逻辑更新（暂停时跳过） ——
         starSpawnTimer -= dt;
         playerAttackCooldownRef.current = Math.max(0, playerAttackCooldownRef.current - dt);
+        if (coltActionRef.current) {
+          coltActionRef.current.remainingSeconds = Math.max(0, coltActionRef.current.remainingSeconds - dt);
+          if (coltActionRef.current.remainingSeconds <= 0) coltActionRef.current = null;
+        }
+        if (trialTargetRespawnRemainingRef.current > 0) {
+          trialTargetRespawnRemainingRef.current = Math.max(0, trialTargetRespawnRemainingRef.current - dt);
+          if (trialTargetRespawnRemainingRef.current === 0) {
+            aimingTargetHealthRef.current = aimingTargetMaxHealth;
+            aimingTargetRef.current.x = TRIAL_TARGET_X;
+            aimingTargetRef.current.y = TRIAL_TARGET_Y;
+            aimingTargetSecondsSinceDamageRef.current = 0;
+            refreshCombatUi();
+          }
+        }
 
         for (let i = byronPoisons.length - 1; i >= 0; i--) {
           const poison = byronPoisons[i];
@@ -1763,7 +1793,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           cast.remainingSeconds -= dt;
           if (cast.remainingSeconds > 0) continue;
           const origin = playerRef.current;
-          const parts = minaThirdAttackParts(origin, cast.angle, wallTiles, TILE_SIZE);
+          const angle = Math.atan2(cast.aimY - origin.y, cast.aimX - origin.x);
+          const parts = minaThirdAttackParts(origin, angle, wallTiles, TILE_SIZE);
           minaWaveEffectsRef.current.push({
             x: origin.x,
             y: origin.y,
@@ -1830,24 +1861,53 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         }
         const grayPortals = grayPortalsRef.current;
         if (grayPortals) {
-          if (grayPortals.cooldownSeconds > 0) {
-            grayPortals.cooldownSeconds = Math.max(0, grayPortals.cooldownSeconds - dt);
-            grayPortals.activationSeconds = 0;
-          } else {
-            const atEntrance = Math.hypot(player.x - grayPortals.entranceX, player.y - grayPortals.entranceY) <= GRAY.portalTriggerRadius;
-            const atExit = Math.hypot(player.x - grayPortals.exitX, player.y - grayPortals.exitY) <= GRAY.portalTriggerRadius;
-            if (atEntrance || atExit) {
-              grayPortals.activationSeconds += dt;
-              if (grayPortals.activationSeconds >= GRAY.portalActivationSeconds) {
-                player.x = atEntrance ? grayPortals.exitX : grayPortals.entranceX;
-                player.y = atEntrance ? grayPortals.exitY : grayPortals.entranceY;
-                grayPortals.cooldownSeconds = GRAY.portalPostUseCooldownSeconds;
-                grayPortals.activationSeconds = 0;
-              }
+          const atEntrance = Math.hypot(player.x - grayPortals.entranceX, player.y - grayPortals.entranceY) <= GRAY.portalTriggerRadius;
+          const atExit = Math.hypot(player.x - grayPortals.exitX, player.y - grayPortals.exitY) <= GRAY.portalTriggerRadius;
+          const inside = atEntrance || atExit;
+          const entered = inside && !grayPortals.playerWasInside;
+          if (grayPortals.phase === "cooldown") {
+            grayPortals.phaseRemainingSeconds = Math.max(0, grayPortals.phaseRemainingSeconds - dt);
+            if (grayPortals.phaseRemainingSeconds === 0) grayPortals.phase = "dormant";
+          } else if (grayPortals.phase === "dormant") {
+            if (inside) {
+              grayPortals.phase = "charging";
+              grayPortals.phaseRemainingSeconds = GRAY.portalActivationSeconds;
+              grayPortals.chargingSide = atEntrance ? "entrance" : "exit";
+            }
+          } else if (grayPortals.phase === "charging") {
+            const stillCharging = grayPortals.chargingSide === "entrance" ? atEntrance : atExit;
+            if (!stillCharging) {
+              grayPortals.phase = "dormant";
+              grayPortals.phaseRemainingSeconds = 0;
+              grayPortals.chargingSide = null;
             } else {
-              grayPortals.activationSeconds = 0;
+              grayPortals.phaseRemainingSeconds = Math.max(0, grayPortals.phaseRemainingSeconds - dt);
+              if (grayPortals.phaseRemainingSeconds === 0) {
+                grayPortals.phase = "primed";
+                grayPortals.chargingSide = null;
+              }
+            }
+          } else if (grayPortals.phase === "primed" && entered) {
+            player.x = atEntrance ? grayPortals.exitX : grayPortals.entranceX;
+            player.y = atEntrance ? grayPortals.exitY : grayPortals.entranceY;
+            grayPortals.usedPlayerIds.add("player");
+            grayPortals.phase = "active";
+            grayPortals.phaseRemainingSeconds = GRAY.portalActiveSeconds;
+          } else if (grayPortals.phase === "active") {
+            grayPortals.phaseRemainingSeconds = Math.max(0, grayPortals.phaseRemainingSeconds - dt);
+            if (entered && !grayPortals.usedPlayerIds.has("player")) {
+              player.x = atEntrance ? grayPortals.exitX : grayPortals.entranceX;
+              player.y = atEntrance ? grayPortals.exitY : grayPortals.entranceY;
+              grayPortals.usedPlayerIds.add("player");
+            }
+            if (grayPortals.phaseRemainingSeconds === 0) {
+              grayPortals.phase = "cooldown";
+              grayPortals.phaseRemainingSeconds = GRAY.portalPostUseCooldownSeconds;
+              grayPortals.usedPlayerIds.clear();
             }
           }
+          grayPortals.playerWasInside = Math.hypot(player.x - grayPortals.entranceX, player.y - grayPortals.entranceY) <= GRAY.portalTriggerRadius
+            || Math.hypot(player.x - grayPortals.exitX, player.y - grayPortals.exitY) <= GRAY.portalTriggerRadius;
         }
         velocity.x = resolvedPlayerMove.blockedX ? 0 : dash ? dash.dx * MINA.dashSpeed : input.x * movementSpeed * movement.speed;
         velocity.y = resolvedPlayerMove.blockedY ? 0 : dash ? dash.dy * MINA.dashSpeed : input.y * movementSpeed * movement.speed;
@@ -2239,12 +2299,28 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           if (aimingTargetHealthRef.current <= 0) {
             grayPullRef.current = null;
           } else {
+            if (grayPull.phase === "hard"
+              && Math.hypot(player.x - grayPull.attackOriginX, player.y - grayPull.attackOriginY) > 0.5) {
+              grayPull.sourceMovedAfterHit = true;
+            }
             const start = { x: grabbed.x, y: grabbed.y };
             const next = advanceGrayPull(grayPull, grabbed, dt);
             if (grayPull.breakWalls) destroyWallsAlongGrayPull(wallTiles, start, next, TILE_SIZE, ENEMY_RADIUS);
             grabbed.x = next.x;
             grabbed.y = next.y;
-            if (next.finished) grayPullRef.current = null;
+            if (next.finished && grayPull.phase === "hard" && grayPull.sourceMovedAfterHit) {
+              grayPull.phase = "residual";
+              grayPull.destinationX = grayPull.attackOriginX;
+              grayPull.destinationY = grayPull.attackOriginY;
+              grayPull.remainingDistance = Math.hypot(
+                grabbed.x - grayPull.attackOriginX,
+                grabbed.y - grayPull.attackOriginY,
+              );
+              grayPull.breakWalls = false;
+              if (grayPull.remainingDistance <= 0.001) grayPullRef.current = null;
+            } else if (next.finished) {
+              grayPullRef.current = null;
+            }
           }
         }
 
@@ -2444,6 +2520,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
         for (let i = bullets.length - 1; i >= 0; i--) {
           const b = bullets[i];
+          if (b.grayCaneOrigin && Math.hypot(player.x - b.grayCaneOrigin.x, player.y - b.grayCaneOrigin.y) > 0.5) {
+            bullets.splice(i, 1);
+            profileBulletRemoved(prof, b.id);
+            aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
+            continue;
+          }
           let movementTime = dt;
           if ((b.spawnDelay ?? 0) > 0) {
             const waitingTime = Math.min(b.spawnDelay ?? 0, movementTime);
@@ -2642,10 +2724,15 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   : 0;
                 damageTrialTarget(damage, chargeGain);
                 if (b.texture === "grayCane") {
+                  const attackOrigin = b.grayCaneOrigin ?? { x: player.x, y: player.y };
                   grayPullRef.current = {
                     active: true,
-                    destinationX: player.x,
-                    destinationY: player.y,
+                    phase: "hard",
+                    attackOriginX: attackOrigin.x,
+                    attackOriginY: attackOrigin.y,
+                    sourceMovedAfterHit: false,
+                    destinationX: attackOrigin.x,
+                    destinationY: attackOrigin.y,
                     remainingDistance: Math.min(
                       GRAY.canePullDistance,
                       GRAY.canePullDistance * b.traveled / GRAY.range,
@@ -2995,9 +3082,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
       const grayPortals = grayPortalsRef.current;
       if (grayPortals) {
-        const readiness = grayPortals.cooldownSeconds > 0
-          ? 1 - grayPortals.cooldownSeconds / GRAY.portalPostUseCooldownSeconds
-          : grayPortals.activationSeconds / GRAY.portalActivationSeconds;
+        const readiness = grayPortals.phase === "cooldown"
+          ? 1 - grayPortals.phaseRemainingSeconds / GRAY.portalPostUseCooldownSeconds
+          : grayPortals.phase === "charging"
+            ? 1 - grayPortals.phaseRemainingSeconds / GRAY.portalActivationSeconds
+            : grayPortals.phase === "primed" || grayPortals.phase === "active" ? 1 : 0;
         for (const portal of [
           { x: grayPortals.entranceX, y: grayPortals.entranceY },
           { x: grayPortals.exitX, y: grayPortals.exitY },
@@ -3008,7 +3097,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const radiusY = GRAY.portalTriggerRadius * scaleY;
           ctx.save();
           ctx.fillStyle = "rgba(28, 28, 34, 0.72)";
-          ctx.strokeStyle = grayPortals.cooldownSeconds > 0 ? "rgba(180, 180, 190, 0.55)" : "rgba(255, 224, 92, 0.95)";
+          ctx.strokeStyle = grayPortals.phase === "cooldown" || grayPortals.phase === "dormant"
+            ? "rgba(180, 180, 190, 0.55)"
+            : "rgba(255, 224, 92, 0.95)";
           ctx.lineWidth = Math.max(3, tiles(0.1) * scale);
           ctx.beginPath();
           ctx.ellipse(x, y, radiusX, radiusY, 0, 0, Math.PI * 2);
@@ -3173,6 +3264,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           reloadProgress,
           continuousReload: isPierceMode && ammo === 0,
         } : undefined,
+        timedStatus: isMinaMode && minaComboRemainingRef.current > 0 ? {
+          progress: minaComboRemainingRef.current / MINA.comboWindowSeconds,
+          color: "#f2ae4c",
+        } : undefined,
       });
 
       if (isPlayerAttackMode && aimJoystickRef.current.active) {
@@ -3188,7 +3283,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           : targetVisible
             ? Math.atan2(target.y - player.y, target.x - player.x)
             : playerMoveDirectionRef.current;
-        const activeAimRadius = isGrayMode && grayGadgetArmedRef.current ? GRAY.caneWidth / 2 : bulletRadius;
+        const activeAimRadius = isGrayMode
+          ? (grayGadgetArmedRef.current ? GRAY.caneWidth : GRAY.aimGuideWidth) / 2
+          : bulletRadius;
         let corners: { x: number; y: number }[];
         let minaThirdAimParts: MinaThirdAttackPart[] | null = null;
         if (isMinaMode) {
@@ -3583,6 +3680,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       coltTargetAmmoRef.current = 3;
       coltTargetReloadTimerRef.current = 1.3;
       coltTargetSlowRemainingRef.current = 0;
+      coltActionRef.current = null;
       Object.assign(coltGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false });
       playerAttackCooldownRef.current = 0;
       maxSuperRemainingRef.current = 0;
@@ -3592,6 +3690,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       grayGadgetCooldownShownRef.current = 0;
       grayPullRef.current = null;
       grayPortalsRef.current = null;
+      trialTargetRespawnRemainingRef.current = 0;
       superJoystickRef.current.active = false;
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
@@ -3674,6 +3773,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
   const handleAimPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (mode !== "joystick" || !isPlayerAttackMode || pausedRef.current) return;
+    if (isColtMode && (coltActionRef.current?.kind === "super" || coltActionRef.current?.kind === "gadget")) return;
     const rect = containerRef.current?.getBoundingClientRect() ?? e.currentTarget.getBoundingClientRect();
     const localX = e.clientX - rect.left;
     if (localX < rect.width / 2) return;
@@ -3725,7 +3825,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const autoAimTargetVisible = aimingTargetHealthRef.current > 0
       && target.x >= bounds.left && target.x <= bounds.right
       && target.y >= bounds.top && target.y <= bounds.bottom;
-    if (!cancelled && !pausedRef.current && !countdownActiveRef.current && magazineAmmoRef.current > 0 && playerAttackCooldownRef.current <= 0) {
+    const coltAttackBlocked = isColtMode
+      && (coltActionRef.current?.kind === "super" || coltActionRef.current?.kind === "gadget");
+    if (!cancelled && !coltAttackBlocked && !pausedRef.current && !countdownActiveRef.current && magazineAmmoRef.current > 0 && playerAttackCooldownRef.current <= 0) {
       const player = playerRef.current;
       const shotAngle = aim.exceededDeadzone
         ? Math.atan2(aim.knobY, aim.knobX)
@@ -3753,6 +3855,15 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             dy: inputRef.current.y / movementLength,
           };
         }
+      }
+      if (isColtMode) {
+        const interval = coltHyperRemainingRef.current > 0
+          ? COLT.hyperAttackBulletIntervalSeconds
+          : COLT.attackBulletIntervalSeconds;
+        coltActionRef.current = {
+          kind: "attack",
+          remainingSeconds: (COLT.attackBullets - 1) * interval,
+        };
       }
       const shotSeed = bulletIdRef.current;
       const projectileAngles = isMinaMode && minaStage === 2
@@ -3794,12 +3905,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           spawnDelay: isMaxMode
             ? index * MAX_PROJECTILE_INTERVAL_SECONDS
             : isColtMode ? coltAttackDelay(index, coltHyperRemainingRef.current > 0) : 0,
+          grayCaneOrigin: isGrayCaneShot ? { x: player.x, y: player.y } : undefined,
         });
       }
       if (isMinaMode && minaStage === 2) {
         minaWaveCastsRef.current.push({
           remainingSeconds: MINA.thirdAttackWindupSeconds,
-          angle: shotAngle,
+          aimX: player.x + Math.cos(shotAngle) * MINA.attackRange[2],
+          aimY: player.y + Math.sin(shotAngle) * MINA.attackRange[2],
           damageMultiplier: minaHyperRemainingRef.current > 0 ? MINA.hyperDamageMultiplier : 1,
         });
       }
@@ -3833,6 +3946,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
   const handleSuperPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isTrialMode || trialHeroId === "piper" || trialHeroId === "brock" || pausedRef.current || playerSuperChargeRef.current < 1) return;
+    if (isColtMode && (coltActionRef.current?.kind === "super" || coltActionRef.current?.kind === "gadget")) return;
     e.preventDefault();
     e.stopPropagation();
     const stick = superJoystickRef.current;
@@ -3882,7 +3996,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const autoAimTargetVisible = aimingTargetHealthRef.current > 0
       && target.x >= bounds.left && target.x <= bounds.right
       && target.y >= bounds.top && target.y <= bounds.bottom;
-    if (!cancelled && !pausedRef.current && !countdownActiveRef.current && playerSuperChargeRef.current >= 1) {
+    const coltSuperBlocked = isColtMode
+      && (coltActionRef.current?.kind === "super" || coltActionRef.current?.kind === "gadget");
+    if (!cancelled && !coltSuperBlocked && !pausedRef.current && !countdownActiveRef.current && playerSuperChargeRef.current >= 1) {
       const player = playerRef.current;
       const angle = stick.exceededDeadzone
         ? Math.atan2(stick.knobY, stick.knobX)
@@ -3985,18 +4101,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           entranceY: originalY,
           exitX,
           exitY,
-          cooldownSeconds: GRAY.portalPostUseCooldownSeconds,
-          activationSeconds: 0,
+          phase: "cooldown",
+          phaseRemainingSeconds: GRAY.portalPostUseCooldownSeconds,
+          chargingSide: null,
+          playerWasInside: true,
+          usedPlayerIds: new Set(["player"]),
         };
-        if (grayPullRef.current?.active) {
-          grayPullRef.current.destinationX = originalX;
-          grayPullRef.current.destinationY = originalY;
-          grayPullRef.current.remainingDistance = Math.hypot(
-            aimingTargetRef.current.x - originalX,
-            aimingTargetRef.current.y - originalY,
-          );
-          grayPullRef.current.breakWalls = false;
-        }
         player.x = exitX;
         player.y = exitY;
       } else if (trialHeroId === "mina") {
@@ -4023,6 +4133,13 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           });
         }
       } else if (trialHeroId === "colt") {
+        bulletsRef.current = bulletsRef.current.filter((bullet) => !(
+          bullet.texture === "coltAttack" && (bullet.spawnDelay ?? 0) > 0
+        ));
+        coltActionRef.current = {
+          kind: "super",
+          remainingSeconds: (COLT.superBullets - 1) * COLT.superBulletIntervalSeconds,
+        };
         const hypercharged = coltHyperRemainingRef.current > 0;
         for (let index = 0; index < COLT.superBullets; index++) {
           bulletsRef.current.push({
@@ -4063,7 +4180,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   };
 
   const fireColtSpeedloader = (aimAngle?: number) => {
-    if (!isColtMode || pausedRef.current || countdownActiveRef.current || coltGadgetCooldownRef.current > 0) return;
+    if (!isColtMode || pausedRef.current || countdownActiveRef.current
+      || coltGadgetCooldownRef.current > 0
+      || (coltActionRef.current && coltActionRef.current.kind !== "gadget")) return;
     const player = playerRef.current;
     const target = aimingTargetRef.current;
     const bounds = visibleWorldBoundsRef.current;
@@ -4090,16 +4209,22 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       });
     }
     coltGadgetCooldownRef.current = COLT.speedloaderCooldownSeconds;
+    coltActionRef.current = {
+      kind: "gadget",
+      remainingSeconds: (COLT.speedloaderBullets - 1) * COLT.attackBulletIntervalSeconds,
+    };
     coltGadgetCooldownShownRef.current = COLT.speedloaderCooldownSeconds;
     setColtGadgetCooldownDisplay(COLT.speedloaderCooldownSeconds);
     forceUpdate((value) => value + 1);
   };
 
   const handleColtGadgetPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!isColtMode || pausedRef.current || countdownActiveRef.current || coltGadgetCooldownRef.current > 0) return;
+    if (!isColtMode || pausedRef.current || countdownActiveRef.current
+      || coltGadgetCooldownRef.current > 0 || coltActionRef.current) return;
     event.preventDefault();
     event.stopPropagation();
     const aim = coltGadgetAimRef.current;
+    coltActionRef.current = { kind: "gadget", remainingSeconds: Number.POSITIVE_INFINITY };
     aim.active = true;
     aim.touchId = event.pointerId;
     aim.startX = event.clientX;
@@ -4135,6 +4260,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     aim.dy = 0;
     aim.dragged = false;
     if (!cancelled) fireColtSpeedloader(angle);
+    else coltActionRef.current = null;
     forceUpdate((value) => value + 1);
   };
 
@@ -4650,7 +4776,6 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               } as React.CSSProperties}
               aria-hidden="true"
             />
-            {minaAttackStageRef.current + 1}
           </button>
           <button
             type="button"

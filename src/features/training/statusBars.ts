@@ -7,9 +7,10 @@ export const HEALTH_COLORS: Record<UnitRelation, string> = {
 };
 
 type AmmoStatus = { current: number; capacity: number; reloadProgress: number; continuousReload?: boolean };
+type TimedStatus = { progress: number; color?: string };
 type StatusBarsOptions = {
   centerX: number; centerY: number; radiusY: number; width: number;
-  health: number; maxHealth: number; relation: UnitRelation; ammo?: AmmoStatus;
+  health: number; maxHealth: number; relation: UnitRelation; ammo?: AmmoStatus; timedStatus?: TimedStatus;
 };
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
@@ -31,7 +32,11 @@ export function drawUnitStatusBars(ctx: CanvasRenderingContext2D, options: Statu
   const healthHeight = 13;
   const modelTop = options.centerY - options.radiusY;
   const ammoTop = modelTop - ammoHeight - 5;
-  const healthTop = options.ammo ? ammoTop - healthHeight - 4 : modelTop - healthHeight - 5;
+  const timedStatusHeight = 7;
+  const timedStatusTop = ammoTop - timedStatusHeight - 4;
+  const healthTop = options.timedStatus
+    ? timedStatusTop - healthHeight - 4
+    : options.ammo ? ammoTop - healthHeight - 4 : modelTop - healthHeight - 5;
   const healthRatio = Math.max(0, Math.min(1, options.health / Math.max(1, options.maxHealth)));
 
   ctx.save();
@@ -58,6 +63,25 @@ export function drawUnitStatusBars(ctx: CanvasRenderingContext2D, options: Statu
   ctx.strokeText(healthText, options.centerX, healthTop + healthHeight / 2);
   ctx.fillStyle = "#ffffff";
   ctx.fillText(healthText, options.centerX, healthTop + healthHeight / 2);
+
+  if (options.timedStatus) {
+    const progress = Math.max(0, Math.min(1, options.timedStatus.progress));
+    roundedRect(ctx, left - 2, timedStatusTop - 2, width + 4, timedStatusHeight + 4, 4);
+    ctx.fillStyle = "rgba(30, 22, 17, 0.94)";
+    ctx.fill();
+    roundedRect(ctx, left, timedStatusTop, width, timedStatusHeight, 2);
+    ctx.fillStyle = "rgba(77, 54, 34, 0.72)";
+    ctx.fill();
+    if (progress > 0) {
+      roundedRect(ctx, left, timedStatusTop, width * progress, timedStatusHeight, 2);
+      ctx.fillStyle = options.timedStatus.color ?? "#f3b451";
+      ctx.fill();
+    }
+    roundedRect(ctx, left, timedStatusTop, width, timedStatusHeight, 2);
+    ctx.strokeStyle = "rgba(43, 24, 16, 0.98)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
   if (options.ammo) {
     const capacity = Math.max(1, options.ammo.capacity);

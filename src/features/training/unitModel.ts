@@ -2,6 +2,7 @@ import { drawGroundRing, type GroundRingOptions, type GroundRingTeam } from "./g
 import { drawUnitStatusBars, type UnitRelation } from "./statusBars";
 
 type AmmoStatus = { current: number; capacity: number; reloadProgress: number; continuousReload?: boolean };
+type TimedStatus = { progress: number; color?: string };
 
 export type TrainingUnitModelOptions = {
   centerX: number;
@@ -14,6 +15,7 @@ export type TrainingUnitModelOptions = {
   team: GroundRingTeam;
   relation: UnitRelation;
   ammo?: AmmoStatus;
+  timedStatus?: TimedStatus;
   equipment?: GroundRingOptions;
   afterGroundRing?: () => void;
 };
@@ -31,5 +33,6 @@ export function drawTrainingUnitModel(ctx: CanvasRenderingContext2D, options: Tr
     maxHealth: options.maxHealth,
     relation: options.relation,
     ammo: options.ammo,
+    timedStatus: options.timedStatus,
   });
 }

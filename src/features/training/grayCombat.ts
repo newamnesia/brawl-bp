@@ -7,11 +7,13 @@ export const GRAY = {
   range: 2700,
   projectileSpeed: 3804,
   projectileWidth: 100,
+  aimGuideWidth: 200,
   superChargePerHit: 0.32,
   superRange: 2000,
   superCastSeconds: 0.3,
   portalTriggerRadius: 300,
   portalActivationSeconds: 1,
+  portalActiveSeconds: 1,
   portalPostUseCooldownSeconds: 4,
   gadgetCooldownSeconds: 23,
   caneWidth: 400,
@@ -22,6 +24,10 @@ export const GRAY = {
 
 export type GrayPull = {
   active: boolean;
+  phase: "hard" | "residual";
+  attackOriginX: number;
+  attackOriginY: number;
+  sourceMovedAfterHit: boolean;
   destinationX: number;
   destinationY: number;
   remainingDistance: number;
@@ -33,8 +39,11 @@ export type GrayPortalPair = {
   entranceY: number;
   exitX: number;
   exitY: number;
-  cooldownSeconds: number;
-  activationSeconds: number;
+  phase: "cooldown" | "dormant" | "charging" | "primed" | "active";
+  phaseRemainingSeconds: number;
+  chargingSide: "entrance" | "exit" | null;
+  playerWasInside: boolean;
+  usedPlayerIds: Set<string>;
 };
 
 export function advanceGrayPull(
