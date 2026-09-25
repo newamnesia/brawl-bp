@@ -4662,7 +4662,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             touchAction: "none",
           }}
         >
-          {grayGadgetArmedRef.current ? "✓" : grayGadgetCooldownDisplay > 0 ? Math.ceil(grayGadgetCooldownDisplay) : "🦯"}
+          {grayGadgetCooldownDisplay > 0 ? Math.ceil(grayGadgetCooldownDisplay) : null}
         </button>
       )}
 
