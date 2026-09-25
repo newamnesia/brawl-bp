@@ -13,6 +13,7 @@ export const GRAY = {
   superCastSeconds: 0.3,
   portalTriggerRadius: 300,
   portalActivationSeconds: 1,
+  portalEntryDelaySeconds: 1,
   portalActiveSeconds: 1,
   portalPostUseCooldownSeconds: 4,
   gadgetCooldownSeconds: 23,
@@ -39,7 +40,7 @@ export type GrayPortalPair = {
   entranceY: number;
   exitX: number;
   exitY: number;
-  phase: "cooldown" | "dormant" | "charging" | "primed" | "active";
+  phase: "cooldown" | "dormant" | "charging" | "arming" | "primed" | "active";
   phaseRemainingSeconds: number;
   chargingSide: "entrance" | "exit" | null;
   playerWasInside: boolean;

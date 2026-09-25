@@ -1883,9 +1883,24 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             } else {
               grayPortals.phaseRemainingSeconds = Math.max(0, grayPortals.phaseRemainingSeconds - dt);
               if (grayPortals.phaseRemainingSeconds === 0) {
-                grayPortals.phase = "primed";
-                grayPortals.chargingSide = null;
+                grayPortals.phase = "arming";
+                grayPortals.phaseRemainingSeconds = GRAY.portalEntryDelaySeconds;
               }
+            }
+          } else if (grayPortals.phase === "arming") {
+            grayPortals.phaseRemainingSeconds = Math.max(0, grayPortals.phaseRemainingSeconds - dt);
+            if (grayPortals.phaseRemainingSeconds === 0) {
+              if (inside) {
+                player.x = atEntrance ? grayPortals.exitX : grayPortals.entranceX;
+                player.y = atEntrance ? grayPortals.exitY : grayPortals.entranceY;
+                grayPortals.usedPlayerIds.add("player");
+                grayPortals.phase = "active";
+                grayPortals.phaseRemainingSeconds = GRAY.portalActiveSeconds;
+              } else {
+                grayPortals.phase = "primed";
+                grayPortals.phaseRemainingSeconds = 0;
+              }
+              grayPortals.chargingSide = null;
             }
           } else if (grayPortals.phase === "primed" && entered) {
             player.x = atEntrance ? grayPortals.exitX : grayPortals.entranceX;
@@ -3086,6 +3101,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           ? 1 - grayPortals.phaseRemainingSeconds / GRAY.portalPostUseCooldownSeconds
           : grayPortals.phase === "charging"
             ? 1 - grayPortals.phaseRemainingSeconds / GRAY.portalActivationSeconds
+            : grayPortals.phase === "arming"
+              ? 1 - grayPortals.phaseRemainingSeconds / GRAY.portalEntryDelaySeconds
             : grayPortals.phase === "primed" || grayPortals.phase === "active" ? 1 : 0;
         for (const portal of [
           { x: grayPortals.entranceX, y: grayPortals.entranceY },
