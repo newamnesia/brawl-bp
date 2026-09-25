@@ -26,9 +26,13 @@ export const MINA = {
   hyperSuperBounceDistanceBonus: 1000,
   superPullDistance: 360,
   hyperSuperPullDistance: 1500,
+  // Pushback type 4 keeps the target airborne while covering the configured pull
+  // strength. Both variants take 1 second at their full pull distance.
+  superPullSpeed: 360,
+  hyperSuperPullSpeed: 1500,
   superCharge: 0.25,
   superHyperCharge: 0.075,
-  airborneSeconds: 0.9,
+  airborneMaxSeconds: 1,
   hyperHurricaneCount: 3,
   hyperSpreadDegrees: 56.7,
   hyperDurationSeconds: 5,

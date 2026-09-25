@@ -12,7 +12,7 @@ import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/charac
 import { GENE, advanceGenePull, destroyWallsAlongGenePull, geneSplitAngles, geneSuperAngles } from "../features/training/geneCombat";
 import { GRAY, advanceGrayPull, destroyWallsAlongGrayPull, type GrayPortalPair, type GrayPull } from "../features/training/grayCombat";
 import { COLT, COLT_LOADOUT, coltAttackDelay, coltMoveSpeed, destroyWallsAlongColtBullet } from "../features/training/coltCombat";
-import { MINA, MINA_LOADOUT, minaHyperSuperAngles, minaNextAttackStage, minaThirdAttackHitsTarget, minaThirdAttackParts, type MinaAttackStage, type MinaThirdAttackPart } from "../features/training/minaCombat";
+import { MINA, MINA_LOADOUT, minaHyperSuperAngles, minaNextAttackStage, minaThirdAttackParts, type MinaAttackStage, type MinaThirdAttackPart } from "../features/training/minaCombat";
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
 import {
   SPIKE,
@@ -169,6 +169,7 @@ const BULLET_STYLES = {
   coltGadget: { color: "#66f0a3", lengthScale: 1.6 },
   minaSandal: { color: "#ffdd67", lengthScale: 1.55 },
   minaTambourine: { color: "#69e1a5", lengthScale: 1.45 },
+  minaWind: { color: "#7cf0c3", lengthScale: 1.2 },
   minaSuper: { color: "#8eeeff", lengthScale: 1.8 },
   spikeBomb: { color: "#80d83f", lengthScale: 1.15 },
   spikeShard: { color: "#b8ee5a", lengthScale: 1.5 },
@@ -212,6 +213,7 @@ function projectileDamage(texture: keyof typeof BULLET_STYLES, traveled: number)
   if (texture === "coltGadget") return COLT.speedloaderDamage;
   if (texture === "minaSandal") return MINA.attackDamage[0];
   if (texture === "minaTambourine") return MINA.attackDamage[1];
+  if (texture === "minaWind") return MINA.attackDamage[2];
   if (texture === "minaSuper") return MINA.superDamage;
   if (texture === "spikeBomb" || texture === "spikeShard") return SPIKE.attackDamage;
   return PIPER_MIN_DAMAGE
@@ -241,6 +243,7 @@ type Bullet = {
   breaksWalls?: boolean;
   appliesSlowSeconds?: number;
   minaSuper?: { hypercharged: boolean; pullOriginX: number; pullOriginY: number };
+  minaThirdAttackCastId?: number;
   bouncesRemaining?: number;
   grayCaneOrigin?: { x: number; y: number };
   spikeBomb?: { hypercharged: boolean; trajectoryHintId?: number };
@@ -261,9 +264,14 @@ type PierceSuperCast = {
   remainingSeconds: number;
   lockedTargetIds: string[];
 };
-type MinaWaveCast = { remainingSeconds: number; aimX: number; aimY: number; damageMultiplier: number };
-type MinaWaveEffect = { x: number; y: number; parts: MinaThirdAttackPart[]; remainingSeconds: number };
+type MinaWaveCast = { id: number; remainingSeconds: number; aimX: number; aimY: number; damageMultiplier: number };
 type MinaDash = { remainingDistance: number; dx: number; dy: number };
+type MinaAirbornePull = {
+  remainingDistance: number;
+  dx: number;
+  dy: number;
+  speed: number;
+};
 type ColtAction = { kind: "attack" | "super" | "gadget"; remainingSeconds: number };
 type BrockFire = { x: number; y: number; remainingSeconds: number; timeToNextTick: number };
 type SpikeSuperArea = { x: number; y: number; radius: number; remainingSeconds: number; nextTickSeconds: number; damageMultiplier: number };
@@ -1279,7 +1287,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const minaComboRemainingRef = useRef(0);
   const minaDashRef = useRef<MinaDash | null>(null);
   const minaWaveCastsRef = useRef<MinaWaveCast[]>([]);
-  const minaWaveEffectsRef = useRef<MinaWaveEffect[]>([]);
+  const minaThirdAttackHitCastsRef = useRef(new Set<number>());
   const minaHyperChargeRef = useRef(0);
   const minaHyperRemainingRef = useRef(0);
   const minaHyperDurationRingRef = useRef<HTMLSpanElement>(null);
@@ -1289,6 +1297,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const minaGadgetCooldownRef = useRef(0);
   const minaGadgetCooldownShownRef = useRef(0);
   const minaTargetAirborneRef = useRef(0);
+  const minaTargetAirbornePullRef = useRef<MinaAirbornePull | null>(null);
   const minaTargetRootRef = useRef(0);
   const spikeHyperChargeRef = useRef(0);
   const spikeHyperRemainingRef = useRef(0);
@@ -1515,7 +1524,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     minaComboRemainingRef.current = 0;
     minaDashRef.current = null;
     minaWaveCastsRef.current = [];
-    minaWaveEffectsRef.current = [];
+    minaThirdAttackHitCastsRef.current.clear();
     minaHyperChargeRef.current = 0;
     minaHyperRemainingRef.current = 0;
     minaWindmillRef.current = null;
@@ -1524,6 +1533,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     minaGadgetCooldownRef.current = 0;
     minaGadgetCooldownShownRef.current = 0;
     minaTargetAirborneRef.current = 0;
+    minaTargetAirbornePullRef.current = null;
     minaTargetRootRef.current = 0;
     spikeHyperChargeRef.current = 0;
     spikeHyperRemainingRef.current = 0;
@@ -1834,6 +1844,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         byronPoisons.length = 0;
         grayPullRef.current = null;
         minaTargetAirborneRef.current = 0;
+        minaTargetAirbornePullRef.current = null;
         minaTargetRootRef.current = 0;
         refreshCombatUi();
       } else if (isAimingMode && !isAimingInfinite && aimingTargetHealthRef.current <= 0) {
@@ -2046,7 +2057,20 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           minaWindmillRef.current.remainingSeconds -= dt;
           if (minaWindmillRef.current.remainingSeconds <= 0) minaWindmillRef.current = null;
         }
-        minaTargetAirborneRef.current = Math.max(0, minaTargetAirborneRef.current - dt);
+        const airbornePull = minaTargetAirbornePullRef.current;
+        if (airbornePull && minaTargetAirborneRef.current > 0) {
+          const pullStep = Math.min(airbornePull.remainingDistance, airbornePull.speed * dt);
+          aimingTargetRef.current.x += airbornePull.dx * pullStep;
+          aimingTargetRef.current.y += airbornePull.dy * pullStep;
+          airbornePull.remainingDistance -= pullStep;
+          minaTargetAirborneRef.current = Math.max(0, minaTargetAirborneRef.current - dt);
+          if (airbornePull.remainingDistance <= 0.001 || minaTargetAirborneRef.current <= 0) {
+            minaTargetAirbornePullRef.current = null;
+            minaTargetAirborneRef.current = 0;
+          }
+        } else {
+          minaTargetAirborneRef.current = Math.max(0, minaTargetAirborneRef.current - dt);
+        }
         minaTargetRootRef.current = Math.max(0, minaTargetRootRef.current - dt);
         if (minaHyperRemainingRef.current > 0) {
           minaHyperRemainingRef.current = Math.max(0, minaHyperRemainingRef.current - dt);
@@ -2100,32 +2124,24 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const origin = playerRef.current;
           const angle = Math.atan2(cast.aimY - origin.y, cast.aimX - origin.x);
           const parts = minaThirdAttackParts(origin, angle, wallTiles, TILE_SIZE);
-          minaWaveEffectsRef.current.push({
-            x: origin.x,
-            y: origin.y,
-            parts,
-            remainingSeconds: 0.2,
-          });
-          const target = aimingTargetRef.current;
-          if (minaTargetAirborneRef.current <= 0 && minaThirdAttackHitsTarget(origin, parts, target, ENEMY_RADIUS)) {
-            const damage = MINA.attackDamage[2] * cast.damageMultiplier;
-            hitCountRef.current += 1;
-            combatUiDirty = true;
-            damageTrialTarget(damage, MINA.attackSuperCharge[2]);
-            if (minaHyperRemainingRef.current <= 0) {
-              minaHyperChargeRef.current = Math.min(1, minaHyperChargeRef.current + MINA.attackHyperCharge[2]);
-            }
-            if (MINA_LOADOUT.starPower === "zumZumZum") {
-              healthRef.current = Math.min(playerMaxHealth, healthRef.current + damage * MINA.zumZumZumHealingRatio);
-              setHealth(Math.round(healthRef.current));
-            }
-            spawnHitParticles(target.x, target.y);
+          for (const part of parts) {
+            bulletsRef.current.push({
+              x: origin.x,
+              y: origin.y,
+              vx: Math.cos(part.angle) * MINA.projectileSpeed,
+              vy: Math.sin(part.angle) * MINA.projectileSpeed,
+              traveled: 0,
+              id: bulletIdRef.current++,
+              radius: MINA.thirdAttackProjectileRadius,
+              texture: "minaWind",
+              owner: "player",
+              maxDistance: part.length,
+              damageMultiplier: cast.damageMultiplier,
+              piercesTarget: true,
+              minaThirdAttackCastId: cast.id,
+            });
           }
           minaWaveCastsRef.current.splice(index, 1);
-        }
-        for (let index = minaWaveEffectsRef.current.length - 1; index >= 0; index--) {
-          minaWaveEffectsRef.current[index].remainingSeconds -= dt;
-          if (minaWaveEffectsRef.current[index].remainingSeconds <= 0) minaWaveEffectsRef.current.splice(index, 1);
         }
         if (isBeaMode && !isAimingMode) {
           superSlowRemainingMs = Math.max(0, superSlowRemainingMs - dtMs);
@@ -2832,82 +2848,76 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           spikeDodgeFireSeconds -= dt;
           if (spikeDodgeFireSeconds <= 0) {
             const spike = aimingTargetRef.current;
-            const targetDistance = Math.hypot(player.x - spike.x, player.y - spike.y);
-            if (targetDistance <= SPIKE.attackRange) {
-              const prediction = predictSpikeDodgeTarget(
-                player.x,
-                player.y,
-                velX,
-                velY,
-                spike.x,
-                spike.y,
+            const prediction = predictSpikeDodgeTarget(
+              player.x,
+              player.y,
+              velX,
+              velY,
+              spike.x,
+              spike.y,
+            );
+
+            const upperLandings = spikeDodgeLandingSides.filter((side) => side < 0).length;
+            const lowerLandings = spikeDodgeLandingSides.length - upperLandings;
+            const naturalSide: -1 | 1 = prediction.predictedY < SPIKE_DODGE_CENTER_Y ? -1 : 1;
+            const overrepresentedSide: -1 | 0 | 1 = upperLandings - lowerLandings >= SPIKE_DODGE_LANDING_IMBALANCE
+              ? -1
+              : lowerLandings - upperLandings >= SPIKE_DODGE_LANDING_IMBALANCE ? 1 : 0;
+            let aimX = prediction.predictedX;
+            let aimY = prediction.predictedY;
+            if (overrepresentedSide !== 0 && naturalSide === overrepresentedSide) {
+              const desiredSide = -overrepresentedSide;
+              const originalOffset = Math.abs(prediction.predictedY - SPIKE_DODGE_CENTER_Y);
+              const correctedOffset = Math.max(tiles(0.75), Math.min(
+                SPIKE_DODGE_PLAYER_RADIUS * 0.88,
+                originalOffset,
+              ));
+              aimY = SPIKE_DODGE_CENTER_Y + desiredSide * correctedOffset;
+              const availableHalfWidth = Math.sqrt(Math.max(
+                0,
+                SPIKE_DODGE_PLAYER_RADIUS ** 2 - correctedOffset ** 2,
+              ));
+              aimX = Math.max(
+                SPIKE_DODGE_CENTER_X - availableHalfWidth,
+                Math.min(SPIKE_DODGE_CENTER_X + availableHalfWidth, aimX),
               );
-
-              const upperLandings = spikeDodgeLandingSides.filter((side) => side < 0).length;
-              const lowerLandings = spikeDodgeLandingSides.length - upperLandings;
-              const naturalSide: -1 | 1 = prediction.predictedY < SPIKE_DODGE_CENTER_Y ? -1 : 1;
-              const overrepresentedSide: -1 | 0 | 1 = upperLandings - lowerLandings >= SPIKE_DODGE_LANDING_IMBALANCE
-                ? -1
-                : lowerLandings - upperLandings >= SPIKE_DODGE_LANDING_IMBALANCE ? 1 : 0;
-              let aimX = prediction.predictedX;
-              let aimY = prediction.predictedY;
-              if (overrepresentedSide !== 0 && naturalSide === overrepresentedSide) {
-                const desiredSide = -overrepresentedSide;
-                const originalOffset = Math.abs(prediction.predictedY - SPIKE_DODGE_CENTER_Y);
-                const correctedOffset = Math.max(tiles(0.75), Math.min(
-                  SPIKE_DODGE_PLAYER_RADIUS * 0.88,
-                  originalOffset,
-                ));
-                aimY = SPIKE_DODGE_CENTER_Y + desiredSide * correctedOffset;
-                const availableHalfWidth = Math.sqrt(Math.max(
-                  0,
-                  SPIKE_DODGE_PLAYER_RADIUS ** 2 - correctedOffset ** 2,
-                ));
-                aimX = Math.max(
-                  SPIKE_DODGE_CENTER_X - availableHalfWidth,
-                  Math.min(SPIKE_DODGE_CENTER_X + availableHalfWidth, aimX),
-                );
-              }
-              const landingSide: -1 | 1 = aimY < SPIKE_DODGE_CENTER_Y ? -1 : 1;
-              spikeDodgeLandingSides.push(landingSide);
-              if (spikeDodgeLandingSides.length > SPIKE_DODGE_LANDING_HISTORY_SIZE) {
-                spikeDodgeLandingSides.shift();
-              }
-
-              const angle = Math.atan2(aimY - spike.y, aimX - spike.x);
-              const bombId = bulletIdRef.current++;
-              const trajectoryHintMode = spikeTrajectoryHintModeRef.current;
-              if (trajectoryHintMode !== "off") {
-                spikeTrajectoryHints.push({
-                  id: bombId,
-                  mode: trajectoryHintMode,
-                  x: spike.x + Math.cos(angle) * SPIKE.attackRange,
-                  y: spike.y + Math.sin(angle) * SPIKE.attackRange,
-                  phase: "bomb",
-                });
-              }
-              bulletsRef.current.push({
-                x: spike.x,
-                y: spike.y,
-                vx: Math.cos(angle) * SPIKE.attackProjectileSpeed,
-                vy: Math.sin(angle) * SPIKE.attackProjectileSpeed,
-                traveled: 0,
-                id: bombId,
-                radius: SPIKE.attackWidth / 2,
-                texture: "spikeBomb",
-                owner: "enemy",
-                maxDistance: SPIKE.attackRange,
-                spikeBomb: {
-                  hypercharged: false,
-                  trajectoryHintId: trajectoryHintMode === "off" ? undefined : bombId,
-                },
-              });
-              enemyDirectionRef.current = angle;
-              spikeDodgeFireSeconds = nextSpikeDodgeFireInterval();
-            } else {
-              // 离开射程时保持待发状态，重新进入射程后立即按当前轨迹预判。
-              spikeDodgeFireSeconds = 0;
             }
+            const landingSide: -1 | 1 = aimY < SPIKE_DODGE_CENTER_Y ? -1 : 1;
+            spikeDodgeLandingSides.push(landingSide);
+            if (spikeDodgeLandingSides.length > SPIKE_DODGE_LANDING_HISTORY_SIZE) {
+              spikeDodgeLandingSides.shift();
+            }
+
+            const angle = Math.atan2(aimY - spike.y, aimX - spike.x);
+            const bombId = bulletIdRef.current++;
+            const trajectoryHintMode = spikeTrajectoryHintModeRef.current;
+            if (trajectoryHintMode !== "off") {
+              spikeTrajectoryHints.push({
+                id: bombId,
+                mode: trajectoryHintMode,
+                x: spike.x + Math.cos(angle) * SPIKE.attackRange,
+                y: spike.y + Math.sin(angle) * SPIKE.attackRange,
+                phase: "bomb",
+              });
+            }
+            bulletsRef.current.push({
+              x: spike.x,
+              y: spike.y,
+              vx: Math.cos(angle) * SPIKE.attackProjectileSpeed,
+              vy: Math.sin(angle) * SPIKE.attackProjectileSpeed,
+              traveled: 0,
+              id: bombId,
+              radius: SPIKE.attackWidth / 2,
+              texture: "spikeBomb",
+              owner: "enemy",
+              maxDistance: SPIKE.attackRange,
+              spikeBomb: {
+                hypercharged: false,
+                trajectoryHintId: trajectoryHintMode === "off" ? undefined : bombId,
+              },
+            });
+            enemyDirectionRef.current = angle;
+            spikeDodgeFireSeconds = nextSpikeDodgeFireInterval();
           }
         }
 
@@ -3229,7 +3239,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const ddy = collisionTarget.y - closestY;
           const rSum = (b.owner === "player" ? ENEMY_RADIUS : PLAYER_RADIUS) + b.radius;
           const rSum2 = rSum * rSum;
-          if (!b.hitTarget && (b.ignoreTargetSeconds ?? 0) <= 0 && ddx * ddx + ddy * ddy <= rSum2) {
+          const targetCanBeHit = !(b.owner === "player" && isMinaMode && minaTargetAirborneRef.current > 0);
+          if (targetCanBeHit && !b.hitTarget && (b.ignoreTargetSeconds ?? 0) <= 0 && ddx * ddx + ddy * ddy <= rSum2) {
             if (b.piercesTarget) b.hitTarget = true;
             else {
               bullets.splice(i, 1);
@@ -3248,7 +3259,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               continue;
             }
             if (b.owner === "player") {
-              if (isMinaMode && minaTargetAirborneRef.current > 0) continue;
+              if (b.minaThirdAttackCastId !== undefined) {
+                if (minaThirdAttackHitCastsRef.current.has(b.minaThirdAttackCastId)) continue;
+                minaThirdAttackHitCastsRef.current.add(b.minaThirdAttackCastId);
+              }
               if (isAimingMode) recordAiShotOutcome(true);
               spawnHitParticles(collisionTarget.x, collisionTarget.y);
               hitCountRef.current += 1;
@@ -3281,6 +3295,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   : b.texture === "coltSuper" ? COLT.superSuperCharge
                   : b.texture === "minaSandal" ? MINA.attackSuperCharge[0]
                   : b.texture === "minaTambourine" ? MINA.attackSuperCharge[1]
+                  : b.texture === "minaWind" ? MINA.attackSuperCharge[2]
                   : b.texture === "minaSuper" ? MINA.superCharge
                   : b.texture === "spikeShard" ? SPIKE.attackSuperCharge
                   : 0;
@@ -3316,24 +3331,42 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 if (isMinaMode && minaHyperRemainingRef.current <= 0 && minaHyperChargeRef.current < 1) {
                   const gain = b.texture === "minaSandal" ? MINA.attackHyperCharge[0]
                     : b.texture === "minaTambourine" ? MINA.attackHyperCharge[1]
+                    : b.texture === "minaWind" ? MINA.attackHyperCharge[2]
                     : b.texture === "minaSuper" ? MINA.superHyperCharge : 0;
                   minaHyperChargeRef.current = Math.min(1, minaHyperChargeRef.current + gain);
                 }
-                if (isMinaMode && b.texture === "minaSuper" && b.minaSuper) {
+                if (b.texture === "minaWind" && MINA_LOADOUT.starPower === "zumZumZum") {
+                  healthRef.current = Math.min(playerMaxHealth, healthRef.current + damage * MINA.zumZumZumHealingRatio);
+                  setHealth(Math.round(healthRef.current));
+                }
+                if (isMinaMode && b.texture === "minaSuper" && b.minaSuper
+                  && aimingTargetHealthRef.current > 0) {
                   const target = aimingTargetRef.current;
                   const pullDistance = b.minaSuper.hypercharged
                     ? MINA.hyperSuperPullDistance
                     : MINA.superPullDistance;
+                  const pullSpeed = b.minaSuper.hypercharged
+                    ? MINA.hyperSuperPullSpeed
+                    : MINA.superPullSpeed;
                   const toOriginX = b.minaSuper.pullOriginX - target.x;
                   const toOriginY = b.minaSuper.pullOriginY - target.y;
                   const originDistance = Math.hypot(toOriginX, toOriginY);
                   let pullTravel = 0;
                   if (originDistance > 0.001) {
                     pullTravel = Math.min(pullDistance, originDistance);
-                    target.x += toOriginX / originDistance * pullTravel;
-                    target.y += toOriginY / originDistance * pullTravel;
+                    minaTargetAirbornePullRef.current = {
+                      remainingDistance: pullTravel,
+                      dx: toOriginX / originDistance,
+                      dy: toOriginY / originDistance,
+                      speed: pullSpeed,
+                    };
                   }
-                  if (pullTravel > 0.001) minaTargetAirborneRef.current = MINA.airborneSeconds;
+                  if (pullTravel > 0.001) {
+                    minaTargetAirborneRef.current = Math.min(
+                      MINA.airborneMaxSeconds,
+                      pullTravel / pullSpeed,
+                    );
+                  }
                   if (MINA_LOADOUT.starPower === "blownAway") {
                     minaTargetRootRef.current = Math.max(minaTargetRootRef.current, MINA.blownAwayRootSeconds);
                   }
@@ -3451,6 +3484,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             bullets.splice(i, 1);
             profileBulletRemoved(prof, b.id);
             aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
+          }
+        }
+
+        for (const castId of minaThirdAttackHitCastsRef.current) {
+          if (!bullets.some((bullet) => bullet.minaThirdAttackCastId === castId)) {
+            minaThirdAttackHitCastsRef.current.delete(castId);
           }
         }
 
@@ -3903,22 +3942,6 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ctx.restore();
       }
 
-      for (const wave of minaWaveEffectsRef.current) {
-        ctx.save();
-        ctx.strokeStyle = `rgba(104, 239, 190, ${Math.min(0.5, wave.remainingSeconds * 2.5)})`;
-        ctx.lineWidth = MINA.thirdAttackProjectileRadius * 2 * scale * widthFactorAt(wave.y);
-        ctx.lineCap = "round";
-        for (const part of wave.parts) {
-          const x = wave.x + Math.cos(part.angle) * part.length;
-          const y = wave.y + Math.sin(part.angle) * part.length;
-          ctx.beginPath();
-          ctx.moveTo(projectX(wave.x, wave.y), projectY(wave.y));
-          ctx.lineTo(projectX(x, y), projectY(y));
-          ctx.stroke();
-        }
-        ctx.restore();
-      }
-
       if (pierceSuperCastsRef.current.some((cast) => cast.phase === "locked" && cast.lockedTargetIds.includes("trainingTarget"))) {
         ctx.save();
         ctx.translate(enemyCenterPx, enemyCenterPy);
@@ -4290,8 +4313,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             ctx.ellipse(
               projectX(hint.x, hint.y),
               projectY(hint.y),
-              SPIKE.explosionRadius * scale * widthFactorAt(hint.y),
-              SPIKE.explosionRadius * scaleY,
+              SPIKE.attackWidth / 2 * scale * widthFactorAt(hint.y),
+              SPIKE.attackWidth / 2 * scaleY,
               0,
               0,
               Math.PI * 2,
@@ -4707,6 +4730,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       }
       if (isMinaMode && minaStage === 2) {
         minaWaveCastsRef.current.push({
+          id: bulletIdRef.current++,
           remainingSeconds: MINA.thirdAttackWindupSeconds,
           aimX: player.x + Math.cos(shotAngle) * MINA.attackRange[2],
           aimY: player.y + Math.sin(shotAngle) * MINA.attackRange[2],
