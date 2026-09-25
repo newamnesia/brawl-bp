@@ -1556,7 +1556,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           radius: SPIKE.shardWidth / 2,
           texture: "spikeShard",
           owner: "player",
-          maxDistance: SPIKE.shardRange,
+          maxDistance: SPIKE.shardBaseRange + (SPIKE_LOADOUT.buffies.starPower
+            ? SPIKE.curveballBuffieExtraRange : 0),
           damageMultiplier,
           spikeShard: {
             curveRadians: SPIKE_LOADOUT.starPower === "curveball"
