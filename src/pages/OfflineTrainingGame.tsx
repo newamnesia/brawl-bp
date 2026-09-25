@@ -20,6 +20,15 @@ import { battleCanvasDpr } from "../features/training/performance";
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming" | "spikeDodge";
 type AimingRule = "infinite" | "challenge";
+type SpikeTimeScale = 0.25 | 0.5 | 0.75 | 1;
+type SpikeTrajectoryHintMode = "off" | "impact" | "shards";
+type SpikeTrajectoryHint = {
+  id: number;
+  mode: Exclude<SpikeTrajectoryHintMode, "off">;
+  x: number;
+  y: number;
+  phase: "bomb" | "shards";
+};
 type TrainingSnapshot = {
   stickMag: number[];
   reactionMs: number[];
@@ -228,8 +237,8 @@ type Bullet = {
   minaSuper?: { hypercharged: boolean; pullOriginX: number; pullOriginY: number };
   bouncesRemaining?: number;
   grayCaneOrigin?: { x: number; y: number };
-  spikeBomb?: { hypercharged: boolean };
-  spikeShard?: { originX: number; originY: number; baseAngle: number; curveRadians: number };
+  spikeBomb?: { hypercharged: boolean; trajectoryHintId?: number };
+  spikeShard?: { originX: number; originY: number; baseAngle: number; curveRadians: number; trajectoryHintId?: number };
   spikeSuperImpact?: { x: number; y: number; hypercharged: boolean };
   spikePlantImpact?: { x: number; y: number };
 };
@@ -1101,6 +1110,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   // 暂停状态
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
+  const [spikeTimeScale, setSpikeTimeScale] = useState<SpikeTimeScale>(1);
+  const spikeTimeScaleRef = useRef<SpikeTimeScale>(1);
+  const [spikeTrajectoryHintMode, setSpikeTrajectoryHintMode] = useState<SpikeTrajectoryHintMode>("off");
+  const spikeTrajectoryHintModeRef = useRef<SpikeTrajectoryHintMode>("off");
+  const clearSpikeTrajectoryHintsRef = useRef<() => void>(() => undefined);
   const [countdown, setCountdown] = useState<number | null>(3);
   const countdownActiveRef = useRef(true);
 
@@ -1116,7 +1130,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   // 同步 paused state → ref（避免游戏循环读脏值）
   useEffect(() => {
     pausedRef.current = paused;
-    if (paused && profilerRef.current) {
+    if (paused && isSpikeDodgeMode) {
+      setPauseSnapshot(null);
+    } else if (paused && profilerRef.current) {
       // 浅拷贝引用快照（样本数组只追加，不突变，所以直接引用即可）
       const prof = profilerRef.current;
       setPauseSnapshot({
@@ -1140,10 +1156,21 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     } else if (!paused) {
       setPauseSnapshot(null);
     }
-  }, [paused]);
+  }, [paused, isSpikeDodgeMode]);
 
   const togglePause = () => {
     setPaused((v) => !v);
+  };
+
+  const selectSpikeTimeScale = (value: SpikeTimeScale) => {
+    spikeTimeScaleRef.current = value;
+    setSpikeTimeScale(value);
+  };
+
+  const selectSpikeTrajectoryHintMode = (value: SpikeTrajectoryHintMode) => {
+    spikeTrajectoryHintModeRef.current = value;
+    clearSpikeTrajectoryHintsRef.current();
+    setSpikeTrajectoryHintMode(value);
   };
 
   const endTraining = () => {
@@ -1357,6 +1384,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       * (1 + (Math.random() * 2 - 1) * SPIKE_DODGE_FIRE_INTERVAL_VARIANCE);
     let spikeDodgeFireSeconds = nextSpikeDodgeFireInterval();
     const spikeDodgeLandingSides: Array<-1 | 1> = [];
+    const spikeTrajectoryHints: SpikeTrajectoryHint[] = [];
+    clearSpikeTrajectoryHintsRef.current = () => {
+      spikeTrajectoryHints.length = 0;
+    };
     let aiDodgeTurn: { start: number; delta: number; elapsed: number; duration: number } | null = null;
     let dodgesSinceTaunt = 0;
     let tauntDodgeGoal = randomTauntDodgeGoal();
@@ -1594,7 +1625,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       damageMultiplier: number,
       scheduleSecond: boolean,
       owner: Bullet["owner"] = "player",
+      trajectoryHintId?: number,
     ) => {
+      const trajectoryHint = trajectoryHintId === undefined
+        ? undefined
+        : spikeTrajectoryHints.find((hint) => hint.id === trajectoryHintId);
+      if (trajectoryHint?.mode === "impact") {
+        spikeTrajectoryHints.splice(spikeTrajectoryHints.indexOf(trajectoryHint), 1);
+      } else if (trajectoryHint) {
+        trajectoryHint.x = x;
+        trajectoryHint.y = y;
+        trajectoryHint.phase = "shards";
+      }
       impactBursts.push({ x, y, radius: SPIKE.explosionRadius, life: 0.32, maxLife: 0.32, kind: "spike" });
       if (owner === "player") {
         const target = aimingTargetRef.current;
@@ -1628,6 +1670,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             baseAngle: angle,
             curveRadians: SPIKE_LOADOUT.starPower === "curveball"
               ? SPIKE.curveballTurnRadians : 0,
+            trajectoryHintId: trajectoryHint?.mode === "shards" ? trajectoryHint.id : undefined,
           },
           ignoreTargetSeconds: 0.08,
         });
@@ -1789,8 +1832,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const bulletEnteredVision = new Set<number>();
 
     const gameLoop = (now: number) => {
-      const dt = Math.min((now - lastTime) / 1000, 0.05); // 限制最大步长
+      const realDt = Math.min((now - lastTime) / 1000, 0.05); // 限制最大步长
       lastTime = now;
+      const dt = realDt * (isSpikeDodgeMode ? spikeTimeScaleRef.current : 1);
       const dtMs = dt * 1000;
 
       if (!pausedRef.current && countdownRemainingMs > 0) {
@@ -2796,18 +2840,32 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               }
 
               const angle = Math.atan2(aimY - spike.y, aimX - spike.x);
+              const bombId = bulletIdRef.current++;
+              const trajectoryHintMode = spikeTrajectoryHintModeRef.current;
+              if (trajectoryHintMode !== "off") {
+                spikeTrajectoryHints.push({
+                  id: bombId,
+                  mode: trajectoryHintMode,
+                  x: spike.x + Math.cos(angle) * SPIKE.attackRange,
+                  y: spike.y + Math.sin(angle) * SPIKE.attackRange,
+                  phase: "bomb",
+                });
+              }
               bulletsRef.current.push({
                 x: spike.x,
                 y: spike.y,
                 vx: Math.cos(angle) * SPIKE.attackProjectileSpeed,
                 vy: Math.sin(angle) * SPIKE.attackProjectileSpeed,
                 traveled: 0,
-                id: bulletIdRef.current++,
+                id: bombId,
                 radius: SPIKE.attackWidth / 2,
                 texture: "spikeBomb",
                 owner: "enemy",
                 maxDistance: SPIKE.attackRange,
-                spikeBomb: { hypercharged: false },
+                spikeBomb: {
+                  hypercharged: false,
+                  trajectoryHintId: trajectoryHintMode === "off" ? undefined : bombId,
+                },
               });
               enemyDirectionRef.current = angle;
               spikeDodgeFireSeconds = nextSpikeDodgeFireInterval();
@@ -3142,6 +3200,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 b.damageMultiplier ?? 1,
                 b.spikeBomb.hypercharged,
                 b.owner,
+                b.spikeBomb.trajectoryHintId,
               );
               continue;
             }
@@ -3335,6 +3394,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 b.damageMultiplier ?? 1,
                 b.spikeBomb.hypercharged,
                 b.owner,
+                b.spikeBomb.trajectoryHintId,
               );
             }
             if (isAimingMode && b.owner === "player") recordAiShotOutcome(false);
@@ -3348,6 +3408,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             bullets.splice(i, 1);
             profileBulletRemoved(prof, b.id);
             aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
+          }
+        }
+
+        for (let i = spikeTrajectoryHints.length - 1; i >= 0; i--) {
+          const hint = spikeTrajectoryHints[i];
+          if (hint.phase === "shards" && !bullets.some((bullet) =>
+            bullet.spikeShard?.trajectoryHintId === hint.id)) {
+            spikeTrajectoryHints.splice(i, 1);
           }
         }
 
@@ -4166,6 +4234,58 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         }
       }
 
+      if (isSpikeDodgeMode && spikeTrajectoryHints.length > 0) {
+        for (const hint of spikeTrajectoryHints) {
+          if (hint.mode === "impact") {
+            if (hint.phase !== "bomb") continue;
+            ctx.save();
+            ctx.fillStyle = "rgba(185, 238, 90, 0.09)";
+            ctx.strokeStyle = "rgba(205, 255, 126, 0.42)";
+            ctx.lineWidth = Math.max(1.5, tiles(0.035) * scale);
+            ctx.setLineDash([Math.max(5, tiles(0.12) * scale), Math.max(4, tiles(0.08) * scale)]);
+            ctx.beginPath();
+            ctx.ellipse(
+              projectX(hint.x, hint.y),
+              projectY(hint.y),
+              SPIKE.explosionRadius * scale * widthFactorAt(hint.y),
+              SPIKE.explosionRadius * scaleY,
+              0,
+              0,
+              Math.PI * 2,
+            );
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+            continue;
+          }
+
+          const shardRange = SPIKE.shardBaseRange + (SPIKE_LOADOUT.buffies.starPower
+            ? SPIKE.curveballBuffieExtraRange : 0);
+          const curveRadians = SPIKE_LOADOUT.starPower === "curveball"
+            ? SPIKE.curveballTurnRadians : 0;
+          ctx.save();
+          ctx.strokeStyle = "rgba(205, 255, 126, 0.3)";
+          ctx.lineWidth = Math.max(2, SPIKE.shardWidth * scaleY * 0.28);
+          ctx.lineCap = "round";
+          ctx.setLineDash([Math.max(6, tiles(0.14) * scale), Math.max(5, tiles(0.1) * scale)]);
+          for (const baseAngle of spikeShardAngles()) {
+            ctx.beginPath();
+            ctx.moveTo(projectX(hint.x, hint.y), projectY(hint.y));
+            const steps = 28;
+            for (let step = 1; step <= steps; step++) {
+              const progress = step / steps;
+              const distance = shardRange * progress;
+              const angle = baseAngle + curveRadians * progress;
+              const x = hint.x + Math.cos(angle) * distance;
+              const y = hint.y + Math.sin(angle) * distance;
+              ctx.lineTo(projectX(x, y), projectY(y));
+            }
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+
       // 贝亚普通弹、强化弹与大招均为菱形，长度按宽度的 4/3 同比缩放。
       for (const b of bulletsRef.current) {
         if ((b.spawnDelay ?? 0) > 0) continue;
@@ -4283,6 +4403,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     return () => {
       cancelAnimationFrame(animationId);
       window.removeEventListener("resize", resize);
+      clearSpikeTrajectoryHintsRef.current = () => undefined;
       bulletEnteredVision.clear();
       bulletsRef.current = [];
       playerVelocityRef.current = { x: 0, y: 0 };
@@ -5678,8 +5799,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           </div>
         </div>
       )}
-      {/* 暂停面板：显示三张分布曲线 */}
-      {paused && pauseSnapshot && (
+      {/* 暂停面板：斯派克特训仅显示辅助选项，其他训练保留数据面板。 */}
+      {paused && (isSpikeDodgeMode || pauseSnapshot) && (
         <div
           style={{
             position: "absolute",
@@ -5711,9 +5832,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
               <div>
-                <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "#ffffff" }}>{isTrialMode ? "角色试用已暂停" : "训练数据分布"}</div>
+                <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "#ffffff" }}>
+                  {isSpikeDodgeMode ? "辅助选项" : isTrialMode ? "角色试用已暂停" : "训练数据分布"}
+                </div>
                 <div style={{ fontSize: "0.8rem", color: "#8899aa", marginTop: 2 }}>
-                  点击「继续」返回战斗
+                  {isSpikeDodgeMode ? "设置会在继续训练后立即生效" : "点击「继续」返回战斗"}
                 </div>
               </div>
               <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -5736,14 +5859,75 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               </div>
             </div>
 
-            {!isTrialMode && <TrainingStatsGrid
+            {isSpikeDodgeMode ? (
+              <div style={{ display: "grid", gap: "1rem" }}>
+                <section style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 14, padding: "1rem" }}>
+                  <div style={{ color: "#fff", fontWeight: 900, marginBottom: "0.25rem" }}>时间流速</div>
+                  <div style={{ color: "#91a2b5", fontSize: "0.78rem", marginBottom: "0.75rem" }}>同时减慢人物移动、弹道、射击间隔与技能过程</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "0.55rem" }}>
+                    {([0.25, 0.5, 0.75, 1] as const).map((value) => {
+                      const active = spikeTimeScale === value;
+                      return (
+                        <button
+                          key={value}
+                          onClick={() => selectSpikeTimeScale(value)}
+                          style={{
+                            minHeight: 44,
+                            borderRadius: 10,
+                            border: active ? "1px solid rgba(105, 240, 174, 0.8)" : "1px solid rgba(255,255,255,0.12)",
+                            background: active ? "rgba(67, 160, 71, 0.28)" : "rgba(255,255,255,0.055)",
+                            color: active ? "#a7ffca" : "#d8e1eb",
+                            fontWeight: 900,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {value}×
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 14, padding: "1rem" }}>
+                  <div style={{ color: "#fff", fontWeight: 900, marginBottom: "0.25rem" }}>子弹轨迹提示</div>
+                  <div style={{ color: "#91a2b5", fontSize: "0.78rem", marginBottom: "0.75rem" }}>用于观察主弹落点或旋转刺球的六向固定轨迹</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "0.55rem" }}>
+                    {([
+                      { value: "off", label: "关闭", detail: "不显示提示" },
+                      { value: "impact", label: "主弹落点", detail: "爆裂时结束" },
+                      { value: "shards", label: "分裂弹轨迹", detail: "小刺消失时结束" },
+                    ] as const).map((option) => {
+                      const active = spikeTrajectoryHintMode === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          onClick={() => selectSpikeTrajectoryHintMode(option.value)}
+                          style={{
+                            minHeight: 62,
+                            borderRadius: 10,
+                            border: active ? "1px solid rgba(205, 255, 126, 0.78)" : "1px solid rgba(255,255,255,0.12)",
+                            background: active ? "rgba(128, 216, 63, 0.2)" : "rgba(255,255,255,0.055)",
+                            color: active ? "#d8ff9b" : "#d8e1eb",
+                            cursor: "pointer",
+                            padding: "0.55rem 0.35rem",
+                          }}
+                        >
+                          <span style={{ display: "block", fontWeight: 900 }}>{option.label}</span>
+                          <span style={{ display: "block", color: active ? "#bce77f" : "#8192a5", fontSize: "0.7rem", marginTop: 3 }}>{option.detail}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              </div>
+            ) : !isTrialMode && pauseSnapshot ? <TrainingStatsGrid
               snapshot={pauseSnapshot}
               aiming={isAimingMode}
               mode={mode}
               reactionWindowMaxMs={reactionWindowMaxMs}
               aimingMaxLeadDeg={aimingMaxLeadDeg}
               showEmptyAmmoRatio={speedTier === "high"}
-            />}
+            /> : null}
           </div>
         </div>
       )}
