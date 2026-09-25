@@ -3546,10 +3546,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         if ((b.spawnDelay ?? 0) > 0) continue;
         const bx = projectX(b.x, b.y);
         const by = projectY(b.y);
-        // 格雷普通弹的可见贴图与游戏瞄准条同宽；碰撞仍使用 b.radius（宽 100）。
-        const visualRadius = b.texture === "gray" ? GRAY.aimGuideWidth / 2 : b.radius;
-        const radiusX = visualRadius * scale * widthFactorAt(b.y);
-        const radiusY = visualRadius * scaleY;
+        const radiusX = b.radius * scale * widthFactorAt(b.y);
+        const radiusY = b.radius * scaleY;
         const headingX = projectX(b.x + b.vx * 0.05, b.y + b.vy * 0.05);
         const headingY = projectY(b.y + b.vy * 0.05);
         const angle = Math.atan2(headingY - by, headingX - bx);

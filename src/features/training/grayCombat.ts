@@ -7,7 +7,7 @@ export const GRAY = {
   range: 2700,
   projectileSpeed: 3804,
   projectileWidth: 100,
-  aimGuideWidth: 200,
+  aimGuideWidth: 100,
   superChargePerHit: 0.32,
   superRange: 2000,
   superCastSeconds: 0.3,
