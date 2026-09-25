@@ -1,4 +1,4 @@
-export type TrialBrawlerId = "piper" | "bea" | "max" | "byron" | "pierce" | "brock" | "gene" | "gray" | "colt" | "mina";
+export type TrialBrawlerId = "piper" | "bea" | "max" | "byron" | "pierce" | "brock" | "gene" | "gray" | "colt" | "mina" | "spike";
 
 export type TrialBrawlerConfig = {
   id: TrialBrawlerId;
@@ -67,8 +67,13 @@ export const TRIAL_BRAWLERS: Record<TrialBrawlerId, TrialBrawlerConfig> = {
     health: 7200, moveSpeed: 800, ammoCapacity: 3, reloadSeconds: 1.4, reloadDelaySeconds: 0.45, attackIntervalSeconds: 0.45,
     projectileSpeed: 3000, projectileWidth: 300, range: 2400,
   },
+  spike: {
+    id: "spike", name: "斯派克", nameEn: "SPIKE", color: "#78d33d",
+    health: 6000, moveSpeed: 750, ammoCapacity: 3, reloadSeconds: 2, reloadDelaySeconds: 0.25, attackIntervalSeconds: 0.25,
+    projectileSpeed: 2174, projectileWidth: 300, range: 2300,
+  },
 };
 
 export function isTrialBrawler(value: string | null): value is TrialBrawlerId {
-  return value === "piper" || value === "bea" || value === "max" || value === "byron" || value === "pierce" || value === "brock" || value === "gene" || value === "gray" || value === "colt" || value === "mina";
+  return value === "piper" || value === "bea" || value === "max" || value === "byron" || value === "pierce" || value === "brock" || value === "gene" || value === "gray" || value === "colt" || value === "mina" || value === "spike";
 }

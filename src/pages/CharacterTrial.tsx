@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
 import { HERO_MAP, heroImageUrl } from "../../shared/catalog";
 
-const IDS: TrialBrawlerId[] = ["piper", "bea", "max", "byron", "pierce", "brock", "gene", "gray", "colt", "mina"];
+const IDS: TrialBrawlerId[] = ["piper", "bea", "max", "byron", "pierce", "brock", "gene", "gray", "colt", "mina", "spike"];
 
 export default function CharacterTrial() {
   const navigate = useNavigate();
@@ -17,7 +17,7 @@ export default function CharacterTrial() {
           onClick={() => navigate(`/character-trial/game?hero=${id}`)}>
           <img className="character-trial-avatar" src={heroImageUrl(catalogHero)} alt={hero.name} loading="lazy" draggable={false} />
           <strong>{hero.name}</strong>
-          <small>{hero.nameEn} · {id === "gene" ? "神话装备已装备 · 大招 +1 格" : id === "gray" ? "携带随身妙具：手杖" : id === "colt" ? "快速装弹 · 特制皮靴 · 全巴菲" : id === "mina" ? "风车妙具 · Zum Zum Zum 星辉" : "进入试用"}</small>
+          <small>{hero.nameEn} · {id === "gene" ? "神话装备已装备 · 大招 +1 格" : id === "gray" ? "携带随身妙具：手杖" : id === "colt" ? "快速装弹 · 特制皮靴 · 全巴菲" : id === "mina" ? "风车妙具 · Zum Zum Zum 星辉" : id === "spike" ? "生命植物 · 旋转刺球 · 全巴菲" : "进入试用"}</small>
         </button>;
       })}
       <button className="character-trial-choice controls" onClick={() => navigate("/control-layout/trial")}>

@@ -14,6 +14,7 @@ import { GRAY, advanceGrayPull, destroyWallsAlongGrayPull, type GrayPortalPair, 
 import { COLT, COLT_LOADOUT, coltAttackDelay, coltMoveSpeed, destroyWallsAlongColtBullet } from "../features/training/coltCombat";
 import { MINA, MINA_LOADOUT, minaHyperSuperAngles, minaNextAttackStage, minaThirdAttackHitsTarget, minaThirdAttackParts, type MinaAttackStage, type MinaThirdAttackPart } from "../features/training/minaCombat";
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
+import { SPIKE, SPIKE_LOADOUT, spikeShardAngles } from "../features/training/spikeCombat";
 import { battleCanvasDpr } from "../features/training/performance";
 
 type ControlMode = "joystick" | "keyboard";
@@ -138,6 +139,10 @@ const BULLET_STYLES = {
   minaSandal: { color: "#ffdd67", lengthScale: 1.55 },
   minaTambourine: { color: "#69e1a5", lengthScale: 1.45 },
   minaSuper: { color: "#8eeeff", lengthScale: 1.8 },
+  spikeBomb: { color: "#80d83f", lengthScale: 1.15 },
+  spikeShard: { color: "#b8ee5a", lengthScale: 1.5 },
+  spikeSuper: { color: "#b85cff", lengthScale: 1.2 },
+  spikePlant: { color: "#7bd447", lengthScale: 1.2 },
 } as const;
 const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
 const TAUNT_DURATION_MS = 3000;
@@ -177,6 +182,7 @@ function projectileDamage(texture: keyof typeof BULLET_STYLES, traveled: number)
   if (texture === "minaSandal") return MINA.attackDamage[0];
   if (texture === "minaTambourine") return MINA.attackDamage[1];
   if (texture === "minaSuper") return MINA.superDamage;
+  if (texture === "spikeBomb" || texture === "spikeShard") return SPIKE.attackDamage;
   return PIPER_MIN_DAMAGE
     + (PIPER_MAX_DAMAGE - PIPER_MIN_DAMAGE) * Math.min(1, traveled / BULLET_MAX_DIST);
 }
@@ -200,16 +206,21 @@ type Bullet = {
   homing?: { targetId: string; steerStrength: number; ignoreSeconds: number; remainingSeconds: number };
   piercesTarget?: boolean;
   hitTarget?: boolean;
+  ignoreTargetSeconds?: number;
   breaksWalls?: boolean;
   appliesSlowSeconds?: number;
   minaSuper?: { hypercharged: boolean; pullOriginX: number; pullOriginY: number };
   bouncesRemaining?: number;
   grayCaneOrigin?: { x: number; y: number };
+  spikeBomb?: { hypercharged: boolean };
+  spikeShard?: { curveRadians: number };
+  spikeSuperImpact?: { x: number; y: number; hypercharged: boolean };
+  spikePlantImpact?: { x: number; y: number };
 };
 
 type ByronPoison = { ticksRemaining: number; timeToNextTick: number };
 type CombatUnitClass = "hero" | "vault" | "summon" | "humanoidSummon";
-type ImpactBurst = { x: number; y: number; radius: number; life: number; maxLife: number; kind?: "byron" | "brock" };
+type ImpactBurst = { x: number; y: number; radius: number; life: number; maxLife: number; kind?: "byron" | "brock" | "spike" | "plant" };
 type PierceShell = { id: number; x: number; y: number; remainingSeconds: number };
 type PierceSuperCast = {
   id: number;
@@ -224,6 +235,8 @@ type MinaWaveEffect = { x: number; y: number; parts: MinaThirdAttackPart[]; rema
 type MinaDash = { remainingDistance: number; dx: number; dy: number };
 type ColtAction = { kind: "attack" | "super" | "gadget"; remainingSeconds: number };
 type BrockFire = { x: number; y: number; remainingSeconds: number; timeToNextTick: number };
+type SpikeSuperArea = { x: number; y: number; radius: number; remainingSeconds: number; nextTickSeconds: number; damageMultiplier: number };
+type SpikeDelayedExplosion = { x: number; y: number; remainingSeconds: number; damageMultiplier: number };
 
 type TrainingStar = {
   id: number;
@@ -945,6 +958,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const isGrayMode = trialHeroId === "gray";
   const isColtMode = trialHeroId === "colt";
   const isMinaMode = trialHeroId === "mina";
+  const isSpikeMode = trialHeroId === "spike";
   const magazineCapacity = projectileConfig.magazineCapacity;
   const controlledMoveSpeed = projectileConfig.moveSpeed;
   const magazineReloadSeconds = projectileConfig.reloadSeconds;
@@ -1019,6 +1033,15 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     dy: 0,
     dragged: false,
   });
+  const spikeGadgetAimRef = useRef({
+    active: false,
+    touchId: null as number | null,
+    startX: 0,
+    startY: 0,
+    dx: 0,
+    dy: 0,
+    dragged: false,
+  });
   const aimingTargetRef = useRef({
     x: ENEMY_X,
     y: ENEMY_Y - tiles(9),
@@ -1052,6 +1075,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const [grayGadgetCooldownDisplay, setGrayGadgetCooldownDisplay] = useState(0);
   const [coltGadgetCooldownDisplay, setColtGadgetCooldownDisplay] = useState(0);
   const [minaGadgetCooldownDisplay, setMinaGadgetCooldownDisplay] = useState(0);
+  const [spikeGadgetCooldownDisplay, setSpikeGadgetCooldownDisplay] = useState(0);
 
   // 暂停状态
   const [paused, setPaused] = useState(false);
@@ -1173,6 +1197,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const minaGadgetCooldownShownRef = useRef(0);
   const minaTargetAirborneRef = useRef(0);
   const minaTargetRootRef = useRef(0);
+  const spikeHyperChargeRef = useRef(0);
+  const spikeHyperRemainingRef = useRef(0);
+  const spikeHyperDurationRingRef = useRef<HTMLSpanElement>(null);
+  const spikeGadgetCooldownRef = useRef(0);
+  const spikeGadgetCooldownShownRef = useRef(0);
+  const spikePlantRef = useRef<{ x: number; y: number; health: number } | null>(null);
   const playerAttackCooldownRef = useRef(0);
   const maxSuperRemainingRef = useRef(0);
   const pierceSuperCastsRef = useRef<PierceSuperCast[]>([]);
@@ -1371,6 +1401,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     minaGadgetCooldownShownRef.current = 0;
     minaTargetAirborneRef.current = 0;
     minaTargetRootRef.current = 0;
+    spikeHyperChargeRef.current = 0;
+    spikeHyperRemainingRef.current = 0;
+    spikeGadgetCooldownRef.current = 0;
+    spikeGadgetCooldownShownRef.current = 0;
+    spikePlantRef.current = null;
+    Object.assign(spikeGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false });
     Object.assign(coltGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false });
     playerAttackCooldownRef.current = 0;
     maxSuperRemainingRef.current = 0;
@@ -1384,6 +1420,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     setGrayGadgetCooldownDisplay(0);
     setColtGadgetCooldownDisplay(0);
     setMinaGadgetCooldownDisplay(0);
+    setSpikeGadgetCooldownDisplay(0);
     fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
     setMagazineAmmo(magazineCapacity);
     setMagazineReloadProgress(0);
@@ -1422,6 +1459,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const impactBursts: ImpactBurst[] = [];
     const pierceShells: PierceShell[] = [];
     const brockFires: BrockFire[] = [];
+    const spikeSuperAreas: SpikeSuperArea[] = [];
+    const spikeDelayedExplosions: SpikeDelayedExplosion[] = [];
     const wallTiles = new Set(WALL_TILES);
     let genePullActive = false;
     let genePullSpeed: number = GENE.pullSpeed;
@@ -1484,6 +1523,79 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         remainingSeconds: BROCK_FIRE_DURATION_SECONDS,
         timeToNextTick: BROCK_FIRE_FIRST_TICK_SECONDS,
       });
+    };
+
+    const chargeSpikeHyper = (superChargeGain: number) => {
+      if (!isSpikeMode || spikeHyperRemainingRef.current > 0 || spikeHyperChargeRef.current >= 1) return;
+      spikeHyperChargeRef.current = Math.min(1,
+        spikeHyperChargeRef.current + superChargeGain * SPIKE.hyperChargeMultiplier);
+    };
+
+    const hitWithSpike = (damage: number, superChargeGain: number) => {
+      hitCountRef.current += 1;
+      combatUiDirty = true;
+      damageTrialTarget(damage, superChargeGain);
+      chargeSpikeHyper(superChargeGain);
+      spawnHitParticles(aimingTargetRef.current.x, aimingTargetRef.current.y);
+    };
+
+    const spawnSpikeExplosion = (x: number, y: number, damageMultiplier: number, scheduleSecond: boolean) => {
+      impactBursts.push({ x, y, radius: SPIKE.explosionRadius, life: 0.32, maxLife: 0.32, kind: "spike" });
+      const target = aimingTargetRef.current;
+      if (aimingTargetHealthRef.current > 0
+        && Math.hypot(target.x - x, target.y - y) <= SPIKE.explosionRadius + ENEMY_RADIUS) {
+        hitWithSpike(SPIKE.attackDamage * damageMultiplier, SPIKE.attackSuperCharge);
+      }
+      for (const angle of spikeShardAngles()) {
+        bulletsRef.current.push({
+          x, y,
+          vx: Math.cos(angle) * SPIKE.shardSpeed,
+          vy: Math.sin(angle) * SPIKE.shardSpeed,
+          traveled: 0,
+          id: bulletIdRef.current++,
+          radius: SPIKE.shardWidth / 2,
+          texture: "spikeShard",
+          owner: "player",
+          maxDistance: SPIKE.shardRange,
+          damageMultiplier,
+          spikeShard: {
+            curveRadians: SPIKE_LOADOUT.starPower === "curveball"
+              ? SPIKE.curveballTurnRadians : 0,
+          },
+          ignoreTargetSeconds: 0.08,
+        });
+      }
+      firedShotCountRef.current += SPIKE.shardCount;
+      if (scheduleSecond && SPIKE_LOADOUT.buffies.hypercharge) {
+        spikeDelayedExplosions.push({
+          x, y,
+          remainingSeconds: SPIKE.hyperSecondExplosionDelaySeconds,
+          damageMultiplier,
+        });
+      }
+    };
+
+    const destroySpikePlant = () => {
+      const plant = spikePlantRef.current;
+      if (!plant) return;
+      impactBursts.push({ x: plant.x, y: plant.y, radius: SPIKE.plantBuffieBlastRadius, life: 0.4, maxLife: 0.4, kind: "plant" });
+      if (Math.hypot(playerRef.current.x - plant.x, playerRef.current.y - plant.y) <= SPIKE.plantHealRadius + PLAYER_RADIUS) {
+        healthRef.current = Math.min(playerMaxHealth, healthRef.current + SPIKE.plantHeal);
+        setHealth(Math.round(healthRef.current));
+      }
+      const target = aimingTargetRef.current;
+      if (SPIKE_LOADOUT.buffies.gadget && aimingTargetHealthRef.current > 0
+        && Math.hypot(target.x - plant.x, target.y - plant.y) <= SPIKE.plantBuffieBlastRadius + ENEMY_RADIUS) {
+        damageTrialTarget(SPIKE.plantBuffieDamage);
+        const dx = target.x - plant.x;
+        const dy = target.y - plant.y;
+        const distance = Math.hypot(dx, dy) || 1;
+        target.x = Math.max(ENEMY_RADIUS, Math.min(MAP_WIDTH - ENEMY_RADIUS,
+          target.x + dx / distance * SPIKE.plantBuffieKnockback));
+        target.y = Math.max(ENEMY_RADIUS, Math.min(MAP_HEIGHT - ENEMY_RADIUS,
+          target.y + dy / distance * SPIKE.plantBuffieKnockback));
+      }
+      spikePlantRef.current = null;
     };
 
     const spawnStar = () => {
@@ -1788,6 +1900,43 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           );
           if (minaHyperRemainingRef.current === 0) forceUpdate((value) => value + 1);
         }
+        if (spikeGadgetCooldownRef.current > 0) {
+          spikeGadgetCooldownRef.current = Math.max(0, spikeGadgetCooldownRef.current - dt);
+          const shownCooldown = Math.ceil(spikeGadgetCooldownRef.current * 10) / 10;
+          if (shownCooldown !== spikeGadgetCooldownShownRef.current) {
+            spikeGadgetCooldownShownRef.current = shownCooldown;
+            setSpikeGadgetCooldownDisplay(shownCooldown);
+          }
+        }
+        if (spikeHyperRemainingRef.current > 0) {
+          spikeHyperRemainingRef.current = Math.max(0, spikeHyperRemainingRef.current - dt);
+          spikeHyperDurationRingRef.current?.style.setProperty(
+            "--hyper-duration-angle",
+            `${spikeHyperRemainingRef.current / SPIKE.hyperDurationSeconds * 360}deg`,
+          );
+          if (spikeHyperRemainingRef.current === 0) forceUpdate((value) => value + 1);
+        }
+        for (let index = spikeDelayedExplosions.length - 1; index >= 0; index--) {
+          const delayed = spikeDelayedExplosions[index];
+          delayed.remainingSeconds -= dt;
+          if (delayed.remainingSeconds > 0) continue;
+          spawnSpikeExplosion(delayed.x, delayed.y, delayed.damageMultiplier, false);
+          spikeDelayedExplosions.splice(index, 1);
+        }
+        for (let index = spikeSuperAreas.length - 1; index >= 0; index--) {
+          const area = spikeSuperAreas[index];
+          area.remainingSeconds -= dt;
+          area.nextTickSeconds -= dt;
+          while (area.nextTickSeconds <= 0 && area.remainingSeconds > 0) {
+            area.nextTickSeconds += SPIKE.superTickSeconds;
+            const target = aimingTargetRef.current;
+            if (aimingTargetHealthRef.current > 0
+              && Math.hypot(target.x - area.x, target.y - area.y) <= area.radius + ENEMY_RADIUS) {
+              hitWithSpike(SPIKE.superDamage * area.damageMultiplier, SPIKE.superRechargePerTick);
+            }
+          }
+          if (area.remainingSeconds <= 0) spikeSuperAreas.splice(index, 1);
+        }
         for (let index = minaWaveCastsRef.current.length - 1; index >= 0; index--) {
           const cast = minaWaveCastsRef.current[index];
           cast.remainingSeconds -= dt;
@@ -1833,6 +1982,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           : baseMovementSpeed
             * (isGeneMode && geneHyperRemainingRef.current > 0 ? GENE.hyperSpeedMultiplier : 1)
             * (isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperSpeedMultiplier : 1)
+            * (isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperSpeedMultiplier : 1)
             + (isTrialMode && isMaxMode && maxSuperRemainingRef.current > 0 ? MAX_SUPER_SPEED_BONUS : 0);
         const movement = advanceMovement(playerMovementElapsedRef.current, dt,
           !isAimingMode && Math.hypot(input.x, input.y) > 0);
@@ -2542,6 +2692,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             continue;
           }
           let movementTime = dt;
+          b.ignoreTargetSeconds = Math.max(0, (b.ignoreTargetSeconds ?? 0) - dt);
           if ((b.spawnDelay ?? 0) > 0) {
             const waitingTime = Math.min(b.spawnDelay ?? 0, movementTime);
             b.spawnDelay = Math.max(0, (b.spawnDelay ?? 0) - waitingTime);
@@ -2582,6 +2733,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             b.vy = Math.sin(trajectory.angle + local.heading) * BEA_SUPER.speed * BEA_SUPER_UNIT;
             b.traveled = Math.min(maxDistance, trajectory.elapsed * BEA_SUPER.speed * BEA_SUPER_UNIT);
           } else {
+            if (b.spikeShard && Math.abs(b.spikeShard.curveRadians) > 0.0001) {
+              const speed = Math.hypot(b.vx, b.vy);
+              const stepDistance = Math.min(speed * movementTime, Math.max(0, maxDistance - b.traveled));
+              const turn = b.spikeShard.curveRadians * stepDistance / maxDistance;
+              const heading = Math.atan2(b.vy, b.vx) + turn;
+              b.vx = Math.cos(heading) * speed;
+              b.vy = Math.sin(heading) * speed;
+            }
             const stepTime = Math.min(movementTime, Math.max(0, maxDistance - b.traveled) / Math.hypot(b.vx, b.vy));
             b.x += b.vx * stepTime;
             b.y += b.vy * stepTime;
@@ -2646,6 +2805,26 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             }
           }
 
+          const spikePlant = spikePlantRef.current;
+          if (spikePlant && b.owner === "enemy") {
+            const segmentX = b.x - previousX;
+            const segmentY = b.y - previousY;
+            const segmentLength2 = segmentX * segmentX + segmentY * segmentY;
+            const projection = segmentLength2 > 0
+              ? Math.max(0, Math.min(1, ((spikePlant.x - previousX) * segmentX + (spikePlant.y - previousY) * segmentY) / segmentLength2))
+              : 0;
+            const closestX = previousX + segmentX * projection;
+            const closestY = previousY + segmentY * projection;
+            if (Math.hypot(spikePlant.x - closestX, spikePlant.y - closestY) <= SPIKE.plantRadius + b.radius) {
+              spikePlant.health = Math.max(0, spikePlant.health - projectileDamage(b.texture, b.traveled));
+              bullets.splice(i, 1);
+              profileBulletRemoved(prof, b.id);
+              aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
+              if (spikePlant.health <= 0) destroySpikePlant();
+              continue;
+            }
+          }
+
           if (b.lobbedImpact) {
             if (b.traveled < maxDistance) continue;
             const impact = b.lobbedImpact;
@@ -2663,6 +2842,35 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             bullets.splice(i, 1);
             profileBulletRemoved(prof, b.id);
             aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
+            continue;
+          }
+          if (b.spikeSuperImpact) {
+            if (b.traveled < maxDistance) continue;
+            const impact = b.spikeSuperImpact;
+            const radius = impact.hypercharged
+              ? SPIKE.superRadius * SPIKE.hyperSuperRadiusMultiplier : SPIKE.superRadius;
+            spikeSuperAreas.push({
+              x: impact.x,
+              y: impact.y,
+              radius,
+              remainingSeconds: SPIKE.superDurationSeconds,
+              nextTickSeconds: 0,
+              damageMultiplier: impact.hypercharged ? SPIKE.hyperDamageMultiplier : 1,
+            });
+            bullets.splice(i, 1);
+            profileBulletRemoved(prof, b.id);
+            continue;
+          }
+          if (b.spikePlantImpact) {
+            if (b.traveled < maxDistance) continue;
+            destroySpikePlant();
+            spikePlantRef.current = {
+              x: b.spikePlantImpact.x,
+              y: b.spikePlantImpact.y,
+              health: SPIKE.plantHealth,
+            };
+            bullets.splice(i, 1);
+            profileBulletRemoved(prof, b.id);
             continue;
           }
 
@@ -2694,7 +2902,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const ddy = collisionTarget.y - closestY;
           const rSum = (b.owner === "player" ? ENEMY_RADIUS : PLAYER_RADIUS) + b.radius;
           const rSum2 = rSum * rSum;
-          if (!b.hitTarget && ddx * ddx + ddy * ddy <= rSum2) {
+          if (!b.hitTarget && (b.ignoreTargetSeconds ?? 0) <= 0 && ddx * ddx + ddy * ddy <= rSum2) {
             if (b.piercesTarget) b.hitTarget = true;
             else {
               bullets.splice(i, 1);
@@ -2702,6 +2910,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
             }
             if (b.owner === "player") {
+              if (b.texture === "spikeBomb" && b.spikeBomb) {
+                spawnSpikeExplosion(closestX, closestY, b.damageMultiplier ?? 1, b.spikeBomb.hypercharged);
+                continue;
+              }
               if (isMinaMode && minaTargetAirborneRef.current > 0) continue;
               if (isAimingMode) recordAiShotOutcome(true);
               spawnHitParticles(collisionTarget.x, collisionTarget.y);
@@ -2736,8 +2948,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   : b.texture === "minaSandal" ? MINA.attackSuperCharge[0]
                   : b.texture === "minaTambourine" ? MINA.attackSuperCharge[1]
                   : b.texture === "minaSuper" ? MINA.superCharge
+                  : b.texture === "spikeShard" ? SPIKE.attackSuperCharge
                   : 0;
                 damageTrialTarget(damage, chargeGain);
+                if (b.texture === "spikeShard") chargeSpikeHyper(chargeGain);
                 if (b.texture === "grayCane") {
                   const attackOrigin = b.grayCaneOrigin ?? { x: player.x, y: player.y };
                   grayPullRef.current = {
@@ -2845,7 +3059,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               const damageReduction = isGeneMode && geneHyperRemainingRef.current > 0
                 ? GENE.hyperDamageReduction
                 : isColtMode && coltHyperRemainingRef.current > 0 ? COLT.hyperDamageReduction
-                : isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperDamageReduction : 0;
+                : isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperDamageReduction
+                : isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperDamageReduction : 0;
               healthRef.current = Math.max(0, healthRef.current - damage * (1 - damageReduction));
               secondsSinceDamageRef.current = 0;
               setHealth(Math.round(healthRef.current));
@@ -2880,6 +3095,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 damageTrialTarget(BROCK_ATTACK_DAMAGE);
                 spawnHitParticles(target.x, target.y);
               }
+            }
+            if (b.owner === "player" && b.texture === "spikeBomb" && b.spikeBomb) {
+              spawnSpikeExplosion(b.x, b.y, b.damageMultiplier ?? 1, b.spikeBomb.hypercharged);
             }
             if (isAimingMode && b.owner === "player") recordAiShotOutcome(false);
             if (
@@ -3002,6 +3220,52 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       ctx.lineTo(bottomLeftX, projectY(MAP_HEIGHT));
       ctx.closePath();
       ctx.stroke();
+
+      for (const area of spikeSuperAreas) {
+        const alpha = Math.min(0.38, 0.14 + area.remainingSeconds * 0.045);
+        ctx.save();
+        ctx.fillStyle = `rgba(146, 57, 196, ${alpha})`;
+        ctx.strokeStyle = "rgba(216, 130, 255, 0.88)";
+        ctx.lineWidth = Math.max(2, tiles(0.07) * scale);
+        ctx.setLineDash([12, 8]);
+        ctx.beginPath();
+        ctx.ellipse(projectX(area.x, area.y), projectY(area.y),
+          area.radius * scale * widthFactorAt(area.y), area.radius * scaleY, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      const spikePlant = spikePlantRef.current;
+      if (spikePlant) {
+        const plantX = projectX(spikePlant.x, spikePlant.y);
+        const plantY = projectY(spikePlant.y);
+        const plantRadiusX = SPIKE.plantRadius * scale * widthFactorAt(spikePlant.y);
+        const plantRadiusY = SPIKE.plantRadius * scaleY;
+        ctx.save();
+        ctx.fillStyle = "#72ce43";
+        ctx.strokeStyle = "#d4ff8a";
+        ctx.lineWidth = Math.max(2, plantRadiusX * 0.18);
+        ctx.beginPath();
+        ctx.ellipse(plantX, plantY, plantRadiusX, plantRadiusY, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#efffd8";
+        for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+          ctx.beginPath();
+          ctx.arc(plantX + Math.cos(angle) * plantRadiusX * 0.72,
+            plantY + Math.sin(angle) * plantRadiusY * 0.72, Math.max(1.5, plantRadiusX * 0.09), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        const barWidth = Math.max(28, plantRadiusX * 2.2);
+        const barHeight = Math.max(4, plantRadiusY * 0.22);
+        const barY = plantY - plantRadiusY * 1.65;
+        ctx.fillStyle = "rgba(12, 30, 14, 0.88)";
+        ctx.fillRect(plantX - barWidth / 2, barY, barWidth, barHeight);
+        ctx.fillStyle = "#62db54";
+        ctx.fillRect(plantX - barWidth / 2, barY, barWidth * spikePlant.health / SPIKE.plantHealth, barHeight);
+        ctx.restore();
+      }
 
       for (const cast of pierceSuperCastsRef.current) {
         const locked = cast.phase === "locked";
@@ -3138,8 +3402,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         const burstY = projectY(burst.y);
         ctx.save();
         ctx.globalAlpha = Math.max(0, 1 - progress) * 0.55;
-        ctx.fillStyle = burst.kind === "brock" ? "#ff7a24" : "#a54cff";
-        ctx.strokeStyle = burst.kind === "brock" ? "#ffd56a" : "#e2b8ff";
+        ctx.fillStyle = burst.kind === "brock" ? "#ff7a24"
+          : burst.kind === "spike" ? "#8ccf42"
+          : burst.kind === "plant" ? "#7fe052" : "#a54cff";
+        ctx.strokeStyle = burst.kind === "brock" ? "#ffd56a"
+          : burst.kind === "spike" ? "#dbff83"
+          : burst.kind === "plant" ? "#d9ffae" : "#e2b8ff";
         ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
         ctx.beginPath();
         ctx.ellipse(
@@ -3416,6 +3684,33 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ctx.restore();
       }
 
+      if (isSpikeMode && spikeGadgetAimRef.current.active) {
+        const gadgetAim = spikeGadgetAimRef.current;
+        const target = aimingTargetRef.current;
+        const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
+        const angle = gadgetAim.dragged
+          ? Math.atan2(gadgetAim.dy, gadgetAim.dx)
+          : aimingTargetHealthRef.current > 0 ? Math.atan2(target.y - player.y, target.x - player.x) : playerMoveDirectionRef.current;
+        const throwDistance = gadgetAim.dragged
+          ? SPIKE.gadgetRange * Math.min(1, Math.hypot(gadgetAim.dx, gadgetAim.dy) / 60)
+          : Math.min(SPIKE.gadgetRange, targetDistance || SPIKE.gadgetRange);
+        const centerX = Math.max(SPIKE.plantRadius, Math.min(MAP_WIDTH - SPIKE.plantRadius,
+          player.x + Math.cos(angle) * throwDistance));
+        const centerY = Math.max(SPIKE.plantRadius, Math.min(MAP_HEIGHT - SPIKE.plantRadius,
+          player.y + Math.sin(angle) * throwDistance));
+        ctx.save();
+        ctx.fillStyle = "rgba(104, 222, 80, 0.25)";
+        ctx.strokeStyle = "rgba(191, 255, 142, 0.92)";
+        ctx.lineWidth = Math.max(2, tiles(0.06) * scale);
+        ctx.beginPath();
+        ctx.ellipse(projectX(centerX, centerY), projectY(centerY),
+          SPIKE.plantRadius * 1.8 * scale * widthFactorAt(centerY), SPIKE.plantRadius * 1.8 * scaleY,
+          0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
       if (isTrialMode && superJoystickRef.current.active) {
         const stick = superJoystickRef.current;
         if (isGeneMode) {
@@ -3517,10 +3812,13 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           ctx.fill();
           ctx.stroke();
           ctx.restore();
-        } else if (trialHeroId === "byron" || trialHeroId === "pierce") {
+        } else if (trialHeroId === "byron" || trialHeroId === "pierce" || trialHeroId === "spike") {
           const isPierceSuper = trialHeroId === "pierce";
-          const castRange = isPierceSuper ? PIERCE_SUPER.range : BYRON_SUPER_RANGE;
-          const castRadius = isPierceSuper ? PIERCE_SUPER.radius : BYRON_SUPER_RADIUS;
+          const isSpikeSuper = trialHeroId === "spike";
+          const castRange = isPierceSuper ? PIERCE_SUPER.range : isSpikeSuper ? SPIKE.superRange : BYRON_SUPER_RANGE;
+          const castRadius = isPierceSuper ? PIERCE_SUPER.radius
+            : isSpikeSuper ? SPIKE.superRadius * (spikeHyperRemainingRef.current > 0 ? SPIKE.hyperSuperRadiusMultiplier : 1)
+            : BYRON_SUPER_RADIUS;
           const target = aimingTargetRef.current;
           const bounds = visibleWorldBoundsRef.current;
           const targetVisible = aimingTargetHealthRef.current > 0
@@ -3539,8 +3837,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const centerX = Math.max(0, Math.min(MAP_WIDTH, player.x + Math.cos(angle) * throwDistance));
           const centerY = Math.max(0, Math.min(MAP_HEIGHT, player.y + Math.sin(angle) * throwDistance));
           ctx.save();
-          ctx.fillStyle = isPierceSuper ? "rgba(255, 199, 69, 0.24)" : "rgba(170, 76, 255, 0.28)";
-          ctx.strokeStyle = isPierceSuper ? "rgba(255, 231, 142, 0.92)" : "rgba(230, 195, 255, 0.9)";
+          ctx.fillStyle = isPierceSuper ? "rgba(255, 199, 69, 0.24)"
+            : isSpikeSuper ? "rgba(166, 75, 216, 0.3)" : "rgba(170, 76, 255, 0.28)";
+          ctx.strokeStyle = isPierceSuper ? "rgba(255, 231, 142, 0.92)"
+            : isSpikeSuper ? "rgba(211, 135, 255, 0.95)" : "rgba(230, 195, 255, 0.9)";
           ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
           ctx.beginPath();
           ctx.ellipse(
@@ -3707,12 +4007,17 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       grayGadgetCooldownShownRef.current = 0;
       grayPullRef.current = null;
       grayPortalsRef.current = null;
+      spikeHyperChargeRef.current = 0;
+      spikeHyperRemainingRef.current = 0;
+      spikeGadgetCooldownRef.current = 0;
+      spikePlantRef.current = null;
+      Object.assign(spikeGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false });
       trialTargetRespawnRemainingRef.current = 0;
       superJoystickRef.current.active = false;
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -3898,6 +4203,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         : isGrayMode ? (isGrayCaneShot ? "grayCane" : "gray")
         : isColtMode ? "coltAttack"
         : isMinaMode ? (minaStage === 0 ? "minaSandal" : "minaTambourine")
+        : isSpikeMode ? "spikeBomb"
         : "high";
       const shotSpeed = isGrayCaneShot ? GRAY.caneOutboundSpeed : isMinaMode ? MINA.projectileSpeed : bulletSpeed;
       for (const [index, angle] of projectileAngles.entries()) {
@@ -3918,11 +4224,13 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           damageMultiplier: isGeneMode && geneHyperRemainingRef.current > 0
             ? GENE.hyperDamageMultiplier
             : isColtMode && coltHyperRemainingRef.current > 0 ? COLT.hyperDamageMultiplier
-            : isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperDamageMultiplier : 1,
+            : isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperDamageMultiplier
+            : isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperDamageMultiplier : 1,
           spawnDelay: isMaxMode
             ? index * MAX_PROJECTILE_INTERVAL_SECONDS
             : isColtMode ? coltAttackDelay(index, coltHyperRemainingRef.current > 0) : 0,
           grayCaneOrigin: isGrayCaneShot ? { x: player.x, y: player.y } : undefined,
+          spikeBomb: isSpikeMode ? { hypercharged: spikeHyperRemainingRef.current > 0 } : undefined,
         });
       }
       if (isMinaMode && minaStage === 2) {
@@ -4149,6 +4457,28 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             bouncesRemaining: hypercharged ? MINA.hyperSuperMaxBounces : 0,
           });
         }
+      } else if (trialHeroId === "spike") {
+        const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
+        const throwDistance = stick.exceededDeadzone
+          ? SPIKE.superRange * stick.rawMagnitude
+          : autoAimTargetVisible ? Math.min(SPIKE.superRange, targetDistance) : SPIKE.superRange;
+        const impactX = Math.max(0, Math.min(MAP_WIDTH, player.x + Math.cos(angle) * throwDistance));
+        const impactY = Math.max(0, Math.min(MAP_HEIGHT, player.y + Math.sin(angle) * throwDistance));
+        const actualDistance = Math.hypot(impactX - player.x, impactY - player.y);
+        const hypercharged = spikeHyperRemainingRef.current > 0;
+        bulletsRef.current.push({
+          x: player.x,
+          y: player.y,
+          vx: Math.cos(angle) * SPIKE.superProjectileSpeed,
+          vy: Math.sin(angle) * SPIKE.superProjectileSpeed,
+          traveled: 0,
+          id: bulletIdRef.current++,
+          radius: 120,
+          texture: "spikeSuper",
+          owner: "player",
+          maxDistance: actualDistance,
+          spikeSuperImpact: { x: impactX, y: impactY, hypercharged },
+        });
       } else if (trialHeroId === "colt") {
         bulletsRef.current = bulletsRef.current.filter((bullet) => !(
           bullet.texture === "coltAttack" && (bullet.spawnDelay ?? 0) > 0
@@ -4296,6 +4626,79 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     minaGadgetCooldownRef.current = MINA.gadgetCooldownSeconds;
     minaGadgetCooldownShownRef.current = MINA.gadgetCooldownSeconds;
     setMinaGadgetCooldownDisplay(MINA.gadgetCooldownSeconds);
+    forceUpdate((value) => value + 1);
+  };
+
+  const handleSpikeGadgetPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!isSpikeMode || pausedRef.current || countdownActiveRef.current || spikeGadgetCooldownRef.current > 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const aim = spikeGadgetAimRef.current;
+    aim.active = true;
+    aim.touchId = e.pointerId;
+    aim.startX = e.clientX;
+    aim.startY = e.clientY;
+    aim.dx = 0;
+    aim.dy = 0;
+    aim.dragged = false;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    forceUpdate((value) => value + 1);
+  };
+
+  const handleSpikeGadgetPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const aim = spikeGadgetAimRef.current;
+    if (!aim.active || aim.touchId !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    aim.dx = e.clientX - aim.startX;
+    aim.dy = e.clientY - aim.startY;
+    aim.dragged = Math.hypot(aim.dx, aim.dy) > 8;
+    forceUpdate((value) => value + 1);
+  };
+
+  const handleSpikeGadgetPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const aim = spikeGadgetAimRef.current;
+    if (!aim.active || aim.touchId !== e.pointerId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type !== "pointercancel" && !pausedRef.current && spikeGadgetCooldownRef.current <= 0) {
+      const player = playerRef.current;
+      const target = aimingTargetRef.current;
+      const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
+      const angle = aim.dragged
+        ? Math.atan2(aim.dy, aim.dx)
+        : aimingTargetHealthRef.current > 0 ? Math.atan2(target.y - player.y, target.x - player.x) : playerMoveDirectionRef.current;
+      const normalizedDrag = Math.min(1, Math.hypot(aim.dx, aim.dy) / 60);
+      const throwDistance = aim.dragged
+        ? SPIKE.gadgetRange * normalizedDrag
+        : Math.min(SPIKE.gadgetRange, targetDistance || SPIKE.gadgetRange);
+      const impactX = Math.max(SPIKE.plantRadius, Math.min(MAP_WIDTH - SPIKE.plantRadius,
+        player.x + Math.cos(angle) * throwDistance));
+      const impactY = Math.max(SPIKE.plantRadius, Math.min(MAP_HEIGHT - SPIKE.plantRadius,
+        player.y + Math.sin(angle) * throwDistance));
+      const actualDistance = Math.hypot(impactX - player.x, impactY - player.y);
+      bulletsRef.current.push({
+        x: player.x,
+        y: player.y,
+        vx: Math.cos(angle) * SPIKE.gadgetProjectileSpeed,
+        vy: Math.sin(angle) * SPIKE.gadgetProjectileSpeed,
+        traveled: 0,
+        id: bulletIdRef.current++,
+        radius: SPIKE.plantRadius,
+        texture: "spikePlant",
+        owner: "player",
+        maxDistance: actualDistance,
+        spikePlantImpact: { x: impactX, y: impactY },
+      });
+      spikeGadgetCooldownRef.current = SPIKE.gadgetCooldownSeconds;
+      spikeGadgetCooldownShownRef.current = SPIKE.gadgetCooldownSeconds;
+      setSpikeGadgetCooldownDisplay(SPIKE.gadgetCooldownSeconds);
+    }
+    aim.active = false;
+    aim.touchId = null;
+    aim.dx = 0;
+    aim.dy = 0;
+    aim.dragged = false;
     forceUpdate((value) => value + 1);
   };
 
@@ -4744,6 +5147,87 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             }}
           >
             {coltGadgetCooldownDisplay > 0 ? Math.ceil(coltGadgetCooldownDisplay) : <span aria-hidden="true">↻</span>}
+          </button>
+        </>
+      )}
+
+      {isTrialMode && isSpikeMode && (
+        <>
+          <button
+            type="button"
+            aria-label={spikeHyperRemainingRef.current > 0
+              ? "斯派克超充生效中"
+              : `斯派克超充 ${Math.round(spikeHyperChargeRef.current * 100)}%`}
+            disabled={spikeHyperChargeRef.current < 1 || spikeHyperRemainingRef.current > 0 || paused}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => {
+              if (pausedRef.current || spikeHyperChargeRef.current < 1 || spikeHyperRemainingRef.current > 0) return;
+              spikeHyperChargeRef.current = 0;
+              spikeHyperRemainingRef.current = SPIKE.hyperDurationSeconds;
+              forceUpdate((value) => value + 1);
+            }}
+            style={{
+              position: "absolute",
+              left: hyperLayout.x * controlViewport.width,
+              top: hyperLayout.y * controlViewport.height,
+              transform: "translate(-50%, -50%)",
+              zIndex: 6,
+              width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              borderRadius: "50%",
+              border: "3px solid #e2baff",
+              background: spikeHyperRemainingRef.current > 0 ? "#9c4bff"
+                : `conic-gradient(#ba65ff ${spikeHyperChargeRef.current * 100}%, #332346 0)`,
+              boxShadow: spikeHyperChargeRef.current >= 1 || spikeHyperRemainingRef.current > 0
+                ? "0 0 0 2px #3d245d, 0 0 18px #ba65ff"
+                : "0 0 0 2px #3d245d, 0 2px 9px #21132caa",
+              touchAction: "none",
+            }}
+          >
+            <span
+              ref={spikeHyperDurationRingRef}
+              className="gene-hyper-duration-ring"
+              style={{
+                "--hyper-duration-angle": `${spikeHyperRemainingRef.current / SPIKE.hyperDurationSeconds * 360}deg`,
+                opacity: spikeHyperRemainingRef.current > 0 ? 1 : 0,
+              } as React.CSSProperties}
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            type="button"
+            className="training-gadget-button"
+            aria-label={spikeGadgetCooldownDisplay > 0
+              ? `生命植物冷却 ${spikeGadgetCooldownDisplay.toFixed(1)} 秒`
+              : "生命植物：点击自动投掷，拖动选取落点"}
+            disabled={spikeGadgetCooldownDisplay > 0 || paused}
+            onPointerDown={handleSpikeGadgetPointerDown}
+            onPointerMove={handleSpikeGadgetPointerMove}
+            onPointerUp={handleSpikeGadgetPointerUp}
+            onPointerCancel={handleSpikeGadgetPointerUp}
+            style={{
+              position: "absolute",
+              left: 0.59 * controlViewport.width,
+              top: 0.58 * controlViewport.height,
+              transform: "translate(-50%, -50%)",
+              zIndex: 6,
+              width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              borderRadius: "50%",
+              border: "3px solid #baff92",
+              color: "#fff",
+              fontWeight: 900,
+              fontSize: "1rem",
+              background: spikeGadgetCooldownDisplay > 0
+                ? `conic-gradient(#31582a ${(1 - spikeGadgetCooldownDisplay / SPIKE.gadgetCooldownSeconds) * 100}%,#172416 0)`
+                : "linear-gradient(145deg,#7be055,#278a35)",
+              boxShadow: spikeGadgetAimRef.current.active
+                ? "0 0 0 4px #dfffc9, 0 0 20px #7bea61"
+                : spikeGadgetCooldownDisplay <= 0 ? "0 0 14px #72e55299" : "0 3px 10px #10240daa",
+              touchAction: "none",
+            }}
+          >
+            {spikeGadgetCooldownDisplay > 0 ? Math.ceil(spikeGadgetCooldownDisplay) : <span aria-hidden="true">✚</span>}
           </button>
         </>
       )}
