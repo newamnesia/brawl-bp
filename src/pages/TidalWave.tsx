@@ -374,12 +374,14 @@ export default function TidalWave() {
       drawTrainingUnitModel(ctx, { centerX: px, centerY: py, radiusX: pr, radiusY: pr, statusWidth: TILE_SIZE * scale, health: player.health, maxHealth: PLAYER_HEALTH, team: "player", relation: "self", ammo: { current: player.ammo, capacity: PLAYER_AMMO, reloadProgress: player.ammo === 0 ? 1 - player.reload / PLAYER_RELOAD : 0, continuousReload: player.ammo === 0 }, afterGroundRing: () => { ctx.fillStyle = "#55d9ff"; ctx.beginPath(); ctx.arc(px, py, pr * .74, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#132b37"; ctx.font = `900 ${Math.max(10, pr * .42)}px Nunito`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("P", px, py); } });
       for (const shell of shellsRef.current) drawPierceShell(ctx, shell, scale, scale, { projectX: (x) => sx(x), projectY: sy });
       const activeAim = attackRef.current;
-      if (Math.hypot(activeAim.x, activeAim.y) > 1) {
+      const attackDeadzone = joystickDiameter(layoutRef.current.joysticks.attack, innerWidth, innerHeight) * .39 * .16;
+      if (Math.hypot(activeAim.x, activeAim.y) > attackDeadzone) {
         drawPierceAimCorridor(ctx, player, Math.atan2(activeAim.y, activeAim.x), PLAYER_RANGE, PLAYER_BULLET_RADIUS, { projectX: (x) => sx(x), projectY: sy });
       }
       const activeSuper = superRef.current;
-      if (pointerIds.current.super !== null && Math.hypot(activeSuper.x, activeSuper.y) > 1) {
-        const length = Math.hypot(activeSuper.x, activeSuper.y), distance = PIERCE_SUPER.range * Math.min(1, length / (joystickDiameter(layoutRef.current.joysticks.super, innerWidth, innerHeight) * .39));
+      const superMax = joystickDiameter(layoutRef.current.joysticks.super, innerWidth, innerHeight) * .39;
+      if (pointerIds.current.super !== null && Math.hypot(activeSuper.x, activeSuper.y) > superMax * .16) {
+        const length = Math.hypot(activeSuper.x, activeSuper.y), distance = PIERCE_SUPER.range * Math.min(1, length / superMax);
         const targetX = clamp(player.x + activeSuper.x / length * distance, 0, TIDAL_WAVE_WORLD.width), targetY = clamp(player.y + activeSuper.y / length * distance, TIDAL_WAVE_WORLD.lowerTop, TIDAL_WAVE_WORLD.height);
         ctx.save(); ctx.fillStyle = "rgba(255,199,69,.18)"; ctx.strokeStyle = "rgba(255,231,142,.92)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx(targetX), sy(targetY), PIERCE_SUPER.radius * scale, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
       }

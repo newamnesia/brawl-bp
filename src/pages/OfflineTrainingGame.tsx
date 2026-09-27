@@ -110,6 +110,15 @@ const MAX_SUPER_SPEED_BONUS = 300;
 const MAX_SUPER_DURATION_SECONDS = 4;
 const MAX_SUPER_RADIUS = 1200;
 const ATTACK_AUTO_AIM_DEADZONE_RATIO = 0.24;
+const stickReturnedToDeadzone = (stick: {
+  knobX: number; knobY: number; maxRadius: number; exceededDeadzone: boolean;
+}) => stick.exceededDeadzone
+  && Math.hypot(stick.knobX, stick.knobY) <= stick.maxRadius * ATTACK_AUTO_AIM_DEADZONE_RATIO;
+const pointerInsideElement = (event: React.PointerEvent<HTMLElement>) => {
+  const rect = event.currentTarget.getBoundingClientRect();
+  return event.clientX >= rect.left && event.clientX <= rect.right
+    && event.clientY >= rect.top && event.clientY <= rect.bottom;
+};
 const BEA_NORMAL_DAMAGE = 1600;
 const BEA_ENHANCED_DAMAGE = 4400;
 const MAX_PROJECTILE_DAMAGE = 640;
@@ -1115,6 +1124,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     dx: 0,
     dy: 0,
     dragged: false,
+    exceededDeadzone: false,
   });
   const spikeGadgetAimRef = useRef({
     active: false,
@@ -1124,7 +1134,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     dx: 0,
     dy: 0,
     dragged: false,
+    exceededDeadzone: false,
   });
+  const actionButtonPointersRef = useRef(new Map<string, number>());
   const aimingTargetRef = useRef({
     x: ENEMY_X,
     y: ENEMY_Y - tiles(9),
@@ -1540,8 +1552,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     spikeGadgetCooldownRef.current = 0;
     spikeGadgetCooldownShownRef.current = 0;
     spikePlantRef.current = null;
-    Object.assign(spikeGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false });
-    Object.assign(coltGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false });
+    Object.assign(spikeGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false, exceededDeadzone: false });
+    Object.assign(coltGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false, exceededDeadzone: false });
+    actionButtonPointersRef.current.clear();
     playerAttackCooldownRef.current = 0;
     maxSuperRemainingRef.current = 0;
     pierceSuperCastsRef.current = [];
@@ -3998,7 +4011,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         } : undefined,
       });
 
-      if (isPlayerAttackMode && aimJoystickRef.current.active) {
+      if (isPlayerAttackMode && aimJoystickRef.current.active && !stickReturnedToDeadzone(aimJoystickRef.current)) {
         const aim = aimJoystickRef.current;
         const aimLength = Math.hypot(aim.knobX, aim.knobY);
         const target = aimingTargetRef.current;
@@ -4127,7 +4140,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ctx.restore();
       }
 
-      if (isSpikeMode && spikeGadgetAimRef.current.active) {
+      if (isSpikeMode && spikeGadgetAimRef.current.active && spikeGadgetAimRef.current.dragged) {
         const gadgetAim = spikeGadgetAimRef.current;
         const target = aimingTargetRef.current;
         const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
@@ -4154,7 +4167,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ctx.restore();
       }
 
-      if (isTrialMode && superJoystickRef.current.active) {
+      if (isTrialMode && superJoystickRef.current.active && !stickReturnedToDeadzone(superJoystickRef.current)) {
         const stick = superJoystickRef.current;
         if (isGeneMode) {
           const target = aimingTargetRef.current;
@@ -4494,7 +4507,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       coltTargetReloadTimerRef.current = 1.3;
       coltTargetSlowRemainingRef.current = 0;
       coltActionRef.current = null;
-      Object.assign(coltGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false });
+      Object.assign(coltGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false, exceededDeadzone: false });
       playerAttackCooldownRef.current = 0;
       maxSuperRemainingRef.current = 0;
       pierceSuperCastsRef.current = [];
@@ -4507,7 +4520,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       spikeHyperRemainingRef.current = 0;
       spikeGadgetCooldownRef.current = 0;
       spikePlantRef.current = null;
-      Object.assign(spikeGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false });
+      Object.assign(spikeGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false, exceededDeadzone: false });
+      actionButtonPointersRef.current.clear();
       trialTargetRespawnRemainingRef.current = 0;
       superJoystickRef.current.active = false;
       superJoystickRef.current.touchId = null;
@@ -5079,6 +5093,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     aim.dx = 0;
     aim.dy = 0;
     aim.dragged = false;
+    aim.exceededDeadzone = false;
     event.currentTarget.setPointerCapture(event.pointerId);
     forceUpdate((value) => value + 1);
   };
@@ -5090,7 +5105,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     event.stopPropagation();
     aim.dx = event.clientX - aim.startX;
     aim.dy = event.clientY - aim.startY;
-    if (Math.hypot(aim.dx, aim.dy) > 10) aim.dragged = true;
+    aim.dragged = Math.hypot(aim.dx, aim.dy) > 10;
+    if (aim.dragged) aim.exceededDeadzone = true;
     forceUpdate((value) => value + 1);
   };
 
@@ -5099,14 +5115,21 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     if (!aim.active || aim.touchId !== event.pointerId) return;
     event.preventDefault();
     event.stopPropagation();
+    const returnedToDeadzone = aim.exceededDeadzone && !aim.dragged;
+    const shouldFire = event.type !== "pointercancel" && !returnedToDeadzone
+      && (aim.exceededDeadzone ? aim.dragged : pointerInsideElement(event));
     const angle = aim.dragged ? Math.atan2(aim.dy, aim.dx) : undefined;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
     aim.active = false;
     aim.touchId = null;
     aim.dx = 0;
     aim.dy = 0;
     aim.dragged = false;
-    // 妙具从按下时起即视为启动；系统触控取消同样完成本次释放。
-    fireColtSpeedloader(angle);
+    aim.exceededDeadzone = false;
+    if (shouldFire) fireColtSpeedloader(angle);
+    else coltActionRef.current = null;
     forceUpdate((value) => value + 1);
   };
 
@@ -5142,6 +5165,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     aim.dx = 0;
     aim.dy = 0;
     aim.dragged = false;
+    aim.exceededDeadzone = false;
     e.currentTarget.setPointerCapture(e.pointerId);
     forceUpdate((value) => value + 1);
   };
@@ -5154,6 +5178,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     aim.dx = e.clientX - aim.startX;
     aim.dy = e.clientY - aim.startY;
     aim.dragged = Math.hypot(aim.dx, aim.dy) > 8;
+    if (aim.dragged) aim.exceededDeadzone = true;
     forceUpdate((value) => value + 1);
   };
 
@@ -5162,7 +5187,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     if (!aim.active || aim.touchId !== e.pointerId) return;
     e.preventDefault();
     e.stopPropagation();
-    if (e.type !== "pointercancel" && !pausedRef.current && spikeGadgetCooldownRef.current <= 0) {
+    const returnedToDeadzone = aim.exceededDeadzone && !aim.dragged;
+    const shouldCast = e.type !== "pointercancel" && !returnedToDeadzone
+      && (aim.exceededDeadzone ? aim.dragged : pointerInsideElement(e));
+    if (shouldCast && !pausedRef.current && spikeGadgetCooldownRef.current <= 0) {
       const player = playerRef.current;
       const target = aimingTargetRef.current;
       const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
@@ -5195,13 +5223,76 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       spikeGadgetCooldownShownRef.current = SPIKE.gadgetCooldownSeconds;
       setSpikeGadgetCooldownDisplay(SPIKE.gadgetCooldownSeconds);
     }
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     aim.active = false;
     aim.touchId = null;
     aim.dx = 0;
     aim.dy = 0;
     aim.dragged = false;
+    aim.exceededDeadzone = false;
     forceUpdate((value) => value + 1);
   };
+
+  const activateGeneHyper = () => {
+    if (pausedRef.current || geneHyperChargeRef.current < 1 || geneHyperRemainingRef.current > 0) return;
+    geneHyperChargeRef.current = 0;
+    geneHyperRemainingRef.current = GENE.hyperDurationSeconds;
+    forceUpdate((value) => value + 1);
+  };
+
+  const activateGrayGadget = () => {
+    if (pausedRef.current || grayGadgetCooldownRef.current > 0 || grayGadgetArmedRef.current) return;
+    grayGadgetArmedRef.current = true;
+    forceUpdate((value) => value + 1);
+  };
+
+  const activateColtHyper = () => {
+    if (pausedRef.current || coltHyperChargeRef.current < 1 || coltHyperRemainingRef.current > 0) return;
+    coltHyperChargeRef.current = 0;
+    coltHyperRemainingRef.current = COLT.hyperBaseDurationSeconds
+      + (COLT_LOADOUT.buffies.hypercharge ? COLT.hyperBuffieBonusSeconds : 0);
+    forceUpdate((value) => value + 1);
+  };
+
+  const activateSpikeHyper = () => {
+    if (pausedRef.current || spikeHyperChargeRef.current < 1 || spikeHyperRemainingRef.current > 0) return;
+    spikeHyperChargeRef.current = 0;
+    spikeHyperRemainingRef.current = SPIKE.hyperDurationSeconds;
+    forceUpdate((value) => value + 1);
+  };
+
+  const activateMinaHyper = () => {
+    if (pausedRef.current || minaHyperChargeRef.current < 1 || minaHyperRemainingRef.current > 0) return;
+    minaHyperChargeRef.current = 0;
+    minaHyperRemainingRef.current = MINA.hyperDurationSeconds;
+    forceUpdate((value) => value + 1);
+  };
+
+  const beginActionButtonPress = (key: string) => (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (actionButtonPointersRef.current.has(key)) return;
+    actionButtonPointersRef.current.set(key, event.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const finishActionButtonPress = (key: string, action: () => void) =>
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (actionButtonPointersRef.current.get(key) !== event.pointerId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const shouldActivate = event.type !== "pointercancel" && pointerInsideElement(event);
+      actionButtonPointersRef.current.delete(key);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      if (shouldActivate) action();
+    };
+
+  const activateActionButtonFromKeyboard = (action: () => void) =>
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (event.detail === 0) action();
+    };
 
   const handleSuperControlPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (isMinaMode && minaWaveCastsRef.current.length > 0) return;
@@ -5494,19 +5585,16 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           type="button"
           aria-label={geneHyperRemainingRef.current > 0 ? "超充生效中" : `基恩超充 ${Math.round(geneHyperChargeRef.current * 100)}%`}
           disabled={geneHyperChargeRef.current < 1 || geneHyperRemainingRef.current > 0 || paused}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={() => {
-            if (pausedRef.current || geneHyperChargeRef.current < 1 || geneHyperRemainingRef.current > 0) return;
-            geneHyperChargeRef.current = 0;
-            geneHyperRemainingRef.current = GENE.hyperDurationSeconds;
-            forceUpdate((value) => value + 1);
-          }}
+          onPointerDown={beginActionButtonPress("geneHyper")}
+          onPointerUp={finishActionButtonPress("geneHyper", activateGeneHyper)}
+          onPointerCancel={finishActionButtonPress("geneHyper", activateGeneHyper)}
+          onClick={activateActionButtonFromKeyboard(activateGeneHyper)}
           style={{
             position: "absolute",
             left: hyperLayout.x * controlViewport.width,
             top: hyperLayout.y * controlViewport.height,
             transform: "translate(-50%, -50%)",
-            zIndex: 6,
+            zIndex: 20,
             width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
             height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
             borderRadius: "50%",
@@ -5539,18 +5627,16 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             ? "手杖妙具已强化下一次普攻"
             : grayGadgetCooldownDisplay > 0 ? `手杖妙具冷却 ${grayGadgetCooldownDisplay.toFixed(1)} 秒` : "启用手杖妙具"}
           disabled={grayGadgetCooldownDisplay > 0 || grayGadgetArmedRef.current || paused}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={() => {
-            if (pausedRef.current || grayGadgetCooldownRef.current > 0 || grayGadgetArmedRef.current) return;
-            grayGadgetArmedRef.current = true;
-            forceUpdate((value) => value + 1);
-          }}
+          onPointerDown={beginActionButtonPress("grayGadget")}
+          onPointerUp={finishActionButtonPress("grayGadget", activateGrayGadget)}
+          onPointerCancel={finishActionButtonPress("grayGadget", activateGrayGadget)}
+          onClick={activateActionButtonFromKeyboard(activateGrayGadget)}
           style={{
             position: "absolute",
             left: hyperLayout.x * controlViewport.width,
             top: hyperLayout.y * controlViewport.height,
             transform: "translate(-50%, -50%)",
-            zIndex: 6,
+            zIndex: 20,
             width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
             height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
             borderRadius: "50%",
@@ -5579,20 +5665,16 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               ? "柯尔特超充生效中"
               : `柯尔特超充 ${Math.round(coltHyperChargeRef.current * 100)}%`}
             disabled={coltHyperChargeRef.current < 1 || coltHyperRemainingRef.current > 0 || paused}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={() => {
-              if (pausedRef.current || coltHyperChargeRef.current < 1 || coltHyperRemainingRef.current > 0) return;
-              coltHyperChargeRef.current = 0;
-              coltHyperRemainingRef.current = COLT.hyperBaseDurationSeconds
-                + (COLT_LOADOUT.buffies.hypercharge ? COLT.hyperBuffieBonusSeconds : 0);
-              forceUpdate((value) => value + 1);
-            }}
+            onPointerDown={beginActionButtonPress("coltHyper")}
+            onPointerUp={finishActionButtonPress("coltHyper", activateColtHyper)}
+            onPointerCancel={finishActionButtonPress("coltHyper", activateColtHyper)}
+            onClick={activateActionButtonFromKeyboard(activateColtHyper)}
             style={{
               position: "absolute",
               left: hyperLayout.x * controlViewport.width,
               top: hyperLayout.y * controlViewport.height,
               transform: "translate(-50%, -50%)",
-              zIndex: 6,
+              zIndex: 20,
               width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               borderRadius: "50%",
@@ -5631,7 +5713,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               left: 0.59 * controlViewport.width,
               top: 0.58 * controlViewport.height,
               transform: "translate(-50%, -50%)",
-              zIndex: 6,
+              zIndex: 20,
               width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               borderRadius: "50%",
@@ -5661,19 +5743,16 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               ? "斯派克超充生效中"
               : `斯派克超充 ${Math.round(spikeHyperChargeRef.current * 100)}%`}
             disabled={spikeHyperChargeRef.current < 1 || spikeHyperRemainingRef.current > 0 || paused}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={() => {
-              if (pausedRef.current || spikeHyperChargeRef.current < 1 || spikeHyperRemainingRef.current > 0) return;
-              spikeHyperChargeRef.current = 0;
-              spikeHyperRemainingRef.current = SPIKE.hyperDurationSeconds;
-              forceUpdate((value) => value + 1);
-            }}
+            onPointerDown={beginActionButtonPress("spikeHyper")}
+            onPointerUp={finishActionButtonPress("spikeHyper", activateSpikeHyper)}
+            onPointerCancel={finishActionButtonPress("spikeHyper", activateSpikeHyper)}
+            onClick={activateActionButtonFromKeyboard(activateSpikeHyper)}
             style={{
               position: "absolute",
               left: hyperLayout.x * controlViewport.width,
               top: hyperLayout.y * controlViewport.height,
               transform: "translate(-50%, -50%)",
-              zIndex: 6,
+              zIndex: 20,
               width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               borderRadius: "50%",
@@ -5712,7 +5791,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               left: 0.59 * controlViewport.width,
               top: 0.58 * controlViewport.height,
               transform: "translate(-50%, -50%)",
-              zIndex: 6,
+              zIndex: 20,
               width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               borderRadius: "50%",
@@ -5742,19 +5821,16 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               ? "蜜娜超充生效中"
               : `蜜娜超充 ${Math.round(minaHyperChargeRef.current * 100)}%`}
             disabled={minaHyperChargeRef.current < 1 || minaHyperRemainingRef.current > 0 || paused}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={() => {
-              if (pausedRef.current || minaHyperChargeRef.current < 1 || minaHyperRemainingRef.current > 0) return;
-              minaHyperChargeRef.current = 0;
-              minaHyperRemainingRef.current = MINA.hyperDurationSeconds;
-              forceUpdate((value) => value + 1);
-            }}
+            onPointerDown={beginActionButtonPress("minaHyper")}
+            onPointerUp={finishActionButtonPress("minaHyper", activateMinaHyper)}
+            onPointerCancel={finishActionButtonPress("minaHyper", activateMinaHyper)}
+            onClick={activateActionButtonFromKeyboard(activateMinaHyper)}
             style={{
               position: "absolute",
               left: hyperLayout.x * controlViewport.width,
               top: hyperLayout.y * controlViewport.height,
               transform: "translate(-50%, -50%)",
-              zIndex: 6,
+              zIndex: 20,
               width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               borderRadius: "50%",
@@ -5786,14 +5862,16 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               ? `风车冷却 ${minaGadgetCooldownDisplay.toFixed(1)} 秒`
               : MINA_LOADOUT.gadget === "windmill" ? "放置风车阻挡敌方弹道" : "下一次普通大招命中后立即回满大招"}
             disabled={minaGadgetCooldownDisplay > 0 || paused || minaWaveCastsRef.current.length > 0}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={activateMinaGadget}
+            onPointerDown={beginActionButtonPress("minaGadget")}
+            onPointerUp={finishActionButtonPress("minaGadget", activateMinaGadget)}
+            onPointerCancel={finishActionButtonPress("minaGadget", activateMinaGadget)}
+            onClick={activateActionButtonFromKeyboard(activateMinaGadget)}
             style={{
               position: "absolute",
               left: 0.59 * controlViewport.width,
               top: 0.58 * controlViewport.height,
               transform: "translate(-50%, -50%)",
-              zIndex: 6,
+              zIndex: 20,
               width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
               borderRadius: "50%",

@@ -26,12 +26,14 @@ export function AdjustableJoystick({ id, layout, viewport, selected, knob = { x:
   const definition = JOYSTICK_DEFINITIONS[id];
   const normalizedCharge = Math.max(0, Math.min(1, charge ?? 0));
   const showsSuperMeter = id === "super" && charge !== undefined;
+  const interactive = Boolean(onPointerDown || onPointerMove || onPointerUp || onClick);
   const style = {
     "--joystick-color": definition.color,
     left: layout.x * viewport.width - radius,
     top: layout.y * viewport.height - radius,
     width: diameter,
     height: diameter,
+    pointerEvents: interactive ? "auto" : "none",
   } as CSSProperties;
   return <div className={`adjustable-joystick ${active ? "active" : ""} ${selected ? "selected" : ""} ${showsSuperMeter ? `super-meter ${normalizedCharge >= 1 ? "ready" : "charging"}` : ""}`} style={{
     ...style,

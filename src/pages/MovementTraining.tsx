@@ -26,7 +26,7 @@ export default function MovementTraining() {
       <div className="card">
         <div className="form-group">
           <label>训练规则</label>
-          <div className="toggle-group">
+          <div className="toggle-group training-rule-options">
             <Choice active={rule === "practice"} onClick={() => setRule("practice")} title="无限训练" detail="100000 生命，不会回血，无限练习" />
             <Choice active={rule === "survival"} onClick={() => setRule("survival")} title="挑战模式" detail="6000 生命，无限时；每 10 秒回弹耗时与射击间隔 ×0.95" />
             <Choice active={rule === "spikeDodge"} onClick={() => setRule("spikeDodge")} title="斯派克躲避特训！" detail="在 5 格半径内移动；斯派克会在上方射程扇面内随机走位" />
