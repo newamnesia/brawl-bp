@@ -11,6 +11,7 @@ import {
   type Tier,
 } from "../../shared/types";
 import { heroDisplayName, heroImageUrl } from "../../shared/catalog";
+import { trialBrawlerDetails } from "../features/training/trialBrawlerDetails";
 
 const RARITY_LABELS: Record<Rarity, string> = {
   starting: "初始",
@@ -100,6 +101,7 @@ export default function Preview() {
   const [loadedCount, setLoadedCount] = useState(0);
   const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Rarity | "all">("all");
+  const [selectedHero, setSelectedHero] = useState<Hero | null>(null);
 
   const visible = filter === "all" ? HEROES : HEROES.filter((h) => h.rarity === filter);
 
@@ -144,6 +146,15 @@ export default function Preview() {
             key={hero.id}
             className={`hero-card rarity-${hero.rarity}`}
             title={heroDisplayName(hero)}
+            role="button"
+            tabIndex={0}
+            onClick={() => setSelectedHero(hero)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setSelectedHero(hero);
+              }
+            }}
           >
             <img
               className="hero-avatar"
@@ -184,12 +195,15 @@ export default function Preview() {
         本页为粉丝向非商业工具；11 级基础数值取自 Brawlytix 公开角色详情页，角色评级仅采用其近七天传奇段位 Meta Score。复合机制角色的伤害可能按源站显示为 0；数据可能随版本与每日统计变化，仅供参考。
       </p>
 
+      {selectedHero && <HeroNote hero={selectedHero} onClose={() => setSelectedHero(null)} />}
+
     </div>
   );
 }
 
 export function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void }) {
   const s = hero.stats;
+  const combatDetails = trialBrawlerDetails(hero.id);
   const modeTags = (hero.specialtyModes ?? []).flatMap((id) => {
     const mode = SPECIALTY_MODES.find((item) => item.id === id);
     return mode ? [{ ...mode, label: `擅长${mode.name}模式` }] : [];
@@ -204,7 +218,7 @@ export function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void })
   return (
     <>
       <div className="note-backdrop" onClick={onClose} />
-      <div className="hero-note-pair">
+      <div className={`hero-note-pair${combatDetails ? " has-combat-details" : ""}`}>
         <aside className="hero-specialty-note" aria-label={`${hero.name}角色特性`}>
           <p className="hero-specialty-title">角色特性</p>
           <div className="hero-specialty-list">
@@ -237,10 +251,32 @@ export function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void })
         </div>
 
         <div className="hero-note-tabs">
-          <span className="hero-note-tab active">基础数值（11 级）</span>
+          <span className="hero-note-tab active">
+            {combatDetails ? "试用战斗完整参数" : "基础数值（11 级）"}
+          </span>
         </div>
 
-        {s ? (
+        {combatDetails ? (
+          <div className="hero-note-body combat-detail-body">
+            <p className="combat-detail-intro">
+              以下为当前试用战斗实际采用的参数；距离统一按300单位=1格换算。
+            </p>
+            {combatDetails.map((section) => (
+              <section className="combat-detail-section" key={section.title}>
+                <h3>{section.title}</h3>
+                <div className="combat-detail-grid">
+                  {section.rows.map((row) => (
+                    <div className="stat-row combat-detail-row" key={`${section.title}-${row.label}`}>
+                      <span className="stat-label">{row.label}</span>
+                      <span className="stat-value">{row.value}</span>
+                      {row.note && <small>{row.note}</small>}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : s ? (
           <div className="hero-note-body">
             <div className="stat-row">
               <span className="stat-label">生命值</span>

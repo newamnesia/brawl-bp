@@ -2290,6 +2290,11 @@ input:focus {
   width: min(736px, calc(100vw - 1.5rem));
   max-height: 80vh;
 }
+
+.hero-note-pair.has-combat-details {
+  grid-template-columns: minmax(210px, 0.55fr) minmax(0, 1.45fr);
+  width: min(1100px, calc(100vw - 1.5rem));
+}
 /* ========== 六席赛事房 ========== */
 .hero-tier-badge.tier-s { background: #ff5252; }
 .hero-tier-badge.tier-a { background: #ffc933; }
@@ -2476,6 +2481,76 @@ input:focus {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.combat-detail-body {
+  gap: 0.75rem;
+}
+
+.combat-detail-intro {
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px dashed rgba(43, 36, 16, 0.24);
+  border-radius: 8px;
+  color: #5f5121;
+  background: rgba(255, 255, 255, 0.28);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.combat-detail-section {
+  padding-top: 0.15rem;
+}
+
+.combat-detail-section h3 {
+  margin: 0 0 0.42rem;
+  color: #3d3213;
+  font-size: 0.9rem;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+}
+
+.combat-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.38rem;
+}
+
+.combat-detail-row {
+  display: grid;
+  grid-template-columns: minmax(6.2rem, auto) minmax(0, 1fr);
+  align-items: start;
+}
+
+.combat-detail-row .stat-value {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.combat-detail-row small {
+  grid-column: 1 / -1;
+  margin-top: 0.2rem;
+  color: #77672d;
+  font-size: 0.68rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+@media (max-width: 720px) and (orientation: portrait) {
+  .hero-note-pair.has-combat-details {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .hero-note-pair.has-combat-details .hero-note,
+  .hero-note-pair.has-combat-details .hero-specialty-note {
+    max-height: none;
+  }
+
+  .combat-detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .stat-row {
@@ -2770,6 +2845,15 @@ input:focus {
     width: min(760px, calc(100vw - 1.2rem - env(safe-area-inset-left) - env(safe-area-inset-right)));
     max-height: calc(100dvh - 1.2rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     gap: 0.65rem;
+  }
+
+  .hero-note-pair.has-combat-details {
+    width: min(1060px, calc(100vw - 1.2rem - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1.55fr);
+  }
+
+  .combat-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .training-rule-options > button {
