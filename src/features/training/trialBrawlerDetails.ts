@@ -22,11 +22,12 @@ export type TrialBrawlerDetailSection = {
 const units = (value: number) => `${value}（${Number((value / 300).toFixed(2))} 格）`;
 const seconds = (value: number) => `${Number(value.toFixed(3))} 秒`;
 const percent = (value: number) => `${Number((value * 100).toFixed(3))}%`;
+const speed = (value: number) => `${Number(value.toFixed(3))} 单位/秒`;
 
 function base(id: TrialBrawlerId): TrialBrawlerDetailSection {
   const hero = TRIAL_BRAWLERS[id];
   return {
-    title: "角色本身",
+    title: "角色本身（无装备、无增益）",
     rows: [
       { label: "生命值", value: String(hero.health) },
       { label: "移动速度", value: `${hero.moveSpeed} 单位/秒` },
@@ -317,10 +318,12 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
       ],
     },
     {
-      title: "星辉 · 特制皮靴",
+      title: "星辉 · 特制皮靴及星辉巴菲",
       rows: [
         { label: "常驻速度倍率", value: `×${COLT.slickBootsMultiplier}` },
-        { label: "星辉巴菲", value: `攻击命中后额外×${COLT.slickBootsBuffieMultiplier}，持续${COLT.slickBootsBuffieSeconds}秒` },
+        { label: "装备后移动速度", value: speed(COLT.baseMoveSpeed * COLT.slickBootsMultiplier), note: `基础${COLT.baseMoveSpeed} × ${COLT.slickBootsMultiplier}。` },
+        { label: "星辉巴菲", value: `攻击命中后额外+${(COLT.slickBootsBuffieMultiplier - 1) * 100}%基础移速，持续${COLT.slickBootsBuffieSeconds}秒` },
+        { label: "巴菲生效速度", value: speed(COLT.baseMoveSpeed * (COLT.slickBootsMultiplier + COLT.slickBootsBuffieMultiplier - 1)), note: "常驻+13%与临时+20%按基础移速相加。" },
       ],
     },
     {
@@ -342,6 +345,8 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "超充巴菲持续加成", value: `+${COLT.hyperBuffieBonusSeconds}秒` },
         { label: "最终持续", value: `${COLT.hyperBaseDurationSeconds + COLT.hyperBuffieBonusSeconds}秒` },
         { label: "伤害/移速/减伤", value: `+${(COLT.hyperDamageMultiplier - 1) * 100}% / +${(COLT.hyperSpeedMultiplier - 1) * 100}% / ${COLT.hyperDamageReduction * 100}%` },
+        { label: "超充且装备星辉移速", value: speed(COLT.baseMoveSpeed * (COLT.slickBootsMultiplier + COLT.hyperSpeedMultiplier - 1)) },
+        { label: "全部移速增益叠加", value: speed(COLT.baseMoveSpeed * (COLT.slickBootsMultiplier + COLT.slickBootsBuffieMultiplier + COLT.hyperSpeedMultiplier - 2)), note: "特制皮靴、星辉巴菲和超充移速同时生效。" },
         { label: "普攻连发间隔", value: seconds(COLT.hyperAttackBulletIntervalSeconds) },
         { label: "装备状态", value: `${COLT_LOADOUT.gadget} / ${COLT_LOADOUT.starPower} / 全巴菲` },
       ],

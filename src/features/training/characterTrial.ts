@@ -59,7 +59,7 @@ export const TRIAL_BRAWLERS: Record<TrialBrawlerId, TrialBrawlerConfig> = {
   },
   colt: {
     id: "colt", name: "柯尔特", nameEn: "COLT", color: "#ef5350",
-    health: 6200, moveSpeed: 813.6, ammoCapacity: 3, reloadSeconds: 1.3, reloadDelaySeconds: 0.55, attackIntervalSeconds: 0.55,
+    health: 6200, moveSpeed: 720, ammoCapacity: 3, reloadSeconds: 1.3, reloadDelaySeconds: 0.55, attackIntervalSeconds: 0.55,
     projectileSpeed: 4000, projectileWidth: 200, range: 2700,
   },
   mina: {
