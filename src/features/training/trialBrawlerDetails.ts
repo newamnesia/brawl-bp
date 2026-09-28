@@ -5,6 +5,7 @@ import { GENE } from "./geneCombat";
 import { GRAY } from "./grayCombat";
 import { MINA, MINA_LOADOUT } from "./minaCombat";
 import { PIERCE_SHELL, PIERCE_SUPER } from "./pierceCombat";
+import { PIPER, PIPER_LOADOUT } from "./piperCombat";
 import { SPIKE, SPIKE_LOADOUT } from "./spikeCombat";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "./characterTrial";
 
@@ -65,7 +66,16 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "瞄准类型", value: "单发直线；70%透明白色矩形指示" },
       ],
     },
-    notImplemented("大招、妙具、星辉、超充与巴菲"),
+    {
+      title: "星辉 · 回弹",
+      rows: [
+        { label: "触发条件", value: "普通攻击命中敌方单位" },
+        { label: "即时恢复", value: `${PIPER.snappySnipingAmmoGain} 发弹药` },
+        { label: "弹药上限", value: "恢复后不超过3发" },
+        { label: "装备状态", value: PIPER_LOADOUT.starPower },
+      ],
+    },
+    notImplemented("大招、妙具、超充与巴菲"),
   ],
   bea: [
     base("bea"),

@@ -14,6 +14,7 @@ import { GRAY, advanceGrayPull, destroyWallsAlongGrayPull, type GrayPortalPair, 
 import { COLT, COLT_LOADOUT, coltAttackDelay, coltMoveSpeed, destroyWallsAlongColtBullet } from "../features/training/coltCombat";
 import { MINA, MINA_LOADOUT, minaHyperSuperAngles, minaNextAttackStage, minaThirdAttackParts, type MinaAttackStage, type MinaThirdAttackPart } from "../features/training/minaCombat";
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
+import { applyPiperSnappySniping, PIPER_LOADOUT } from "../features/training/piperCombat";
 import {
   SPIKE,
   SPIKE_LOADOUT,
@@ -1042,6 +1043,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const bulletRadius = projectileConfig.bulletWidth / 2;
   const projectileRange = projectileConfig.range;
   const isBeaMode = isSpikeDodgeMode ? false : trialHeroId ? trialHeroId === "bea" : speedTier === "mid";
+  const isPiperMode = isSpikeDodgeMode ? false : trialHeroId ? trialHeroId === "piper" : speedTier === "high";
   const isMaxMode = isSpikeDodgeMode ? false : trialHeroId ? trialHeroId === "max" : speedTier === "max";
   const isByronMode = trialHeroId === "byron";
   const isPierceMode = trialHeroId === "pierce";
@@ -2708,6 +2710,21 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         }
         const currentReloadSeconds = magazineReloadSeconds * timingScale;
         const currentBulletSpeed = bulletSpeed;
+        const triggerPiperSnappySniping = () => {
+          if (!isPiperMode || PIPER_LOADOUT.starPower !== "snappySniping") return;
+          const result = applyPiperSnappySniping(
+            magazineAmmoRef.current,
+            magazineCapacity,
+            magazineReloadTimerRef.current,
+            currentReloadSeconds,
+          );
+          magazineAmmoRef.current = result.ammo;
+          magazineReloadTimerRef.current = result.reloadRemaining;
+          setMagazineAmmo(result.ammo);
+          setMagazineReloadProgress(result.ammo >= magazineCapacity
+            ? 0
+            : 1 - result.reloadRemaining / currentReloadSeconds);
+        };
 
         if (genePullActive) {
           const grabbed = aimingTargetRef.current;
@@ -2781,7 +2798,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         } else if (magazineAmmoRef.current < magazineCapacity) {
           magazineReloadTimerRef.current -= dt - reloadBlockedSeconds;
           if (magazineReloadTimerRef.current <= 0) {
-            magazineAmmoRef.current = isPierceMode ? magazineCapacity : magazineAmmoRef.current + 1;
+            magazineAmmoRef.current = isPierceMode
+              ? magazineCapacity
+              : Math.min(magazineCapacity, magazineAmmoRef.current + 1);
             setMagazineAmmo(magazineAmmoRef.current);
             magazineReloadTimerRef.current = isPierceMode
               ? currentReloadSeconds
@@ -3281,6 +3300,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               spawnHitParticles(collisionTarget.x, collisionTarget.y);
               hitCountRef.current += 1;
               combatUiDirty = true;
+              if (b.texture === "high") triggerPiperSnappySniping();
               if (b.texture === "beaNormal") {
                 beaEnhancedShotsRef.current = 2;
               } else if (b.texture === "beaEnhanced") {
@@ -3425,6 +3445,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             if (b.texture === "beaSuper") {
               superSlowRemainingMs = BEA_SUPER.slowMs;
             }
+            if (b.texture === "high") triggerPiperSnappySniping();
             if (isBeaMode && !isAimingMode && (
               b.texture === "beaNormal" || b.texture === "beaEnhanced" || b.texture === "beaSuper"
             )) {
@@ -4527,7 +4548,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isSpikeDodgeMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isSpikeDodgeMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isPiperMode, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {

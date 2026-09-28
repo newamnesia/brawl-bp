@@ -100,9 +100,11 @@ export function drawUnitStatusBars(ctx: CanvasRenderingContext2D, options: Statu
       }
     } else {
       for (let index = 0; index < capacity; index++) {
-        const fill = index < options.ammo.current
-          ? 1
-          : index === options.ammo.current ? Math.max(0, Math.min(1, options.ammo.reloadProgress)) : 0;
+        const storedAmmoFill = Math.max(0, Math.min(1, options.ammo.current - index));
+        const reloadFill = index === Math.floor(options.ammo.current)
+          ? Math.max(0, Math.min(1, options.ammo.reloadProgress))
+          : 0;
+        const fill = Math.max(storedAmmoFill, reloadFill);
         if (fill > 0) {
           ctx.fillStyle = "#c58a4b";
           ctx.fillRect(left + index * segmentWidth, ammoTop, segmentWidth * fill, ammoHeight);
