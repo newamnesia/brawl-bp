@@ -12,11 +12,10 @@ export const MINA = {
   attackRange: [2400, 1800, 1400] as const,
   attackWidth: [300, 400] as const,
   thirdAttackProjectileCount: 3,
-  // Attack 3 is presented as three broad, overlapping wind lobes. Keep the
-  // outer edge at the listed 1400 range instead of letting the projectile cap
-  // extend beyond it.
-  thirdAttackProjectileRadius: 325,
-  thirdAttackProjectileTravelDistance: 1075,
+  // Game data: DancerProjectileTriple radius 150; DancerWeaponTriple casting
+  // range 14, which maps to 1400 world units in this simulation.
+  thirdAttackProjectileRadius: 150,
+  thirdAttackProjectileTravelDistance: 1400,
   thirdAttackSpreadDegrees: 65,
   thirdAttackWindupSeconds: 0.5,
   attackSuperCharge: [0.144, 0.18, 0.324] as const,
