@@ -12,7 +12,11 @@ export const MINA = {
   attackRange: [2400, 1800, 1400] as const,
   attackWidth: [300, 400] as const,
   thirdAttackProjectileCount: 3,
-  thirdAttackProjectileRadius: 150,
+  // Attack 3 is presented as three broad, overlapping wind lobes. Keep the
+  // outer edge at the listed 1400 range instead of letting the projectile cap
+  // extend beyond it.
+  thirdAttackProjectileRadius: 325,
+  thirdAttackProjectileTravelDistance: 1075,
   thirdAttackSpreadDegrees: 65,
   thirdAttackWindupSeconds: 0.5,
   attackSuperCharge: [0.144, 0.18, 0.324] as const,
@@ -88,7 +92,8 @@ function rayEntryDistanceToExpandedBox(
 
   const hits: number[] = [];
   const addHit = (distance: number, cross: number, crossMin: number, crossMax: number) => {
-    if (distance >= 0 && distance <= MINA.attackRange[2] && cross >= crossMin && cross <= crossMax) {
+    if (distance >= 0 && distance <= MINA.thirdAttackProjectileTravelDistance
+      && cross >= crossMin && cross <= crossMax) {
       hits.push(distance);
     }
   };
@@ -112,7 +117,7 @@ function rayEntryDistanceToExpandedBox(
     const discriminant = projection * projection - (offsetX * offsetX + offsetY * offsetY - padding * padding);
     if (discriminant < 0) continue;
     const distance = -projection - Math.sqrt(discriminant);
-    if (distance >= 0 && distance <= MINA.attackRange[2]) hits.push(distance);
+    if (distance >= 0 && distance <= MINA.thirdAttackProjectileTravelDistance) hits.push(distance);
   }
   return hits.length > 0 ? Math.min(...hits) : null;
 }
@@ -125,7 +130,7 @@ export function minaThirdAttackParts(
 ): MinaThirdAttackPart[] {
   return minaThirdAttackAngles(heading).map((angle) => {
     const direction = { x: Math.cos(angle), y: Math.sin(angle) };
-    let length: number = MINA.attackRange[2];
+    let length: number = MINA.thirdAttackProjectileTravelDistance;
     for (const wall of walls) {
       const [columnText, rowText] = wall.split(",");
       const column = Number(columnText);
