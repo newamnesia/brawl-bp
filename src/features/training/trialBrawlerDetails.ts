@@ -6,6 +6,7 @@ import { GRAY } from "./grayCombat";
 import { MINA, MINA_LOADOUT } from "./minaCombat";
 import { PIERCE_SHELL, PIERCE_SUPER } from "./pierceCombat";
 import { PIPER, PIPER_LOADOUT } from "./piperCombat";
+import { PEARL, PEARL_DEFAULT_LOADOUT, pearlVolleyDamages } from "./pearlCombat";
 import { SPIKE, SPIKE_LOADOUT } from "./spikeCombat";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "./characterTrial";
 
@@ -532,6 +533,85 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "超充大招半径", value: units(SPIKE.superRadius * SPIKE.hyperSuperRadiusMultiplier) },
         { label: "二次爆炸延迟", value: seconds(SPIKE.hyperSecondExplosionDelaySeconds) },
         { label: "装备状态", value: "超充巴菲启用" },
+      ],
+    },
+  ],
+  pearl: [
+    base("pearl"),
+    {
+      title: "特性 · 热量",
+      rows: [
+        { label: "初始热量", value: "0%" },
+        { label: "自然充满", value: seconds(PEARL.heatChargeSeconds) },
+        { label: "满热量增伤", value: bonusPercent(1 + PEARL.heatMaxDamageBonus) },
+        { label: "单颗消耗", value: `${PEARL.heatUseSecondsPerCookie}秒充能量（${percent(PEARL.heatUseSecondsPerCookie / PEARL.heatChargeSeconds)}）` },
+        { label: "整轮六颗消耗", value: `${PEARL.heatUseSecondsPerCookie * PEARL.attackBullets}秒充能量（${percent(PEARL.heatUseSecondsPerCookie * PEARL.attackBullets / PEARL.heatChargeSeconds)}）` },
+        { label: "伤害规则", value: "每颗出膛时读取热量，随后扣除热量；同一轮伤害逐颗下降" },
+      ],
+    },
+    {
+      title: "普通攻击 · 烤箱出炉",
+      rows: [
+        attackStartInterval("pearl"),
+        { label: "弹丸", value: `${PEARL.attackBullets}颗，按从左到右顺序发射` },
+        { label: "每颗伤害", value: `${PEARL.attackMinDamage} → ${PEARL.attackMaxDamage}` },
+        { label: "0%热量整轮", value: String(Math.round(pearlVolleyDamages(0).reduce((sum, value) => sum + value, 0))) },
+        { label: "100%热量整轮", value: String(Math.round(pearlVolleyDamages(1).reduce((sum, value) => sum + value, 0))), note: "按逐颗消耗热量并计入相邻饼干间0.1秒自然回热计算。" },
+        { label: "总散布", value: `${PEARL.attackSpreadDegrees}°` },
+        { label: "弹丸连发间隔", value: seconds(PEARL.attackBulletIntervalSeconds) },
+        { label: "射程", value: units(PEARL.attackRange) },
+        { label: "弹丸速度", value: speed(PEARL.attackProjectileSpeed) },
+        { label: "碰撞宽度", value: units(PEARL.attackWidth) },
+        { label: "单颗大招充能", value: percent(PEARL.attackSuperChargePerHit) },
+        { label: "单颗超充充能", value: percent(PEARL.attackHyperChargePerHit) },
+      ],
+    },
+    {
+      title: "妙具",
+      rows: [
+        { label: "烤糊了", value: `下一轮命中附加${PEARL.overcookedMinDamage} → ${PEARL.overcookedMaxDamage}持续伤害` },
+        { label: "灼烧方式", value: `${PEARL.overcookedTicks}跳；命中时立即首跳，随后每${PEARL.overcookedTickSeconds}秒1跳，持续3秒；同一轮多颗命中不叠加` },
+        { label: "灼烧充能", value: `每跳大招${percent(PEARL.overcookedSuperChargePerTick)}，超充${percent(PEARL.overcookedHyperChargePerTick)}` },
+        { label: "烤糊了冷却", value: seconds(PEARL.overcookedCooldownSeconds) },
+        { label: "爱心烘焙", value: `下一轮无视敌人并为队友持续恢复${PEARL.madeWithLoveHealing}` },
+        { label: "治疗方式", value: `${PEARL.madeWithLoveTicks}跳，每跳${PEARL.madeWithLoveHealing / PEARL.madeWithLoveTicks}；命中时立即首跳，持续3秒` },
+        { label: "爱心烘焙冷却", value: seconds(PEARL.madeWithLoveCooldownSeconds) },
+        { label: "试用场说明", value: "选择爱心烘焙时生成半血友方假人；绿色饼干穿过敌人，命中友方后展示四跳治疗" },
+      ],
+    },
+    {
+      title: "星辉",
+      rows: [
+        { label: "余热保留", value: `大招后保留当前热量的${percent(PEARL.heatRetentionRatio)}` },
+        { label: "热能护盾", value: `热量高于${percent(PEARL.heatShieldThreshold)}时减伤${percent(PEARL.heatShieldDamageReduction)}` },
+        { label: "默认配装", value: PEARL_DEFAULT_LOADOUT.starPower },
+      ],
+    },
+    {
+      title: "大招 · 蒸汽爆发",
+      rows: [
+        { label: "前摇", value: seconds(PEARL.superWindupSeconds) },
+        { label: "作用半径", value: units(PEARL.superRadius) },
+        { label: "伤害", value: `${PEARL.superMinDamage} → ${PEARL.superMaxDamage}` },
+        { label: "原始击退强度", value: String(PEARL.superPushbackStrengthRaw) },
+        { label: "试用场击退距离", value: units(PEARL.superKnockbackDistance), note: "将游戏原始击退强度换算为当前二维战斗引擎的位移。" },
+        { label: "地形", value: "摧毁作用范围内墙体" },
+        { label: "大招回充", value: percent(PEARL.superChargeOnHit) },
+        { label: "超充充能", value: percent(PEARL.superHyperChargeOnHit) },
+      ],
+    },
+    {
+      title: "超充 · 热解",
+      rows: [
+        { label: "充能倍率", value: `大招充能量 × ${PEARL.hyperChargeMultiplier}` },
+        { label: "持续", value: seconds(PEARL.hyperDurationSeconds) },
+        { label: "伤害加成", value: bonusPercent(PEARL.hyperDamageMultiplier) },
+        { label: "移动速度加成", value: bonusPercent(PEARL.hyperSpeedMultiplier) },
+        { label: "伤害减免", value: percent(PEARL.hyperDamageReduction) },
+        { label: "与热能护盾叠加", value: "24%总减伤", note: "20%热能护盾与5%超充护盾按承伤倍率相乘。" },
+        { label: "超充大招火区", value: `持续${PEARL.hyperFireDurationSeconds}秒，${PEARL.hyperFireTicks}跳 × ${PEARL.hyperFireDamage}` },
+        { label: "火区每跳充能", value: `大招${percent(PEARL.hyperFireSuperChargePerTick)}，超充${percent(PEARL.hyperFireHyperChargePerTick)}` },
+        { label: "巴菲", value: "当前版本未发布珀尔巴菲，试用中不添加虚构巴菲" },
       ],
     },
   ],

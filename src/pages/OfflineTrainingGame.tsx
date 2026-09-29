@@ -16,6 +16,17 @@ import { MINA, MINA_LOADOUT, minaHyperSuperAngles, minaNextAttackStage, minaThir
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
 import { applyPiperSnappySniping, PIPER_LOADOUT } from "../features/training/piperCombat";
 import {
+  PEARL,
+  PEARL_DEFAULT_LOADOUT,
+  pearlAttackAngles,
+  pearlDamageAtHeat,
+  pearlHeatAfterCookie,
+  pearlHeatAfterSuper,
+  pearlSuperDamageAtHeat,
+  type PearlGadget,
+  type PearlStarPower,
+} from "../features/training/pearlCombat";
+import {
   SPIKE,
   SPIKE_LOADOUT,
   spikeShardAngles,
@@ -185,6 +196,8 @@ const BULLET_STYLES = {
   spikeShard: { color: "#b8ee5a", lengthScale: 1.5 },
   spikeSuper: { color: "#b85cff", lengthScale: 1.2 },
   spikePlant: { color: "#7bd447", lengthScale: 1.2 },
+  pearlCookie: { color: "#f5a54d", lengthScale: 1.3 },
+  pearlLoveCookie: { color: "#79e0a1", lengthScale: 1.3 },
 } as const;
 const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
 const TAUNT_DURATION_MS = 3000;
@@ -226,6 +239,7 @@ function projectileDamage(texture: keyof typeof BULLET_STYLES, traveled: number)
   if (texture === "minaWind") return MINA.attackDamage[2];
   if (texture === "minaSuper") return MINA.superDamage;
   if (texture === "spikeBomb" || texture === "spikeShard") return SPIKE.attackDamage;
+  if (texture === "pearlCookie" || texture === "pearlLoveCookie") return PEARL.attackMinDamage;
   return PIPER_MIN_DAMAGE
     + (PIPER_MAX_DAMAGE - PIPER_MIN_DAMAGE) * Math.min(1, traveled / BULLET_MAX_DIST);
 }
@@ -260,6 +274,9 @@ type Bullet = {
   spikeShard?: { originX: number; originY: number; baseAngle: number; curveRadians: number; trajectoryHintId?: number };
   spikeSuperImpact?: { x: number; y: number; hypercharged: boolean };
   spikePlantImpact?: { x: number; y: number };
+  pearlAttackCastId?: number;
+  pearlOvercooked?: boolean;
+  pearlHealedAlly?: boolean;
 };
 
 type ByronPoison = { ticksRemaining: number; timeToNextTick: number };
@@ -286,6 +303,10 @@ type ColtAction = { kind: "attack" | "super" | "gadget"; remainingSeconds: numbe
 type BrockFire = { x: number; y: number; remainingSeconds: number; timeToNextTick: number };
 type SpikeSuperArea = { x: number; y: number; radius: number; remainingSeconds: number; nextTickSeconds: number; damageMultiplier: number };
 type SpikeDelayedExplosion = { x: number; y: number; remainingSeconds: number; damageMultiplier: number };
+type PearlBurn = { ticksRemaining: number; timeToNextTick: number; damagePerTick: number };
+type PearlSuperCast = { remainingSeconds: number; heat: number; hypercharged: boolean };
+type PearlFireArea = { x: number; y: number; remainingSeconds: number; nextTickSeconds: number };
+type PearlHeal = { ticksRemaining: number; timeToNextTick: number; healingPerTick: number };
 
 type TrainingStar = {
   id: number;
@@ -1053,6 +1074,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const isColtMode = trialHeroId === "colt";
   const isMinaMode = trialHeroId === "mina";
   const isSpikeMode = trialHeroId === "spike";
+  const isPearlMode = trialHeroId === "pearl";
+  const pearlGadget: PearlGadget = searchParams.get("pearlGadget") === "madeWithLove"
+    ? "madeWithLove" : PEARL_DEFAULT_LOADOUT.gadget;
+  const pearlStarPower: PearlStarPower = searchParams.get("pearlStar") === "heatRetention"
+    ? "heatRetention" : PEARL_DEFAULT_LOADOUT.starPower;
   const magazineCapacity = projectileConfig.magazineCapacity;
   const controlledMoveSpeed = isSpikeDodgeMode ? TRIAL_BRAWLERS.max.moveSpeed : projectileConfig.moveSpeed;
   const magazineReloadSeconds = projectileConfig.reloadSeconds;
@@ -1173,6 +1199,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const [coltGadgetCooldownDisplay, setColtGadgetCooldownDisplay] = useState(0);
   const [minaGadgetCooldownDisplay, setMinaGadgetCooldownDisplay] = useState(0);
   const [spikeGadgetCooldownDisplay, setSpikeGadgetCooldownDisplay] = useState(0);
+  const [pearlGadgetCooldownDisplay, setPearlGadgetCooldownDisplay] = useState(0);
 
   // 暂停状态
   const [paused, setPaused] = useState(false);
@@ -1319,6 +1346,15 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const spikeGadgetCooldownRef = useRef(0);
   const spikeGadgetCooldownShownRef = useRef(0);
   const spikePlantRef = useRef<{ x: number; y: number; health: number } | null>(null);
+  const pearlHeatRef = useRef(0);
+  const pearlHyperChargeRef = useRef(0);
+  const pearlHyperRemainingRef = useRef(0);
+  const pearlHyperDurationRingRef = useRef<HTMLSpanElement>(null);
+  const pearlGadgetArmedRef = useRef(false);
+  const pearlGadgetCooldownRef = useRef(0);
+  const pearlGadgetCooldownShownRef = useRef(0);
+  const pearlSuperCastRef = useRef<PearlSuperCast | null>(null);
+  const pearlAllyRef = useRef({ x: TRIAL_TARGET_X, y: TRIAL_TARGET_Y - 1200, health: PEARL.health / 2 });
   const playerAttackCooldownRef = useRef(0);
   const maxSuperRemainingRef = useRef(0);
   const pierceSuperCastsRef = useRef<PierceSuperCast[]>([]);
@@ -1554,6 +1590,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     spikeGadgetCooldownRef.current = 0;
     spikeGadgetCooldownShownRef.current = 0;
     spikePlantRef.current = null;
+    pearlHeatRef.current = 0;
+    pearlHyperChargeRef.current = 0;
+    pearlHyperRemainingRef.current = 0;
+    pearlGadgetArmedRef.current = false;
+    pearlGadgetCooldownRef.current = 0;
+    pearlGadgetCooldownShownRef.current = 0;
+    pearlSuperCastRef.current = null;
+    pearlAllyRef.current = { x: TRIAL_TARGET_X, y: TRIAL_TARGET_Y - 1200, health: PEARL.health / 2 };
     Object.assign(spikeGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false, exceededDeadzone: false });
     Object.assign(coltGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false, exceededDeadzone: false });
     actionButtonPointersRef.current.clear();
@@ -1570,6 +1614,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     setColtGadgetCooldownDisplay(0);
     setMinaGadgetCooldownDisplay(0);
     setSpikeGadgetCooldownDisplay(0);
+    setPearlGadgetCooldownDisplay(0);
     fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
     setMagazineAmmo(magazineCapacity);
     setMagazineReloadProgress(0);
@@ -1610,6 +1655,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const brockFires: BrockFire[] = [];
     const spikeSuperAreas: SpikeSuperArea[] = [];
     const spikeDelayedExplosions: SpikeDelayedExplosion[] = [];
+    const pearlBurns: PearlBurn[] = [];
+    const pearlFireAreas: PearlFireArea[] = [];
+    const pearlBurnedAttackCasts = new Set<number>();
+    const pearlHeals: PearlHeal[] = [];
+    let pearlActiveHealCastId: number | null = null;
     const wallTiles = new Set(WALL_TILES);
     let genePullActive = false;
     let genePullSpeed: number = GENE.pullSpeed;
@@ -1953,6 +2003,114 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           if (poison.ticksRemaining <= 0) byronPoisons.splice(i, 1);
         }
 
+        if (isPearlMode) {
+          pearlHeatRef.current = Math.min(1, pearlHeatRef.current + dt / PEARL.heatChargeSeconds);
+          if (pearlGadgetCooldownRef.current > 0) {
+            pearlGadgetCooldownRef.current = Math.max(0, pearlGadgetCooldownRef.current - dt);
+            const shownCooldown = Math.ceil(pearlGadgetCooldownRef.current * 10) / 10;
+            if (shownCooldown !== pearlGadgetCooldownShownRef.current) {
+              pearlGadgetCooldownShownRef.current = shownCooldown;
+              setPearlGadgetCooldownDisplay(shownCooldown);
+            }
+          }
+          if (pearlHyperRemainingRef.current > 0) {
+            pearlHyperRemainingRef.current = Math.max(0, pearlHyperRemainingRef.current - dt);
+            pearlHyperDurationRingRef.current?.style.setProperty(
+              "--hyper-duration-angle",
+              `${pearlHyperRemainingRef.current / PEARL.hyperDurationSeconds * 360}deg`,
+            );
+            if (pearlHyperRemainingRef.current === 0) forceUpdate((value) => value + 1);
+          }
+          for (let index = pearlBurns.length - 1; index >= 0; index--) {
+            const burn = pearlBurns[index];
+            burn.timeToNextTick -= dt;
+            while (burn.ticksRemaining > 0 && burn.timeToNextTick <= 0) {
+              damageTrialTarget(burn.damagePerTick, PEARL.overcookedSuperChargePerTick);
+              if (pearlHyperRemainingRef.current <= 0) {
+                pearlHyperChargeRef.current = Math.min(1,
+                  pearlHyperChargeRef.current + PEARL.overcookedHyperChargePerTick);
+              }
+              spawnHitParticles(aimingTargetRef.current.x, aimingTargetRef.current.y);
+              burn.ticksRemaining -= 1;
+              burn.timeToNextTick += PEARL.overcookedTickSeconds;
+            }
+            if (burn.ticksRemaining <= 0) pearlBurns.splice(index, 1);
+          }
+          for (let index = pearlHeals.length - 1; index >= 0; index--) {
+            const heal = pearlHeals[index];
+            heal.timeToNextTick -= dt;
+            while (heal.ticksRemaining > 0 && heal.timeToNextTick <= 0) {
+              pearlAllyRef.current.health = Math.min(PEARL.health,
+                pearlAllyRef.current.health + heal.healingPerTick);
+              heal.ticksRemaining -= 1;
+              heal.timeToNextTick += PEARL.madeWithLoveTickSeconds;
+            }
+            if (heal.ticksRemaining <= 0) pearlHeals.splice(index, 1);
+          }
+          const superCast = pearlSuperCastRef.current;
+          if (superCast) {
+            superCast.remainingSeconds = Math.max(0, superCast.remainingSeconds - dt);
+            if (superCast.remainingSeconds === 0) {
+              const origin = playerRef.current;
+              const target = aimingTargetRef.current;
+              if (aimingTargetHealthRef.current > 0
+                && Math.hypot(target.x - origin.x, target.y - origin.y) <= PEARL.superRadius + ENEMY_RADIUS) {
+                const hyperMultiplier = superCast.hypercharged ? PEARL.hyperDamageMultiplier : 1;
+                damageTrialTarget(pearlSuperDamageAtHeat(superCast.heat) * hyperMultiplier,
+                  PEARL.superChargeOnHit);
+                if (!superCast.hypercharged && pearlHyperRemainingRef.current <= 0 && pearlHyperChargeRef.current < 1) {
+                  pearlHyperChargeRef.current = Math.min(1,
+                    pearlHyperChargeRef.current + PEARL.superHyperChargeOnHit);
+                }
+                const dx = target.x - origin.x;
+                const dy = target.y - origin.y;
+                const length = Math.hypot(dx, dy) || 1;
+                target.x = Math.max(ENEMY_RADIUS, Math.min(MAP_WIDTH - ENEMY_RADIUS,
+                  target.x + dx / length * PEARL.superKnockbackDistance));
+                target.y = Math.max(ENEMY_RADIUS, Math.min(MAP_HEIGHT - ENEMY_RADIUS,
+                  target.y + dy / length * PEARL.superKnockbackDistance));
+                spawnHitParticles(target.x, target.y);
+              }
+              for (const wall of [...wallTiles]) {
+                const [column, row] = wall.split(",").map(Number);
+                const wallX = (column + 0.5) * TILE_SIZE;
+                const wallY = (row + 0.5) * TILE_SIZE;
+                if (Math.hypot(wallX - origin.x, wallY - origin.y) <= PEARL.superRadius + TILE_SIZE * Math.SQRT1_2) {
+                  wallTiles.delete(wall);
+                }
+              }
+              if (superCast.hypercharged) {
+                pearlFireAreas.push({
+                  x: origin.x,
+                  y: origin.y,
+                  remainingSeconds: PEARL.hyperFireDurationSeconds,
+                  nextTickSeconds: 0,
+                });
+              }
+              pearlSuperCastRef.current = null;
+            }
+          }
+          for (let index = pearlFireAreas.length - 1; index >= 0; index--) {
+            const area = pearlFireAreas[index];
+            area.remainingSeconds -= dt;
+            area.nextTickSeconds -= dt;
+            while (area.nextTickSeconds <= 0 && area.remainingSeconds > 0) {
+              area.nextTickSeconds += PEARL.hyperFireTickSeconds;
+              const target = aimingTargetRef.current;
+              if (aimingTargetHealthRef.current > 0
+                && Math.hypot(target.x - area.x, target.y - area.y) <= PEARL.superRadius + ENEMY_RADIUS) {
+                damageTrialTarget(PEARL.hyperFireDamage, PEARL.hyperFireSuperChargePerTick);
+                if (pearlHyperRemainingRef.current <= 0) {
+                  pearlHyperChargeRef.current = Math.min(1,
+                    pearlHyperChargeRef.current + PEARL.hyperFireHyperChargePerTick);
+                }
+                spawnHitParticles(target.x, target.y);
+              }
+            }
+            if (area.remainingSeconds <= 0) pearlFireAreas.splice(index, 1);
+          }
+        }
+
         for (let i = impactBursts.length - 1; i >= 0; i--) {
           impactBursts[i].life -= dt;
           if (impactBursts[i].life <= 0) impactBursts.splice(i, 1);
@@ -2171,6 +2329,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             * (isGeneMode && geneHyperRemainingRef.current > 0 ? GENE.hyperSpeedMultiplier : 1)
             * (isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperSpeedMultiplier : 1)
             * (isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperSpeedMultiplier : 1)
+            * (isPearlMode && pearlHyperRemainingRef.current > 0 ? PEARL.hyperSpeedMultiplier : 1)
             + (isTrialMode && isMaxMode && maxSuperRemainingRef.current > 0 ? MAX_SUPER_SPEED_BONUS : 0);
         const movement = advanceMovement(playerMovementElapsedRef.current, dt,
           !isAimingMode && Math.hypot(input.x, input.y) > 0);
@@ -3263,6 +3422,31 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const segmentX = b.x - previousX;
           const segmentY = b.y - previousY;
           const segmentLength2 = segmentX * segmentX + segmentY * segmentY;
+          if (b.owner === "player" && b.texture === "pearlLoveCookie" && !b.pearlHealedAlly) {
+            const ally = pearlAllyRef.current;
+            const allyProjection = segmentLength2 > 0
+              ? Math.max(0, Math.min(1, ((ally.x - previousX) * segmentX + (ally.y - previousY) * segmentY) / segmentLength2))
+              : 0;
+            const allyClosestX = previousX + segmentX * allyProjection;
+            const allyClosestY = previousY + segmentY * allyProjection;
+            const allyHitRadius = PLAYER_RADIUS + b.radius;
+            if ((ally.x - allyClosestX) ** 2 + (ally.y - allyClosestY) ** 2 <= allyHitRadius ** 2) {
+              b.pearlHealedAlly = true;
+              bullets.splice(i, 1);
+              profileBulletRemoved(prof, b.id);
+              if (b.pearlAttackCastId !== undefined && pearlActiveHealCastId !== b.pearlAttackCastId) {
+                pearlActiveHealCastId = b.pearlAttackCastId;
+                pearlHeals.length = 0;
+                pearlHeals.push({
+                  ticksRemaining: PEARL.madeWithLoveTicks,
+                  timeToNextTick: 0,
+                  healingPerTick: PEARL.madeWithLoveHealing / PEARL.madeWithLoveTicks,
+                });
+              }
+              spawnHitParticles(ally.x, ally.y);
+              continue;
+            }
+          }
           const targetProjection = segmentLength2 > 0
             ? Math.max(0, Math.min(1, ((collisionTarget.x - previousX) * segmentX + (collisionTarget.y - previousY) * segmentY) / segmentLength2))
             : 0;
@@ -3292,6 +3476,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               continue;
             }
             if (b.owner === "player") {
+              if (b.texture === "pearlLoveCookie") continue;
               if (b.minaThirdAttackCastId !== undefined) {
                 if (minaThirdAttackHitCastsRef.current.has(b.minaThirdAttackCastId)) continue;
                 minaThirdAttackHitCastsRef.current.add(b.minaThirdAttackCastId);
@@ -3332,9 +3517,25 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   : b.texture === "minaWind" ? MINA.attackSuperCharge[2]
                   : b.texture === "minaSuper" ? MINA.superCharge
                   : b.texture === "spikeShard" ? SPIKE.attackSuperCharge
+                  : b.texture === "pearlCookie" ? PEARL.attackSuperChargePerHit
                   : 0;
                 damageTrialTarget(damage, chargeGain);
                 if (b.texture === "spikeShard") chargeSpikeHyper(chargeGain);
+                if (isPearlMode && b.texture === "pearlCookie") {
+                  if (pearlHyperRemainingRef.current <= 0 && pearlHyperChargeRef.current < 1) {
+                    pearlHyperChargeRef.current = Math.min(1,
+                      pearlHyperChargeRef.current + PEARL.attackHyperChargePerHit);
+                  }
+                  if (b.pearlOvercooked && b.pearlAttackCastId !== undefined
+                    && !pearlBurnedAttackCasts.has(b.pearlAttackCastId)) {
+                    pearlBurnedAttackCasts.add(b.pearlAttackCastId);
+                    pearlBurns.push({
+                      ticksRemaining: PEARL.overcookedTicks,
+                      timeToNextTick: 0,
+                      damagePerTick: PEARL.overcookedMinDamage * (b.damageMultiplier ?? 1) / PEARL.overcookedTicks,
+                    });
+                  }
+                }
                 if (b.texture === "grayCane") {
                   const attackOrigin = b.grayCaneOrigin ?? { x: player.x, y: player.y };
                   grayPullRef.current = {
@@ -3462,7 +3663,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 ? GENE.hyperDamageReduction
                 : isColtMode && coltHyperRemainingRef.current > 0 ? COLT.hyperDamageReduction
                 : isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperDamageReduction
-                : isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperDamageReduction : 0;
+                : isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperDamageReduction
+                : isPearlMode
+                  ? 1 - (1 - (pearlHyperRemainingRef.current > 0 ? PEARL.hyperDamageReduction : 0))
+                    * (1 - (pearlStarPower === "heatShield" && pearlHeatRef.current > PEARL.heatShieldThreshold
+                      ? PEARL.heatShieldDamageReduction : 0))
+                  : 0;
               healthRef.current = Math.max(0, healthRef.current - damage * (1 - damageReduction));
               secondsSinceDamageRef.current = 0;
               setHealth(Math.round(healthRef.current));
@@ -3720,6 +3926,37 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ctx.beginPath();
         ctx.ellipse(projectX(area.x, area.y), projectY(area.y),
           area.radius * scale * widthFactorAt(area.y), area.radius * scaleY, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      for (const area of pearlFireAreas) {
+        const flicker = 0.92 + Math.sin(area.remainingSeconds * 11) * 0.08;
+        ctx.save();
+        ctx.fillStyle = "rgba(255, 104, 34, 0.28)";
+        ctx.strokeStyle = "rgba(255, 190, 78, 0.9)";
+        ctx.lineWidth = Math.max(2, tiles(0.07) * scale);
+        ctx.beginPath();
+        ctx.ellipse(projectX(area.x, area.y), projectY(area.y),
+          PEARL.superRadius * flicker * scale * widthFactorAt(area.y),
+          PEARL.superRadius * flicker * scaleY, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if (pearlSuperCastRef.current) {
+        const cast = pearlSuperCastRef.current;
+        const progress = 1 - cast.remainingSeconds / PEARL.superWindupSeconds;
+        ctx.save();
+        ctx.fillStyle = `rgba(255, 166, 70, ${0.12 + progress * 0.2})`;
+        ctx.strokeStyle = "rgba(255, 222, 144, 0.94)";
+        ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
+        ctx.beginPath();
+        ctx.ellipse(projectX(player.x, player.y), projectY(player.y),
+          PEARL.superRadius * progress * scale * widthFactorAt(player.y),
+          PEARL.superRadius * progress * scaleY, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
         ctx.restore();
@@ -3996,6 +4233,22 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ctx.restore();
       }
 
+      if (isPearlMode && pearlGadget === "madeWithLove") {
+        const ally = pearlAllyRef.current;
+        drawTrainingUnitModel(ctx, {
+          centerX: projectX(ally.x, ally.y),
+          centerY: projectY(ally.y),
+          radiusX: PLAYER_RADIUS * scale * widthFactorAt(ally.y),
+          radiusY: PLAYER_RADIUS * scaleY,
+          statusWidth: TILE_SIZE * scale * widthFactorAt(ally.y),
+          health: ally.health,
+          maxHealth: PEARL.health,
+          team: "ally",
+          relation: "ally",
+          equipment: { gadgetReady: false, starPower: false },
+        });
+      }
+
       // 绘制玩家（圆）
       const playerCenterPx = projectX(player.x, player.y);
       const playerCenterPy = projectY(player.y);
@@ -4029,6 +4282,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         timedStatus: isMinaMode && minaComboRemainingRef.current > 0 ? {
           progress: minaComboRemainingRef.current / MINA.comboWindowSeconds,
           color: "#f2ae4c",
+        } : isPearlMode ? {
+          progress: pearlHeatRef.current,
+          color: pearlHeatRef.current > PEARL.heatShieldThreshold && pearlStarPower === "heatShield"
+            ? "#ffd15c" : "#f28b3c",
         } : undefined,
       });
 
@@ -4083,9 +4340,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             { x: splitX + sideX, y: splitY + sideY },
             { x: player.x + sideX, y: player.y + sideY },
           ];
-        } else if (isMaxMode) {
-          const upperAngle = angle + MAX_AIM_EXTENTS_DEGREES[0] * Math.PI / 180;
-          const lowerAngle = angle + MAX_AIM_EXTENTS_DEGREES[1] * Math.PI / 180;
+        } else if (isMaxMode || isPearlMode) {
+          const upperDegrees = isPearlMode ? -PEARL.attackSpreadDegrees / 2 : MAX_AIM_EXTENTS_DEGREES[0];
+          const lowerDegrees = isPearlMode ? PEARL.attackSpreadDegrees / 2 : MAX_AIM_EXTENTS_DEGREES[1];
+          const upperAngle = angle + upperDegrees * Math.PI / 180;
+          const lowerAngle = angle + lowerDegrees * Math.PI / 180;
           corners = [
             {
               x: player.x + Math.sin(angle) * bulletRadius,
@@ -4271,17 +4530,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           ctx.fill();
           ctx.stroke();
           ctx.restore();
-        } else if (trialHeroId === "max") {
+        } else if (trialHeroId === "max" || trialHeroId === "pearl") {
+          const radius = trialHeroId === "pearl" ? PEARL.superRadius : MAX_SUPER_RADIUS;
           ctx.save();
-          ctx.fillStyle = "rgba(255, 213, 79, 0.24)";
-          ctx.strokeStyle = "rgba(255, 235, 120, 0.82)";
+          ctx.fillStyle = trialHeroId === "pearl" ? "rgba(255, 142, 65, 0.24)" : "rgba(255, 213, 79, 0.24)";
+          ctx.strokeStyle = trialHeroId === "pearl" ? "rgba(255, 190, 105, 0.88)" : "rgba(255, 235, 120, 0.82)";
           ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
           ctx.beginPath();
           ctx.ellipse(
             playerCenterPx,
             playerCenterPy,
-            MAX_SUPER_RADIUS * scale * widthFactorAt(player.y),
-            MAX_SUPER_RADIUS * scaleY,
+            radius * scale * widthFactorAt(player.y),
+            radius * scaleY,
             0,
             0,
             Math.PI * 2,
@@ -4548,7 +4808,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isSpikeDodgeMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isPiperMode, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isSpikeDodgeMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isPiperMode, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, isPearlMode, pearlGadget, pearlStarPower, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -4723,6 +4983,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ? []
         : isColtMode
         ? Array.from({ length: COLT.attackBullets }, () => shotAngle)
+        : isPearlMode
+        ? pearlAttackAngles(shotAngle)
         : attackProjectileAngles(shotAngle, isMaxMode, shotSeed);
       const texture: keyof typeof BULLET_STYLES = isBeaMode
         ? (isEnhancedBeaShot ? "beaEnhanced" : "beaNormal")
@@ -4735,9 +4997,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         : isColtMode ? "coltAttack"
         : isMinaMode ? (minaStage === 0 ? "minaSandal" : "minaTambourine")
         : isSpikeMode ? "spikeBomb"
+        : isPearlMode && pearlGadgetArmedRef.current && pearlGadget === "madeWithLove" ? "pearlLoveCookie"
+        : isPearlMode ? "pearlCookie"
         : "high";
       const shotSpeed = isGrayCaneShot ? GRAY.caneOutboundSpeed : isMinaMode ? MINA.projectileSpeed : bulletSpeed;
+      let pearlShotHeat = pearlHeatRef.current;
+      const pearlHeatBeforeAttack = pearlHeatRef.current;
+      const pearlAttackCastId = isPearlMode ? shotSeed : undefined;
+      const pearlOvercooked = isPearlMode && pearlGadgetArmedRef.current && pearlGadget === "overcooked";
       for (const [index, angle] of projectileAngles.entries()) {
+        const pearlHeatMultiplier = isPearlMode
+          ? pearlDamageAtHeat(1, pearlShotHeat)
+          : 1;
         bulletsRef.current.push({
           x: player.x,
           y: player.y,
@@ -4748,6 +5019,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           radius: isGrayCaneShot ? GRAY.caneWidth / 2
             : isPierceLastShot ? 110
             : isMinaMode ? MINA.attackWidth[minaStage === 0 ? 0 : 1] / 2
+            : isPearlMode ? PEARL.attackWidth / 2
             : bulletRadius,
           texture,
           owner: "player",
@@ -4756,13 +5028,30 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             ? GENE.hyperDamageMultiplier
             : isColtMode && coltHyperRemainingRef.current > 0 ? COLT.hyperDamageMultiplier
             : isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperDamageMultiplier
-            : isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperDamageMultiplier : 1,
+            : isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperDamageMultiplier
+            : isPearlMode ? pearlHeatMultiplier
+              * (pearlHyperRemainingRef.current > 0 ? PEARL.hyperDamageMultiplier : 1) : 1,
           spawnDelay: isMaxMode
             ? index * MAX_PROJECTILE_INTERVAL_SECONDS
-            : isColtMode ? coltAttackDelay(index, coltHyperRemainingRef.current > 0) : 0,
+            : isColtMode ? coltAttackDelay(index, coltHyperRemainingRef.current > 0)
+            : isPearlMode ? index * PEARL.attackBulletIntervalSeconds : 0,
           grayCaneOrigin: isGrayCaneShot ? { x: player.x, y: player.y } : undefined,
           spikeBomb: isSpikeMode ? { hypercharged: spikeHyperRemainingRef.current > 0 } : undefined,
+          piercesTarget: texture === "pearlLoveCookie" ? true : undefined,
+          pearlAttackCastId,
+          pearlOvercooked,
         });
+        if (isPearlMode) {
+          pearlShotHeat = pearlHeatAfterCookie(pearlShotHeat);
+          if (index < projectileAngles.length - 1) {
+            pearlShotHeat = Math.min(1,
+              pearlShotHeat + PEARL.attackBulletIntervalSeconds / PEARL.heatChargeSeconds);
+          }
+        }
+      }
+      if (isPearlMode) {
+        pearlHeatRef.current = Math.max(0,
+          pearlHeatBeforeAttack - PEARL.attackBullets * PEARL.heatUseSecondsPerCookie / PEARL.heatChargeSeconds);
       }
       if (isMinaMode && minaStage === 2) {
         minaWaveCastsRef.current.push({
@@ -4786,6 +5075,13 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       if (isMinaMode) {
         minaAttackStageRef.current = minaNextAttackStage(minaStage);
         minaComboRemainingRef.current = MINA.comboWindowSeconds;
+      }
+      if (isPearlMode && pearlGadgetArmedRef.current) {
+        pearlGadgetArmedRef.current = false;
+        pearlGadgetCooldownRef.current = pearlGadget === "overcooked"
+          ? PEARL.overcookedCooldownSeconds : PEARL.madeWithLoveCooldownSeconds;
+        pearlGadgetCooldownShownRef.current = pearlGadgetCooldownRef.current;
+        setPearlGadgetCooldownDisplay(pearlGadgetCooldownRef.current);
       }
       magazineAmmoRef.current -= 1;
       setMagazineAmmo(magazineAmmoRef.current);
@@ -4876,7 +5172,15 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         }
         minaComboRemainingRef.current = MINA.comboWindowSeconds;
       }
-      if (trialHeroId === "max") {
+      if (trialHeroId === "pearl") {
+        const heat = pearlHeatRef.current;
+        pearlSuperCastRef.current = {
+          remainingSeconds: PEARL.superWindupSeconds,
+          heat,
+          hypercharged: pearlHyperRemainingRef.current > 0,
+        };
+        pearlHeatRef.current = pearlHeatAfterSuper(heat, pearlStarPower);
+      } else if (trialHeroId === "max") {
         maxSuperRemainingRef.current = MAX_SUPER_DURATION_SECONDS;
       } else if (trialHeroId === "bea") {
         for (const omega of BEA_SUPER.angularSpeeds) {
@@ -5286,6 +5590,19 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     if (pausedRef.current || minaHyperChargeRef.current < 1 || minaHyperRemainingRef.current > 0) return;
     minaHyperChargeRef.current = 0;
     minaHyperRemainingRef.current = MINA.hyperDurationSeconds;
+    forceUpdate((value) => value + 1);
+  };
+
+  const activatePearlHyper = () => {
+    if (pausedRef.current || pearlHyperChargeRef.current < 1 || pearlHyperRemainingRef.current > 0) return;
+    pearlHyperChargeRef.current = 0;
+    pearlHyperRemainingRef.current = PEARL.hyperDurationSeconds;
+    forceUpdate((value) => value + 1);
+  };
+
+  const activatePearlGadget = () => {
+    if (!isPearlMode || pausedRef.current || pearlGadgetCooldownRef.current > 0 || pearlGadgetArmedRef.current) return;
+    pearlGadgetArmedRef.current = true;
     forceUpdate((value) => value + 1);
   };
 
@@ -5910,6 +6227,86 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             {minaGadgetCooldownDisplay > 0
               ? Math.ceil(minaGadgetCooldownDisplay)
               : <span aria-hidden="true">{minaCapoWhatArmedRef.current ? "✓" : MINA_LOADOUT.gadget === "windmill" ? "✣" : "↯"}</span>}
+          </button>
+        </>
+      )}
+
+      {isTrialMode && isPearlMode && (
+        <>
+          <button
+            type="button"
+            aria-label={pearlHyperRemainingRef.current > 0
+              ? "珀尔超充生效中"
+              : `珀尔超充 ${Math.round(pearlHyperChargeRef.current * 100)}%`}
+            disabled={pearlHyperChargeRef.current < 1 || pearlHyperRemainingRef.current > 0 || paused}
+            onPointerDown={beginActionButtonPress("pearlHyper")}
+            onPointerUp={finishActionButtonPress("pearlHyper", activatePearlHyper)}
+            onPointerCancel={finishActionButtonPress("pearlHyper", activatePearlHyper)}
+            onClick={activateActionButtonFromKeyboard(activatePearlHyper)}
+            style={{
+              position: "absolute",
+              left: hyperLayout.x * controlViewport.width,
+              top: hyperLayout.y * controlViewport.height,
+              transform: "translate(-50%, -50%)",
+              zIndex: 20,
+              width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              borderRadius: "50%",
+              border: "3px solid #e2baff",
+              background: pearlHyperRemainingRef.current > 0 ? "#9c4bff"
+                : `conic-gradient(#ba65ff ${pearlHyperChargeRef.current * 100}%, #332346 0)`,
+              boxShadow: pearlHyperChargeRef.current >= 1 || pearlHyperRemainingRef.current > 0
+                ? "0 0 0 2px #3d245d, 0 0 18px #ba65ff"
+                : "0 0 0 2px #3d245d, 0 2px 9px #21132caa",
+              touchAction: "none",
+            }}
+          >
+            <span
+              ref={pearlHyperDurationRingRef}
+              className="gene-hyper-duration-ring"
+              style={{
+                "--hyper-duration-angle": `${pearlHyperRemainingRef.current / PEARL.hyperDurationSeconds * 360}deg`,
+                opacity: pearlHyperRemainingRef.current > 0 ? 1 : 0,
+              } as React.CSSProperties}
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            type="button"
+            className="training-gadget-button"
+            aria-label={pearlGadgetArmedRef.current
+              ? `${pearlGadget === "overcooked" ? "烤糊了" : "爱心烘焙"}已强化下一次普攻`
+              : pearlGadgetCooldownDisplay > 0
+                ? `妙具冷却 ${pearlGadgetCooldownDisplay.toFixed(1)} 秒`
+                : `启用${pearlGadget === "overcooked" ? "烤糊了" : "爱心烘焙"}`}
+            disabled={pearlGadgetCooldownDisplay > 0 || pearlGadgetArmedRef.current || paused}
+            onPointerDown={beginActionButtonPress("pearlGadget")}
+            onPointerUp={finishActionButtonPress("pearlGadget", activatePearlGadget)}
+            onPointerCancel={finishActionButtonPress("pearlGadget", activatePearlGadget)}
+            onClick={activateActionButtonFromKeyboard(activatePearlGadget)}
+            style={{
+              position: "absolute",
+              left: 0.59 * controlViewport.width,
+              top: 0.58 * controlViewport.height,
+              transform: "translate(-50%, -50%)",
+              zIndex: 20,
+              width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              borderRadius: "50%",
+              border: pearlGadgetArmedRef.current ? "3px solid #efffc7" : "3px solid #a8ffd0",
+              color: "#fff",
+              fontWeight: 900,
+              fontSize: "1rem",
+              background: pearlGadgetArmedRef.current
+                ? "radial-gradient(circle,#f6d86a 0 38%,#4e9f45 42% 100%)"
+                : pearlGadgetCooldownDisplay > 0
+                  ? `conic-gradient(#27563c ${(1 - pearlGadgetCooldownDisplay / (pearlGadget === "overcooked" ? PEARL.overcookedCooldownSeconds : PEARL.madeWithLoveCooldownSeconds)) * 100}%,#14251c 0)`
+                  : "linear-gradient(145deg,#69df82,#27874f)",
+              boxShadow: pearlGadgetArmedRef.current ? "0 0 18px #dfff73" : "0 3px 10px #10240daa",
+              touchAction: "none",
+            }}
+          >
+            {pearlGadgetCooldownDisplay > 0 ? Math.ceil(pearlGadgetCooldownDisplay) : pearlGadgetArmedRef.current ? "✓" : "●"}
           </button>
         </>
       )}
