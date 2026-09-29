@@ -6,7 +6,7 @@ import { GRAY } from "./grayCombat";
 import { MINA, MINA_LOADOUT } from "./minaCombat";
 import { PIERCE_SHELL, PIERCE_SUPER } from "./pierceCombat";
 import { PIPER, PIPER_LOADOUT } from "./piperCombat";
-import { PEARL, PEARL_DEFAULT_LOADOUT, pearlVolleyDamages } from "./pearlCombat";
+import { PEARL, pearlVolleyDamages } from "./pearlCombat";
 import { SPIKE, SPIKE_LOADOUT } from "./spikeCombat";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "./characterTrial";
 
@@ -547,6 +547,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "单颗消耗", value: `${PEARL.heatUseSecondsPerCookie}秒充能量（${percent(PEARL.heatUseSecondsPerCookie / PEARL.heatChargeSeconds)}）` },
         { label: "整轮六颗消耗", value: `${PEARL.heatUseSecondsPerCookie * PEARL.attackBullets}秒充能量（${percent(PEARL.heatUseSecondsPerCookie * PEARL.attackBullets / PEARL.heatChargeSeconds)}）` },
         { label: "伤害规则", value: "每颗出膛时读取热量，随后扣除热量；同一轮伤害逐颗下降" },
+        { label: "攻击期间产热", value: "持续产热，不设置攻击后暂停", note: "原始配置只有自然产热周期与每颗消耗量，没有产热暂停字段；实测资料也显示连射期间继续产热。" },
       ],
     },
     {
@@ -584,13 +585,15 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
       rows: [
         { label: "余热保留", value: `大招后保留当前热量的${percent(PEARL.heatRetentionRatio)}` },
         { label: "热能护盾", value: `热量高于${percent(PEARL.heatShieldThreshold)}时减伤${percent(PEARL.heatShieldDamageReduction)}` },
-        { label: "默认配装", value: PEARL_DEFAULT_LOADOUT.starPower },
+        { label: "默认配装", value: "烤糊了＋热能护盾" },
       ],
     },
     {
       title: "大招 · 蒸汽爆发",
       rows: [
         { label: "前摇", value: seconds(PEARL.superWindupSeconds) },
+        { label: "前摇打断", value: `可被${PEARL.superInterruptibleBy.map((kind) => ({ stun: "眩晕", pull: "拉取", knockback: "击退" })[kind]).join("、")}打断；普通伤害不会打断` },
+        { label: "动作优先级", value: PEARL.superInterruptsAttack ? "大招可打断普攻，尚未出膛的饼干取消；大招前摇期间不能普攻" : "大招不打断普攻" },
         { label: "作用半径", value: units(PEARL.superRadius) },
         { label: "伤害", value: `${PEARL.superMinDamage} → ${PEARL.superMaxDamage}` },
         { label: "原始击退强度", value: String(PEARL.superPushbackStrengthRaw) },

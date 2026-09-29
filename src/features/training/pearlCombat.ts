@@ -1,5 +1,6 @@
 export type PearlGadget = "overcooked" | "madeWithLove";
 export type PearlStarPower = "heatRetention" | "heatShield";
+export type PearlCrowdControl = "stun" | "pull" | "knockback" | "slow";
 
 export const PEARL = {
   health: 8600,
@@ -25,6 +26,8 @@ export const PEARL = {
   superMaxDamage: 5422,
   superRadius: 1000,
   superWindupSeconds: 0.3,
+  superInterruptsAttack: true,
+  superInterruptibleBy: ["stun", "pull", "knockback"] as const,
   superPushbackStrengthRaw: 50,
   superKnockbackDistance: 500,
   superChargeOnHit: 0.3875,
@@ -87,6 +90,10 @@ export function pearlHeatAfterCookie(heat: number): number {
 
 export function pearlHeatAfterSuper(heat: number, starPower: PearlStarPower): number {
   return starPower === "heatRetention" ? heat * PEARL.heatRetentionRatio : 0;
+}
+
+export function pearlSuperIsInterruptedBy(effect: PearlCrowdControl): boolean {
+  return (PEARL.superInterruptibleBy as readonly PearlCrowdControl[]).includes(effect);
 }
 
 export function pearlVolleyDamages(startHeat: number): number[] {

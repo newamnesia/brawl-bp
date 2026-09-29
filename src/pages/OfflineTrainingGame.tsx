@@ -22,7 +22,9 @@ import {
   pearlDamageAtHeat,
   pearlHeatAfterCookie,
   pearlHeatAfterSuper,
+  pearlSuperIsInterruptedBy,
   pearlSuperDamageAtHeat,
+  type PearlCrowdControl,
   type PearlGadget,
   type PearlStarPower,
 } from "../features/training/pearlCombat";
@@ -277,6 +279,8 @@ type Bullet = {
   pearlAttackCastId?: number;
   pearlOvercooked?: boolean;
   pearlHealedAlly?: boolean;
+  pearlHeatPending?: boolean;
+  crowdControlOnHit?: PearlCrowdControl;
 };
 
 type ByronPoison = { ticksRemaining: number; timeToNextTick: number };
@@ -3220,6 +3224,13 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             b.y = source.y;
             if (movementTime <= 0) continue;
           }
+          if (b.pearlHeatPending) {
+            b.damageMultiplier = pearlDamageAtHeat(1, pearlHeatRef.current)
+              * (pearlHyperRemainingRef.current > 0 ? PEARL.hyperDamageMultiplier : 1);
+            pearlHeatRef.current = pearlHeatAfterCookie(pearlHeatRef.current);
+            b.pearlHeatPending = false;
+            firedShotCountRef.current += 1;
+          }
           const previousX = b.x;
           const previousY = b.y;
           let maxDistance = b.maxDistance;
@@ -3645,6 +3656,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             }
             if (b.texture === "beaSuper") {
               superSlowRemainingMs = BEA_SUPER.slowMs;
+            }
+            if (isPearlMode && pearlSuperCastRef.current && b.crowdControlOnHit
+              && pearlSuperIsInterruptedBy(b.crowdControlOnHit)) {
+              pearlSuperCastRef.current = null;
             }
             if (b.texture === "high") triggerPiperSnappySniping();
             if (isBeaMode && !isAimingMode && (
@@ -4940,7 +4955,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       && target.y >= bounds.top && target.y <= bounds.bottom;
     const coltAttackBlocked = isColtMode
       && (coltActionRef.current?.kind === "super" || coltActionRef.current?.kind === "gadget");
-    if (!cancelled && !coltAttackBlocked && !pausedRef.current && !countdownActiveRef.current && magazineAmmoRef.current > 0 && playerAttackCooldownRef.current <= 0) {
+    const pearlAttackBlocked = isPearlMode && pearlSuperCastRef.current !== null;
+    if (!cancelled && !coltAttackBlocked && !pearlAttackBlocked && !pausedRef.current && !countdownActiveRef.current && magazineAmmoRef.current > 0 && playerAttackCooldownRef.current <= 0) {
       const player = playerRef.current;
       const shotAngle = aim.exceededDeadzone
         ? Math.atan2(aim.knobY, aim.knobX)
@@ -5001,14 +5017,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         : isPearlMode ? "pearlCookie"
         : "high";
       const shotSpeed = isGrayCaneShot ? GRAY.caneOutboundSpeed : isMinaMode ? MINA.projectileSpeed : bulletSpeed;
-      let pearlShotHeat = pearlHeatRef.current;
-      const pearlHeatBeforeAttack = pearlHeatRef.current;
       const pearlAttackCastId = isPearlMode ? shotSeed : undefined;
       const pearlOvercooked = isPearlMode && pearlGadgetArmedRef.current && pearlGadget === "overcooked";
       for (const [index, angle] of projectileAngles.entries()) {
-        const pearlHeatMultiplier = isPearlMode
-          ? pearlDamageAtHeat(1, pearlShotHeat)
-          : 1;
         bulletsRef.current.push({
           x: player.x,
           y: player.y,
@@ -5029,8 +5040,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             : isColtMode && coltHyperRemainingRef.current > 0 ? COLT.hyperDamageMultiplier
             : isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperDamageMultiplier
             : isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperDamageMultiplier
-            : isPearlMode ? pearlHeatMultiplier
-              * (pearlHyperRemainingRef.current > 0 ? PEARL.hyperDamageMultiplier : 1) : 1,
+            : 1,
           spawnDelay: isMaxMode
             ? index * MAX_PROJECTILE_INTERVAL_SECONDS
             : isColtMode ? coltAttackDelay(index, coltHyperRemainingRef.current > 0)
@@ -5040,18 +5050,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           piercesTarget: texture === "pearlLoveCookie" ? true : undefined,
           pearlAttackCastId,
           pearlOvercooked,
+          pearlHeatPending: isPearlMode || undefined,
         });
-        if (isPearlMode) {
-          pearlShotHeat = pearlHeatAfterCookie(pearlShotHeat);
-          if (index < projectileAngles.length - 1) {
-            pearlShotHeat = Math.min(1,
-              pearlShotHeat + PEARL.attackBulletIntervalSeconds / PEARL.heatChargeSeconds);
-          }
-        }
-      }
-      if (isPearlMode) {
-        pearlHeatRef.current = Math.max(0,
-          pearlHeatBeforeAttack - PEARL.attackBullets * PEARL.heatUseSecondsPerCookie / PEARL.heatChargeSeconds);
       }
       if (isMinaMode && minaStage === 2) {
         minaWaveCastsRef.current.push({
@@ -5062,7 +5062,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           damageMultiplier: minaHyperRemainingRef.current > 0 ? MINA.hyperDamageMultiplier : 1,
         });
       }
-      firedShotCountRef.current += isMinaMode && minaStage === 2 ? 1 : projectileAngles.length;
+      firedShotCountRef.current += isPearlMode ? 0
+        : isMinaMode && minaStage === 2 ? 1 : projectileAngles.length;
       playerShotHistoryRef.current.push({ at: performance.now(), angle: shotAngle });
       if (playerShotHistoryRef.current.length > 12) playerShotHistoryRef.current.shift();
       if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
@@ -5173,6 +5174,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         minaComboRemainingRef.current = MINA.comboWindowSeconds;
       }
       if (trialHeroId === "pearl") {
+        bulletsRef.current = bulletsRef.current.filter((bullet) => !bullet.pearlHeatPending);
         const heat = pearlHeatRef.current;
         pearlSuperCastRef.current = {
           remainingSeconds: PEARL.superWindupSeconds,
