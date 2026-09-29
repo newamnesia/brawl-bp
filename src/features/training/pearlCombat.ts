@@ -67,16 +67,14 @@ export const PEARL_DEFAULT_LOADOUT: {
   starPower: "heatShield",
 };
 
-// Keep the six lanes fixed, but model the observed non-monotonic emission order instead of
-// coupling firing time to a left-to-right sorted angle array.
-export const PEARL_ATTACK_EMISSION_LANE_ORDER = [2, 3, 1, 4, 0, 5] as const;
+// The game's AttackPattern=1 traverses Pearl's 20° fan as a fixed zigzag. Frame-by-frame
+// measurement of a stationary, straight-up volley gives this chronological sequence.
+export const PEARL_ATTACK_ANGLE_OFFSETS_DEGREES = [0, -5, 10, -10, 5, 0] as const;
 
 export function pearlAttackAngles(baseAngle: number): number[] {
-  const halfSpread = PEARL.attackSpreadDegrees / 2;
-  return PEARL_ATTACK_EMISSION_LANE_ORDER.map((lane) => {
-    const degrees = -halfSpread + lane * (PEARL.attackSpreadDegrees / (PEARL.attackBullets - 1));
-    return baseAngle + degrees * Math.PI / 180;
-  });
+  return PEARL_ATTACK_ANGLE_OFFSETS_DEGREES.map(
+    (degrees) => baseAngle + degrees * Math.PI / 180,
+  );
 }
 
 export function pearlDamageAtHeat(minDamage: number, heat: number): number {

@@ -554,7 +554,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
       title: "普通攻击 · 烤箱出炉",
       rows: [
         attackStartInterval("pearl"),
-        { label: "弹丸", value: `${PEARL.attackBullets}颗，中心两侧交错向外发射`, note: "发射槽位顺序为中左、中右、次左、次右、最左、最右，不是从左到右依次扫过。" },
+        { label: "弹丸", value: `${PEARL.attackBullets}颗，按固定折返轨迹依次发射`, note: "相对瞄准线的角度依次为0°、−5°、+10°、−10°、+5°、0°；每颗间隔0.1秒。" },
         { label: "每颗伤害", value: `${PEARL.attackMinDamage} → ${PEARL.attackMaxDamage}` },
         { label: "0%热量整轮", value: String(Math.round(pearlVolleyDamages(0).reduce((sum, value) => sum + value, 0))) },
         { label: "100%热量整轮", value: String(Math.round(pearlVolleyDamages(1).reduce((sum, value) => sum + value, 0))), note: "按逐颗消耗热量并计入相邻饼干间0.1秒自然回热计算。" },
