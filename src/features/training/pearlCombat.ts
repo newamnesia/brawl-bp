@@ -67,10 +67,14 @@ export const PEARL_DEFAULT_LOADOUT: {
   starPower: "heatShield",
 };
 
+// Keep the six lanes fixed, but model the observed non-monotonic emission order instead of
+// coupling firing time to a left-to-right sorted angle array.
+export const PEARL_ATTACK_EMISSION_LANE_ORDER = [2, 3, 1, 4, 0, 5] as const;
+
 export function pearlAttackAngles(baseAngle: number): number[] {
   const halfSpread = PEARL.attackSpreadDegrees / 2;
-  return Array.from({ length: PEARL.attackBullets }, (_, index) => {
-    const degrees = -halfSpread + index * (PEARL.attackSpreadDegrees / (PEARL.attackBullets - 1));
+  return PEARL_ATTACK_EMISSION_LANE_ORDER.map((lane) => {
+    const degrees = -halfSpread + lane * (PEARL.attackSpreadDegrees / (PEARL.attackBullets - 1));
     return baseAngle + degrees * Math.PI / 180;
   });
 }
