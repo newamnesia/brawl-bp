@@ -9,15 +9,15 @@ import { advanceMovement, resetsMovementOnTurn, resolveSquareMovement, STARTUP_S
 import { AdjustableJoystick } from "../components/AdjustableJoystick";
 import { clampJoystick, hyperButtonDiameter, joystickDiameter, loadControlLayout } from "../features/training/controlLayout";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "../features/training/characterTrial";
+import { defaultTrialLoadout, TRIAL_LOADOUTS, type TrialLoadoutSelection } from "../features/training/trialLoadouts";
 import { GENE, advanceGenePull, destroyWallsAlongGenePull, geneSplitAngles, geneSuperAngles } from "../features/training/geneCombat";
 import { GRAY, advanceGrayPull, destroyWallsAlongGrayPull, type GrayPortalPair, type GrayPull } from "../features/training/grayCombat";
-import { COLT, COLT_LOADOUT, coltAttackDelay, coltMoveSpeed, destroyWallsAlongColtBullet } from "../features/training/coltCombat";
-import { MINA, MINA_LOADOUT, minaHyperSuperAngles, minaNextAttackStage, minaThirdAttackParts, type MinaAttackStage, type MinaThirdAttackPart } from "../features/training/minaCombat";
+import { COLT, coltAttackDelay, coltMoveSpeed, destroyWallsAlongColtBullet, type ColtGadget, type ColtStarPower } from "../features/training/coltCombat";
+import { MINA, minaHyperSuperAngles, minaNextAttackStage, minaThirdAttackParts, type MinaAttackStage, type MinaGadget, type MinaStarPower, type MinaThirdAttackPart } from "../features/training/minaCombat";
 import { drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
-import { applyPiperSnappySniping, PIPER_LOADOUT } from "../features/training/piperCombat";
+import { applyPiperSnappySniping } from "../features/training/piperCombat";
 import {
   PEARL,
-  PEARL_DEFAULT_LOADOUT,
   pearlAttackAngles,
   pearlDamageAtHeat,
   pearlHeatAfterCookie,
@@ -30,7 +30,6 @@ import {
 } from "../features/training/pearlCombat";
 import {
   OLLIE,
-  OLLIE_DEFAULT_LOADOUT,
   ollieAttackAngles,
   ollieSuperIsInterruptedBy,
   type OllieCrowdControl,
@@ -39,7 +38,6 @@ import {
 } from "../features/training/ollieCombat";
 import {
   SPIKE,
-  SPIKE_LOADOUT,
   spikeShardAngles,
   spikeShardPolarAngle,
   spikeShardTangentAngle,
@@ -166,6 +164,15 @@ const BROCK_FIRE_RADIUS = 300;
 const BROCK_FIRE_DAMAGE = 688;
 const BROCK_FIRE_DURATION_SECONDS = 2.9;
 const BROCK_FIRE_FIRST_TICK_SECONDS = 0.9;
+const GENERIC_GADGET_COOLDOWNS: Record<string, number> = {
+  autoAimer: 18, homemadeRecipe: 18,
+  honeyMolasses: 20, rattledHive: 20,
+  phaseShifter: 12, sneakySneakers: 16,
+  shotInTheArm: 16, boosterShots: 16,
+  bottomlessMags: 18, youOnlyBrawlTwice: 13,
+  rocketLaces: 15, rocketFuel: 15,
+  lampBlowout: 20, vengefulSpirits: 20,
+};
 const MAX_SPREAD_DEGREES = [0, -1.5, 1.5, -3] as const;
 const MAX_AIM_EXTENTS_DEGREES = [-3, 1.8] as const;
 const BEA_PROJECTILE_LENGTH_TO_WIDTH = 4 / 3; // 300 × 400；大招按自身宽度同比缩放
@@ -283,6 +290,7 @@ type Bullet = {
   minaThirdAttackCastId?: number;
   bouncesRemaining?: number;
   grayCaneOrigin?: { x: number; y: number };
+  grayPiano?: boolean;
   spikeBomb?: { hypercharged: boolean; trajectoryHintId?: number };
   spikeShard?: { originX: number; originY: number; baseAngle: number; curveRadians: number; trajectoryHintId?: number };
   spikeSuperImpact?: { x: number; y: number; hypercharged: boolean };
@@ -294,12 +302,14 @@ type Bullet = {
   ollieAttackCastId?: number;
   ollieHypnosisSeconds?: number;
   crowdControlOnHit?: PearlCrowdControl | OllieCrowdControl;
+  suppressBrockFire?: boolean;
 };
 
 type ByronPoison = { ticksRemaining: number; timeToNextTick: number };
 type CombatUnitClass = "hero" | "vault" | "summon" | "humanoidSummon";
 type ImpactBurst = { x: number; y: number; radius: number; life: number; maxLife: number; kind?: "byron" | "brock" | "spike" | "plant" };
 type PierceShell = { id: number; x: number; y: number; remainingSeconds: number };
+type GrayPiano = { x: number; y: number; remainingSeconds: number };
 type PierceSuperCast = {
   id: number;
   x: number;
@@ -1043,7 +1053,13 @@ function predictSpikeDodgeTarget(
   return { predictedX, predictedY };
 }
 
-export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: TrialBrawlerId } = {}) {
+export default function OfflineTrainingGame({
+  trialHeroId,
+  trialLoadout,
+}: {
+  trialHeroId?: TrialBrawlerId;
+  trialLoadout?: TrialLoadoutSelection;
+} = {}) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isTrialMode = Boolean(trialHeroId);
@@ -1102,15 +1118,31 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const isSpikeMode = trialHeroId === "spike";
   const isPearlMode = trialHeroId === "pearl";
   const isOllieMode = trialHeroId === "ollie";
-  const pearlGadget: PearlGadget = searchParams.get("pearlGadget") === "madeWithLove"
-    ? "madeWithLove" : PEARL_DEFAULT_LOADOUT.gadget;
-  const pearlStarPower: PearlStarPower = searchParams.get("pearlStar") === "heatRetention"
-    ? "heatRetention" : PEARL_DEFAULT_LOADOUT.starPower;
-  const ollieGadget: OllieGadget = searchParams.get("ollieGadget") === "allEyezOnMe"
-    ? "allEyezOnMe" : OLLIE_DEFAULT_LOADOUT.gadget;
-  const ollieStarPower: OllieStarPower = searchParams.get("ollieStar") === "kickPush"
-    ? "kickPush" : OLLIE_DEFAULT_LOADOUT.starPower;
-  const magazineCapacity = projectileConfig.magazineCapacity;
+  const equippedLoadout = trialHeroId
+    ? trialLoadout ?? defaultTrialLoadout(trialHeroId)
+    : null;
+  const piperStarPower = equippedLoadout?.starPower ?? "snappySniping";
+  const brockStarPower = equippedLoadout?.starPower ?? "rocketNoFour";
+  const grayGadget = equippedLoadout?.gadget ?? "walkingCane";
+  const coltGadget = (equippedLoadout?.gadget ?? "speedloader") as ColtGadget;
+  const coltStarPower = (equippedLoadout?.starPower ?? "slickBoots") as ColtStarPower;
+  const minaGadget = (equippedLoadout?.gadget ?? "windmill") as MinaGadget;
+  const minaStarPower = (equippedLoadout?.starPower ?? "zumZumZum") as MinaStarPower;
+  const spikeGadget = equippedLoadout?.gadget ?? "lifePlant";
+  const spikeStarPower = equippedLoadout?.starPower ?? "curveball";
+  const pearlGadget = (equippedLoadout?.gadget ?? "overcooked") as PearlGadget;
+  const pearlStarPower = (equippedLoadout?.starPower ?? "heatShield") as PearlStarPower;
+  const ollieGadget = (equippedLoadout?.gadget ?? "regulate") as OllieGadget;
+  const ollieStarPower = (equippedLoadout?.starPower ?? "renegade") as OllieStarPower;
+  const usesGenericGadget = trialHeroId === "piper" || trialHeroId === "bea"
+    || trialHeroId === "max" || trialHeroId === "byron" || trialHeroId === "pierce"
+    || trialHeroId === "brock" || trialHeroId === "gene";
+  const genericGadgetName = trialHeroId && equippedLoadout
+    ? TRIAL_LOADOUTS[trialHeroId].gadgets.find(option => option.id === equippedLoadout.gadget)?.name
+      ?? "妙具"
+    : "妙具";
+  const magazineCapacity = isBrockMode && brockStarPower === "rocketNoFour"
+    ? 4 : projectileConfig.magazineCapacity;
   const controlledMoveSpeed = isSpikeDodgeMode ? TRIAL_BRAWLERS.max.moveSpeed : projectileConfig.moveSpeed;
   const magazineReloadSeconds = projectileConfig.reloadSeconds;
   // 游戏文件中的 Cooldown + ActiveTime；两次攻击之间的额外间隔不阻止装弹。
@@ -1232,6 +1264,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const [spikeGadgetCooldownDisplay, setSpikeGadgetCooldownDisplay] = useState(0);
   const [pearlGadgetCooldownDisplay, setPearlGadgetCooldownDisplay] = useState(0);
   const [ollieGadgetCooldownDisplay, setOllieGadgetCooldownDisplay] = useState(0);
+  const [genericGadgetCooldownDisplay, setGenericGadgetCooldownDisplay] = useState(0);
 
   // 暂停状态
   const [paused, setPaused] = useState(false);
@@ -1407,6 +1440,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const grayGadgetCooldownShownRef = useRef(0);
   const grayPullRef = useRef<GrayPull | null>(null);
   const grayPortalsRef = useRef<GrayPortalPair | null>(null);
+  const genericGadgetArmedRef = useRef(false);
+  const genericGadgetCooldownRef = useRef(0);
+  const genericGadgetCooldownShownRef = useRef(0);
+  const maxSneakyRef = useRef<{ x: number; y: number; health: number; remainingSeconds: number } | null>(null);
+  const pendingPierceShellRef = useRef(false);
+  const pierceSlipSpeedRemainingRef = useRef(0);
   const trialTargetRespawnRemainingRef = useRef(0);
   const fireTimerRef = useRef(fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin));
   const magazineAmmoRef = useRef(magazineCapacity);
@@ -1664,6 +1703,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     grayGadgetCooldownShownRef.current = 0;
     grayPullRef.current = null;
     grayPortalsRef.current = null;
+    genericGadgetArmedRef.current = false;
+    genericGadgetCooldownRef.current = 0;
+    genericGadgetCooldownShownRef.current = 0;
+    maxSneakyRef.current = null;
+    pendingPierceShellRef.current = false;
+    pierceSlipSpeedRemainingRef.current = 0;
     trialTargetRespawnRemainingRef.current = 0;
     setGrayGadgetCooldownDisplay(0);
     setColtGadgetCooldownDisplay(0);
@@ -1671,6 +1716,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     setSpikeGadgetCooldownDisplay(0);
     setPearlGadgetCooldownDisplay(0);
     setOllieGadgetCooldownDisplay(0);
+    setGenericGadgetCooldownDisplay(0);
     fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
     setMagazineAmmo(magazineCapacity);
     setMagazineReloadProgress(0);
@@ -1709,6 +1755,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const impactBursts: ImpactBurst[] = [];
     const pierceShells: PierceShell[] = [];
     const brockFires: BrockFire[] = [];
+    const grayPianos: GrayPiano[] = [];
     const spikeSuperAreas: SpikeSuperArea[] = [];
     const spikeDelayedExplosions: SpikeDelayedExplosion[] = [];
     const pearlBurns: PearlBurn[] = [];
@@ -1837,14 +1884,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           radius: SPIKE.shardWidth / 2,
           texture: "spikeShard",
           owner,
-          maxDistance: SPIKE.shardBaseRange + (SPIKE_LOADOUT.buffies.starPower
+          maxDistance: SPIKE.shardBaseRange + (spikeStarPower === "curveball"
             ? SPIKE.curveballBuffieExtraRange : 0),
           damageMultiplier,
           spikeShard: {
             originX: x,
             originY: y,
             baseAngle: angle,
-            curveRadians: SPIKE_LOADOUT.starPower === "curveball"
+            curveRadians: spikeStarPower === "curveball"
               ? SPIKE.curveballTurnRadians : 0,
             trajectoryHintId: trajectoryHint?.mode === "shards" ? trajectoryHint.id : undefined,
           },
@@ -1852,7 +1899,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         });
       }
       if (owner === "player") firedShotCountRef.current += SPIKE.shardCount;
-      if (scheduleSecond && SPIKE_LOADOUT.buffies.hypercharge) {
+      if (scheduleSecond) {
         spikeDelayedExplosions.push({
           x, y,
           remainingSeconds: SPIKE.hyperSecondExplosionDelaySeconds,
@@ -1870,7 +1917,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         setHealth(Math.round(healthRef.current));
       }
       const target = aimingTargetRef.current;
-      if (SPIKE_LOADOUT.buffies.gadget && aimingTargetHealthRef.current > 0
+      if (spikeGadget === "lifePlant" && aimingTargetHealthRef.current > 0
         && Math.hypot(target.x - plant.x, target.y - plant.y) <= SPIKE.plantBuffieBlastRadius + ENEMY_RADIUS) {
         damageTrialTarget(SPIKE.plantBuffieDamage);
         const dx = target.x - plant.x;
@@ -2231,6 +2278,48 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           impactBursts[i].life -= dt;
           if (impactBursts[i].life <= 0) impactBursts.splice(i, 1);
         }
+        for (let i = grayPianos.length - 1; i >= 0; i--) {
+          const piano = grayPianos[i];
+          piano.remainingSeconds -= dt;
+          if (piano.remainingSeconds > 0) continue;
+          grayPianos.splice(i, 1);
+          impactBursts.push({
+            x: piano.x,
+            y: piano.y,
+            radius: GRAY.pianoRadius,
+            life: 0.42,
+            maxLife: 0.42,
+          });
+          for (const cell of wallTiles) {
+            const [column, row] = cell.split(",").map(Number);
+            const wallX = (column + 0.5) * TILE_SIZE;
+            const wallY = (row + 0.5) * TILE_SIZE;
+            if (Math.hypot(wallX - piano.x, wallY - piano.y)
+              <= GRAY.pianoRadius + TILE_SIZE * Math.SQRT1_2) {
+              wallTiles.delete(cell);
+            }
+          }
+          const target = aimingTargetRef.current;
+          const dx = target.x - piano.x;
+          const dy = target.y - piano.y;
+          const distance = Math.hypot(dx, dy);
+          if (aimingTargetHealthRef.current > 0
+            && distance <= GRAY.pianoRadius + ENEMY_RADIUS) {
+            damageTrialTarget(GRAY.damage);
+            const knockbackDistance = 450;
+            const normalX = distance > 0.001 ? dx / distance : 1;
+            const normalY = distance > 0.001 ? dy / distance : 0;
+            target.x = Math.max(ENEMY_RADIUS, Math.min(
+              MAP_WIDTH - ENEMY_RADIUS,
+              target.x + normalX * knockbackDistance,
+            ));
+            target.y = Math.max(ENEMY_RADIUS, Math.min(
+              MAP_HEIGHT - ENEMY_RADIUS,
+              target.y + normalY * knockbackDistance,
+            ));
+            spawnHitParticles(target.x, target.y);
+          }
+        }
         aiFeintCooldown = Math.max(0, aiFeintCooldown - dt);
         for (let index = stars.length - 1; index >= 0; index--) {
           stars[index].remainingSeconds -= dt;
@@ -2285,7 +2374,34 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         const prof = profilerRef.current!;
 
         const velocity = playerVelocityRef.current;
+        if (pendingPierceShellRef.current) {
+          pendingPierceShellRef.current = false;
+          spawnPierceShell();
+        }
         maxSuperRemainingRef.current = Math.max(0, maxSuperRemainingRef.current - dt);
+        pierceSlipSpeedRemainingRef.current = Math.max(0, pierceSlipSpeedRemainingRef.current - dt);
+        if (isMaxMode && equippedLoadout?.starPower === "superCharged"
+          && Math.hypot(input.x, input.y) > 0.05) {
+          playerSuperChargeRef.current = Math.min(1, playerSuperChargeRef.current + dt / 32);
+        }
+        if (genericGadgetCooldownRef.current > 0) {
+          genericGadgetCooldownRef.current = Math.max(0, genericGadgetCooldownRef.current - dt);
+          const shownCooldown = Math.ceil(genericGadgetCooldownRef.current * 10) / 10;
+          if (shownCooldown !== genericGadgetCooldownShownRef.current) {
+            genericGadgetCooldownShownRef.current = shownCooldown;
+            setGenericGadgetCooldownDisplay(shownCooldown);
+          }
+        }
+        if (maxSneakyRef.current) {
+          maxSneakyRef.current.remainingSeconds -= dt;
+          if (maxSneakyRef.current.remainingSeconds <= 0) {
+            player.x = maxSneakyRef.current.x;
+            player.y = maxSneakyRef.current.y;
+            healthRef.current = Math.max(healthRef.current, maxSneakyRef.current.health);
+            setHealth(Math.round(healthRef.current));
+            maxSneakyRef.current = null;
+          }
+        }
         if (grayGadgetCooldownRef.current > 0) {
           grayGadgetCooldownRef.current = Math.max(0, grayGadgetCooldownRef.current - dt);
           const shownCooldown = Math.ceil(grayGadgetCooldownRef.current * 10) / 10;
@@ -2403,6 +2519,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               && Math.hypot(target.x - area.x, target.y - area.y) <= area.radius + ENEMY_RADIUS) {
               hitWithSpike(SPIKE.superDamage * area.damageMultiplier, SPIKE.superRechargePerTick);
             }
+            if (spikeStarPower === "fertilize"
+              && Math.hypot(player.x - area.x, player.y - area.y) <= area.radius + PLAYER_RADIUS) {
+              healthRef.current = Math.min(playerMaxHealth, healthRef.current + 1200);
+              setHealth(Math.round(healthRef.current));
+            }
           }
           if (area.remainingSeconds <= 0) spikeSuperAreas.splice(index, 1);
         }
@@ -2451,13 +2572,16 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           })
         );
         const movementSpeed = isColtMode
-          ? coltMoveSpeed(coltSlickBootsBuffieRef.current, coltHyperRemainingRef.current > 0)
+          ? coltStarPower === "slickBoots"
+            ? coltMoveSpeed(coltSlickBootsBuffieRef.current, coltHyperRemainingRef.current > 0)
+            : COLT.baseMoveSpeed * (coltHyperRemainingRef.current > 0 ? COLT.hyperSpeedMultiplier : 1)
           : baseMovementSpeed
             * (isGeneMode && geneHyperRemainingRef.current > 0 ? GENE.hyperSpeedMultiplier : 1)
             * (isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperSpeedMultiplier : 1)
             * (isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperSpeedMultiplier : 1)
             * (isPearlMode && pearlHyperRemainingRef.current > 0 ? PEARL.hyperSpeedMultiplier : 1)
             * (isOllieMode && ollieHyperRemainingRef.current > 0 ? OLLIE.hyperSpeedMultiplier : 1)
+            * (isPierceMode && pierceSlipSpeedRemainingRef.current > 0 ? 1.15 : 1)
             * (ollieNearWall ? OLLIE.kickPushSpeedMultiplier : 1)
             + (isTrialMode && isMaxMode && maxSuperRemainingRef.current > 0 ? MAX_SUPER_SPEED_BONUS : 0);
         const movement = advanceMovement(playerMovementElapsedRef.current, dt,
@@ -2531,6 +2655,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         }
         const grayPortals = grayPortalsRef.current;
         if (grayPortals) {
+          const applyGrayPortalHealing = () => {
+            if (equippedLoadout?.starPower !== "newPerspective") return;
+            healthRef.current = Math.min(playerMaxHealth, healthRef.current + playerMaxHealth * 0.2);
+            setHealth(Math.round(healthRef.current));
+          };
           const atEntrance = Math.hypot(player.x - grayPortals.entranceX, player.y - grayPortals.entranceY) <= GRAY.portalTriggerRadius;
           const atExit = Math.hypot(player.x - grayPortals.exitX, player.y - grayPortals.exitY) <= GRAY.portalTriggerRadius;
           const inside = atEntrance || atExit;
@@ -2563,6 +2692,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               if (inside) {
                 player.x = atEntrance ? grayPortals.exitX : grayPortals.entranceX;
                 player.y = atEntrance ? grayPortals.exitY : grayPortals.entranceY;
+                applyGrayPortalHealing();
                 grayPortals.usedPlayerIds.add("player");
                 grayPortals.phase = "active";
                 grayPortals.phaseRemainingSeconds = GRAY.portalActiveSeconds;
@@ -2575,6 +2705,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           } else if (grayPortals.phase === "primed" && entered) {
             player.x = atEntrance ? grayPortals.exitX : grayPortals.entranceX;
             player.y = atEntrance ? grayPortals.exitY : grayPortals.entranceY;
+            applyGrayPortalHealing();
             grayPortals.usedPlayerIds.add("player");
             grayPortals.phase = "active";
             grayPortals.phaseRemainingSeconds = GRAY.portalActiveSeconds;
@@ -2583,6 +2714,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             if (entered && !grayPortals.usedPlayerIds.has("player")) {
               player.x = atEntrance ? grayPortals.exitX : grayPortals.entranceX;
               player.y = atEntrance ? grayPortals.exitY : grayPortals.entranceY;
+              applyGrayPortalHealing();
               grayPortals.usedPlayerIds.add("player");
             }
             if (grayPortals.phaseRemainingSeconds === 0) {
@@ -3030,7 +3162,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         const currentReloadSeconds = magazineReloadSeconds * timingScale;
         const currentBulletSpeed = bulletSpeed;
         const triggerPiperSnappySniping = () => {
-          if (!isPiperMode || PIPER_LOADOUT.starPower !== "snappySniping") return;
+          if (!isPiperMode || piperStarPower !== "snappySniping") return;
           const result = applyPiperSnappySniping(
             magazineAmmoRef.current,
             magazineCapacity,
@@ -3105,6 +3237,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               setMagazineReloadProgress(0);
             }
             firePierceShellShot();
+            if (equippedLoadout?.starPower === "slipNSnipe") pierceSlipSpeedRemainingRef.current = 1;
           }
         }
 
@@ -3115,7 +3248,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           magazineReloadTimerRef.current = currentReloadSeconds;
           setMagazineReloadProgress(0);
         } else if (magazineAmmoRef.current < magazineCapacity) {
-          magazineReloadTimerRef.current -= dt - reloadBlockedSeconds;
+          const maxRunAndGunMultiplier = isMaxMode && equippedLoadout?.starPower === "runNGun"
+            && Math.hypot(input.x, input.y) > 0.05 ? 1.25 : 1;
+          magazineReloadTimerRef.current -= (dt - reloadBlockedSeconds) * maxRunAndGunMultiplier;
           if (magazineReloadTimerRef.current <= 0) {
             magazineAmmoRef.current = isPierceMode
               ? magazineCapacity
@@ -3665,6 +3800,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               if (b.texture === "byron") {
                 byronPoisons.push({ ticksRemaining: BYRON_TICK_COUNT, timeToNextTick: 0 });
               } else if (b.texture === "geneSuper") {
+                if (equippedLoadout?.starPower === "spiritSlap") {
+                  damageTrialTarget(GENE.directDamage);
+                }
                 genePullActive = true;
                 genePullSpeed = b.geneHyperHand ? GENE.hyperPullSpeed : GENE.pullSpeed;
                 genePullBreaksWalls = !b.geneHyperHand;
@@ -3692,6 +3830,13 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   : b.texture === "ollieWave" ? OLLIE.attackSuperChargePerHit
                   : 0;
                 damageTrialTarget(damage, chargeGain);
+                if (b.grayPiano) {
+                  grayPianos.push({
+                    x: closestX,
+                    y: closestY,
+                    remainingSeconds: GRAY.pianoDelaySeconds,
+                  });
+                }
                 if (isOllieMode && b.texture === "ollieWave") {
                   if (ollieHyperRemainingRef.current <= 0 && ollieHyperChargeRef.current < 1) {
                     ollieHyperChargeRef.current = Math.min(1,
@@ -3754,7 +3899,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                     : b.texture === "minaSuper" ? MINA.superHyperCharge : 0;
                   minaHyperChargeRef.current = Math.min(1, minaHyperChargeRef.current + gain);
                 }
-                if (b.texture === "minaWind" && MINA_LOADOUT.starPower === "zumZumZum") {
+                if (b.texture === "minaWind" && minaStarPower === "zumZumZum") {
                   healthRef.current = Math.min(playerMaxHealth, healthRef.current + damage * MINA.zumZumZumHealingRatio);
                   setHealth(Math.round(healthRef.current));
                 }
@@ -3786,7 +3931,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                       pullTravel / pullSpeed,
                     );
                   }
-                  if (MINA_LOADOUT.starPower === "blownAway") {
+                  if (minaStarPower === "blownAway") {
                     minaTargetRootRef.current = Math.max(minaTargetRootRef.current, MINA.blownAwayRootSeconds);
                   }
                   if (minaCapoWhatAwaitingHitRef.current && !b.minaSuper.hypercharged) {
@@ -3797,9 +3942,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 if (isColtMode && (
                   b.texture === "coltAttack" || b.texture === "coltSuper" || b.texture === "coltGadget"
                 )) {
-                  coltSlickBootsBuffieRef.current = COLT.slickBootsBuffieSeconds;
+                  if (coltStarPower === "slickBoots") {
+                    coltSlickBootsBuffieRef.current = COLT.slickBootsBuffieSeconds;
+                  }
                 }
-                if (isColtMode && b.texture === "coltGadget" && COLT_LOADOUT.buffies.gadget) {
+                if (isColtMode && b.texture === "coltGadget") {
                   coltTargetAmmoRef.current = Math.max(0,
                     coltTargetAmmoRef.current - COLT.speedloaderBuffieAmmoSteal);
                   coltTargetReloadTimerRef.current = 1.3;
@@ -3818,7 +3965,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 )) {
                   spawnPierceShell();
                 }
-                if (b.texture === "brock") spawnBrockImpact(closestX, closestY);
+                if (b.texture === "brock" && !b.suppressBrockFire) spawnBrockImpact(closestX, closestY);
               }
               continue;
             }
@@ -3900,7 +4047,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               }
               firedShotCountRef.current += GENE.splitCount;
             }
-            if (b.owner === "player" && b.texture === "brock") {
+            if (b.owner === "player" && b.grayPiano) {
+              grayPianos.push({
+                x: b.x,
+                y: b.y,
+                remainingSeconds: GRAY.pianoDelaySeconds,
+              });
+            }
+            if (b.owner === "player" && b.texture === "beaEnhanced"
+              && equippedLoadout?.starPower === "instaBeaload") {
+              beaEnhancedShotsRef.current = Math.max(1, beaEnhancedShotsRef.current);
+            }
+            if (b.owner === "player" && b.texture === "brock" && !b.suppressBrockFire) {
               spawnBrockImpact(b.x, b.y);
               const target = aimingTargetRef.current;
               if (aimingTargetHealthRef.current > 0
@@ -4891,9 +5049,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             continue;
           }
 
-          const shardRange = SPIKE.shardBaseRange + (SPIKE_LOADOUT.buffies.starPower
+          const shardRange = SPIKE.shardBaseRange + (spikeStarPower === "curveball"
             ? SPIKE.curveballBuffieExtraRange : 0);
-          const curveRadians = SPIKE_LOADOUT.starPower === "curveball"
+          const curveRadians = spikeStarPower === "curveball"
             ? SPIKE.curveballTurnRadians : 0;
           ctx.save();
           ctx.strokeStyle = "rgba(205, 255, 126, 0.3)";
@@ -5230,7 +5388,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       }
       const isEnhancedBeaShot = isBeaMode && beaEnhancedShotsRef.current > 0;
       const isPierceLastShot = isPierceMode && magazineAmmoRef.current === 1;
-      const isGrayCaneShot = isGrayMode && grayGadgetArmedRef.current;
+      const isGrayCaneShot = isGrayMode && grayGadgetArmedRef.current && grayGadget === "walkingCane";
+      const isGrayPianoShot = isGrayMode && grayGadgetArmedRef.current && grayGadget === "grandPiano";
+      const armedGadget = genericGadgetArmedRef.current ? equippedLoadout?.gadget : undefined;
       const minaStage = minaAttackStageRef.current;
       if (isMinaMode) {
         const movementLength = Math.hypot(inputRef.current.x, inputRef.current.y);
@@ -5254,6 +5414,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       const shotSeed = bulletIdRef.current;
       const projectileAngles = isMinaMode && minaStage === 2
         ? []
+        : isByronMode && armedGadget === "boosterShots"
+        ? [-7, 0, 7].map(offset => shotAngle + offset * Math.PI / 180)
         : isColtMode
         ? Array.from({ length: COLT.attackBullets }, () => shotAngle)
         : isPearlMode
@@ -5276,7 +5438,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         : isPearlMode ? "pearlCookie"
         : isOllieMode ? "ollieWave"
         : "high";
-      const shotSpeed = isGrayCaneShot ? GRAY.caneOutboundSpeed : isMinaMode ? MINA.projectileSpeed : bulletSpeed;
+      const shotSpeed = isGrayCaneShot ? GRAY.caneOutboundSpeed
+        : isMinaMode ? MINA.projectileSpeed
+        : isBrockMode && armedGadget === "rocketFuel" ? bulletSpeed * 1.3
+        : isColtMode && coltStarPower === "magnumSpecial"
+          ? COLT.attackProjectileSpeed * COLT.magnumSpecialMultiplier
+          : bulletSpeed;
       const pearlAttackCastId = isPearlMode ? shotSeed : undefined;
       const pearlOvercooked = isPearlMode && pearlGadgetArmedRef.current && pearlGadget === "overcooked";
       const ollieAttackCastId = isOllieMode ? shotSeed : undefined;
@@ -5292,13 +5459,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           id: bulletIdRef.current++,
           radius: isGrayCaneShot ? GRAY.caneWidth / 2
             : isPierceLastShot ? 110
+            : isBrockMode && armedGadget === "rocketFuel" ? bulletRadius * 1.5
             : isMinaMode ? MINA.attackWidth[minaStage === 0 ? 0 : 1] / 2
             : isPearlMode ? PEARL.attackWidth / 2
             : isOllieMode ? OLLIE.attackWidth / 2
             : bulletRadius,
           texture,
           owner: "player",
-          maxDistance: isGeneMode ? GENE.directRange : isMinaMode ? MINA.attackRange[minaStage] : projectileRange,
+          maxDistance: isGeneMode ? GENE.directRange
+            : isMinaMode ? MINA.attackRange[minaStage]
+            : isColtMode && coltStarPower === "magnumSpecial"
+              ? COLT.attackRange * COLT.magnumSpecialMultiplier
+              : projectileRange,
           damageMultiplier: isGeneMode && geneHyperRemainingRef.current > 0
             ? GENE.hyperDamageMultiplier
             : isColtMode && coltHyperRemainingRef.current > 0 ? COLT.hyperDamageMultiplier
@@ -5311,6 +5483,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             : isColtMode ? coltAttackDelay(index, coltHyperRemainingRef.current > 0)
             : isPearlMode ? index * PEARL.attackBulletIntervalSeconds : 0,
           grayCaneOrigin: isGrayCaneShot ? { x: player.x, y: player.y } : undefined,
+          grayPiano: isGrayPianoShot || undefined,
           spikeBomb: isSpikeMode ? { hypercharged: spikeHyperRemainingRef.current > 0 } : undefined,
           pearlAttackCastId,
           pearlOvercooked,
@@ -5318,6 +5491,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           piercesTarget: isOllieMode ? true : texture === "pearlLoveCookie" ? true : undefined,
           ollieAttackCastId,
           ollieHypnosisSeconds,
+          homing: armedGadget === "homemadeRecipe"
+            ? { targetId: "trainingTarget", steerStrength: 5, ignoreSeconds: 0, remainingSeconds: 1.2 }
+            : undefined,
+          breaksWalls: armedGadget === "rocketFuel" || undefined,
+          suppressBrockFire: armedGadget === "rocketFuel" || undefined,
         });
       }
       if (isMinaMode && minaStage === 2) {
@@ -5334,11 +5512,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       playerShotHistoryRef.current.push({ at: performance.now(), angle: shotAngle });
       if (playerShotHistoryRef.current.length > 12) playerShotHistoryRef.current.shift();
       if (isEnhancedBeaShot) beaEnhancedShotsRef.current -= 1;
-      if (isGrayCaneShot) {
+      if (armedGadget) {
+        genericGadgetArmedRef.current = false;
+        const cooldown = GENERIC_GADGET_COOLDOWNS[armedGadget] ?? 15;
+        genericGadgetCooldownRef.current = cooldown;
+        genericGadgetCooldownShownRef.current = cooldown;
+        setGenericGadgetCooldownDisplay(cooldown);
+      }
+      if (isGrayCaneShot || isGrayPianoShot) {
         grayGadgetArmedRef.current = false;
-        grayGadgetCooldownRef.current = GRAY.gadgetCooldownSeconds;
-        grayGadgetCooldownShownRef.current = GRAY.gadgetCooldownSeconds;
-        setGrayGadgetCooldownDisplay(GRAY.gadgetCooldownSeconds);
+        grayGadgetCooldownRef.current = isGrayPianoShot ? GRAY.pianoCooldownSeconds : GRAY.gadgetCooldownSeconds;
+        grayGadgetCooldownShownRef.current = grayGadgetCooldownRef.current;
+        setGrayGadgetCooldownDisplay(grayGadgetCooldownRef.current);
       }
       if (isMinaMode) {
         minaAttackStageRef.current = minaNextAttackStage(minaStage);
@@ -5634,7 +5819,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         };
       }
       playerSuperChargeRef.current = 0;
-      if (isMinaMode && MINA_LOADOUT.gadget === "capoWhat" && minaCapoWhatArmedRef.current
+      if (isMinaMode && minaGadget === "capoWhat" && minaCapoWhatArmedRef.current
         && minaHyperRemainingRef.current <= 0) {
         minaCapoWhatAwaitingHitRef.current = true;
         minaCapoWhatArmedRef.current = false;
@@ -5652,6 +5837,96 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     forceUpdate((value) => value + 1);
   };
 
+  const activateGenericGadget = () => {
+    if (!trialHeroId || pausedRef.current || countdownActiveRef.current
+      || genericGadgetCooldownRef.current > 0 || genericGadgetArmedRef.current) return;
+    const gadget = equippedLoadout?.gadget;
+    if (!gadget) return;
+    const player = playerRef.current;
+    const target = aimingTargetRef.current;
+    const angle = aimingTargetHealthRef.current > 0
+      ? Math.atan2(target.y - player.y, target.x - player.x)
+      : playerMoveDirectionRef.current;
+    const distance = Math.hypot(target.x - player.x, target.y - player.y);
+    const dealDirectDamage = (damage: number) => {
+      if (aimingTargetHealthRef.current <= 0) return;
+      const applied = Math.min(damage, aimingTargetHealthRef.current);
+      aimingTargetHealthRef.current -= applied;
+      totalDamageRef.current += applied;
+      setTotalDamage(Math.round(totalDamageRef.current));
+      if (aimingTargetHealthRef.current <= 0) trialTargetRespawnRemainingRef.current = TRIAL_TARGET_RESPAWN_SECONDS;
+    };
+    const startCooldown = () => {
+      const cooldown = GENERIC_GADGET_COOLDOWNS[gadget] ?? 15;
+      genericGadgetCooldownRef.current = cooldown;
+      genericGadgetCooldownShownRef.current = cooldown;
+      setGenericGadgetCooldownDisplay(cooldown);
+    };
+
+    if (gadget === "homemadeRecipe" || gadget === "boosterShots" || gadget === "rocketFuel") {
+      genericGadgetArmedRef.current = true;
+      forceUpdate(value => value + 1);
+      return;
+    }
+    if (gadget === "autoAimer") {
+      if (distance > 2100) return;
+      dealDirectDamage(170);
+      target.x += Math.cos(angle) * 600;
+      target.y += Math.sin(angle) * 600;
+    } else if (gadget === "rattledHive") {
+      if (distance <= 3000) dealDirectDamage(960);
+    } else if (gadget === "honeyMolasses") {
+      coltTargetSlowRemainingRef.current = Math.max(coltTargetSlowRemainingRef.current, 3);
+    } else if (gadget === "phaseShifter") {
+      player.x = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS,
+        player.x + Math.cos(playerMoveDirectionRef.current) * 1000));
+      player.y = Math.max(PLAYER_RADIUS, Math.min(MAP_HEIGHT - PLAYER_RADIUS,
+        player.y + Math.sin(playerMoveDirectionRef.current) * 1000));
+    } else if (gadget === "sneakySneakers") {
+      maxSneakyRef.current = { x: player.x, y: player.y, health: healthRef.current, remainingSeconds: 3 };
+    } else if (gadget === "shotInTheArm") {
+      if (magazineAmmoRef.current <= 0) return;
+      magazineAmmoRef.current -= 1;
+      setMagazineAmmo(magazineAmmoRef.current);
+      healthRef.current = Math.min(playerMaxHealth, healthRef.current + 2400);
+      setHealth(Math.round(healthRef.current));
+    } else if (gadget === "bottomlessMags") {
+      magazineAmmoRef.current = Math.min(magazineCapacity, magazineAmmoRef.current + 1);
+      setMagazineAmmo(magazineAmmoRef.current);
+      pendingPierceShellRef.current = true;
+    } else if (gadget === "youOnlyBrawlTwice") {
+      if (distance <= 1200) {
+        target.x += Math.cos(angle) * 600;
+        target.y += Math.sin(angle) * 600;
+      }
+    } else if (gadget === "rocketLaces") {
+      if (distance <= 800) dealDirectDamage(580);
+      player.x = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS,
+        player.x + Math.cos(playerMoveDirectionRef.current) * 1200));
+      player.y = Math.max(PLAYER_RADIUS, Math.min(MAP_HEIGHT - PLAYER_RADIUS,
+        player.y + Math.sin(playerMoveDirectionRef.current) * 1200));
+    } else if (gadget === "lampBlowout") {
+      if (distance <= 800) {
+        target.x += Math.cos(angle) * 800;
+        target.y += Math.sin(angle) * 800;
+        healthRef.current = Math.min(playerMaxHealth, healthRef.current + 760);
+        setHealth(Math.round(healthRef.current));
+      }
+    } else if (gadget === "vengefulSpirits") {
+      if (distance > 3300) return;
+      bulletsRef.current.push({
+        x: player.x, y: player.y,
+        vx: Math.cos(angle) * 3200, vy: Math.sin(angle) * 3200,
+        traveled: 0, id: bulletIdRef.current++, radius: 100,
+        texture: "geneSplit", owner: "player", maxDistance: 3300,
+        damageMultiplier: 1600 / GENE.splitDamage,
+        homing: { targetId: "trainingTarget", steerStrength: 7, ignoreSeconds: 0, remainingSeconds: 1.2 },
+      });
+    }
+    startCooldown();
+    forceUpdate(value => value + 1);
+  };
+
   const fireColtSpeedloader = (aimAngle?: number) => {
     if (!isColtMode || pausedRef.current || countdownActiveRef.current
       || coltGadgetCooldownRef.current > 0
@@ -5665,7 +5940,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const angle = aimAngle ?? (targetVisible
       ? Math.atan2(target.y - player.y, target.x - player.x)
       : playerMoveDirectionRef.current);
-    for (let index = 0; index < COLT.speedloaderBullets; index++) {
+    const silverBullet = coltGadget === "silverBullet";
+    const bulletCount = silverBullet ? 1 : COLT.speedloaderBullets;
+    for (let index = 0; index < bulletCount; index++) {
       bulletsRef.current.push({
         x: player.x,
         y: player.y,
@@ -5673,21 +5950,24 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         vy: Math.sin(angle) * COLT.attackProjectileSpeed,
         traveled: 0,
         id: bulletIdRef.current++,
-        radius: COLT.attackWidth / 2,
+        radius: (silverBullet ? COLT.silverBulletBuffieWidth : COLT.attackWidth) / 2,
         texture: "coltGadget",
         owner: "player",
         maxDistance: COLT.attackRange,
+        damageMultiplier: silverBullet ? COLT.silverBulletBuffieDamage / COLT.speedloaderDamage : 1,
         spawnDelay: index * COLT.attackBulletIntervalSeconds,
-        appliesSlowSeconds: COLT.speedloaderSlowSeconds,
+        appliesSlowSeconds: silverBullet ? undefined : COLT.speedloaderSlowSeconds,
+        breaksWalls: silverBullet,
       });
     }
-    coltGadgetCooldownRef.current = COLT.speedloaderCooldownSeconds;
+    const cooldown = silverBullet ? COLT.silverBulletCooldownSeconds : COLT.speedloaderCooldownSeconds;
+    coltGadgetCooldownRef.current = cooldown;
     coltActionRef.current = {
       kind: "gadget",
-      remainingSeconds: (COLT.speedloaderBullets - 1) * COLT.attackBulletIntervalSeconds,
+      remainingSeconds: (bulletCount - 1) * COLT.attackBulletIntervalSeconds,
     };
-    coltGadgetCooldownShownRef.current = COLT.speedloaderCooldownSeconds;
-    setColtGadgetCooldownDisplay(COLT.speedloaderCooldownSeconds);
+    coltGadgetCooldownShownRef.current = cooldown;
+    setColtGadgetCooldownDisplay(cooldown);
     forceUpdate((value) => value + 1);
   };
 
@@ -5748,7 +6028,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const activateMinaGadget = () => {
     if (!isMinaMode || pausedRef.current || countdownActiveRef.current
       || minaGadgetCooldownRef.current > 0 || minaWaveCastsRef.current.length > 0) return;
-    if (MINA_LOADOUT.gadget === "capoWhat") {
+    if (minaGadget === "capoWhat") {
       minaCapoWhatArmedRef.current = true;
       forceUpdate((value) => value + 1);
       return;
@@ -5804,6 +6084,21 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       && (aim.exceededDeadzone ? aim.dragged : pointerInsideElement(e));
     if (shouldCast && !pausedRef.current && spikeGadgetCooldownRef.current <= 0) {
       const player = playerRef.current;
+      if (spikeGadget === "poppingPincushion") {
+        for (let index = 0; index < 10; index++) {
+          const angle = index * Math.PI * 2 / 10;
+          bulletsRef.current.push({
+            x: player.x, y: player.y,
+            vx: Math.cos(angle) * SPIKE.shardSpeed,
+            vy: Math.sin(angle) * SPIKE.shardSpeed,
+            traveled: 0, id: bulletIdRef.current++, radius: SPIKE.shardWidth / 2,
+            texture: "spikeShard", owner: "player", maxDistance: SPIKE.shardBaseRange,
+          });
+        }
+        spikeGadgetCooldownRef.current = SPIKE.gadgetCooldownSeconds;
+        spikeGadgetCooldownShownRef.current = SPIKE.gadgetCooldownSeconds;
+        setSpikeGadgetCooldownDisplay(SPIKE.gadgetCooldownSeconds);
+      } else {
       const target = aimingTargetRef.current;
       const targetDistance = Math.hypot(target.x - player.x, target.y - player.y);
       const angle = aim.dragged
@@ -5834,6 +6129,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       spikeGadgetCooldownRef.current = SPIKE.gadgetCooldownSeconds;
       spikeGadgetCooldownShownRef.current = SPIKE.gadgetCooldownSeconds;
       setSpikeGadgetCooldownDisplay(SPIKE.gadgetCooldownSeconds);
+      }
     }
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     aim.active = false;
@@ -5862,7 +6158,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     if (pausedRef.current || coltHyperChargeRef.current < 1 || coltHyperRemainingRef.current > 0) return;
     coltHyperChargeRef.current = 0;
     coltHyperRemainingRef.current = COLT.hyperBaseDurationSeconds
-      + (COLT_LOADOUT.buffies.hypercharge ? COLT.hyperBuffieBonusSeconds : 0);
+      + COLT.hyperBuffieBonusSeconds;
     forceUpdate((value) => value + 1);
   };
 
@@ -6237,6 +6533,46 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         />
       )}
 
+      {isTrialMode && usesGenericGadget && (
+        <button
+          type="button"
+          className="training-gadget-button"
+          aria-label={genericGadgetArmedRef.current
+            ? `${genericGadgetName}已强化下一次普攻`
+            : genericGadgetCooldownDisplay > 0
+              ? `${genericGadgetName}冷却 ${genericGadgetCooldownDisplay.toFixed(1)} 秒`
+              : `使用${genericGadgetName}`}
+          disabled={genericGadgetCooldownDisplay > 0 || genericGadgetArmedRef.current || paused}
+          onPointerDown={beginActionButtonPress("genericGadget")}
+          onPointerUp={finishActionButtonPress("genericGadget", activateGenericGadget)}
+          onPointerCancel={finishActionButtonPress("genericGadget", activateGenericGadget)}
+          onClick={activateActionButtonFromKeyboard(activateGenericGadget)}
+          style={{
+            position: "absolute",
+            left: gadgetLayout.x * controlViewport.width,
+            top: gadgetLayout.y * controlViewport.height,
+            transform: "translate(-50%, -50%)",
+            zIndex: 20,
+            width: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
+            height: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
+            borderRadius: "50%",
+            border: genericGadgetArmedRef.current ? "3px solid #efffc7" : "3px solid #a8ffd0",
+            color: "#fff",
+            fontWeight: 900,
+            background: genericGadgetArmedRef.current
+              ? "radial-gradient(circle,#f4dc72 0 38%,#339963 42% 100%)"
+              : genericGadgetCooldownDisplay > 0
+                ? `conic-gradient(#27563c ${(1 - genericGadgetCooldownDisplay / (GENERIC_GADGET_COOLDOWNS[equippedLoadout?.gadget ?? ""] ?? 15)) * 100}%,#14251c 0)`
+                : "linear-gradient(145deg,#69df95,#27875a)",
+            boxShadow: genericGadgetArmedRef.current ? "0 0 18px #e9ff77" : "0 3px 10px #10240daa",
+            touchAction: "none",
+          }}
+        >
+          {genericGadgetCooldownDisplay > 0 ? Math.ceil(genericGadgetCooldownDisplay)
+            : genericGadgetArmedRef.current ? "✓" : "●"}
+        </button>
+      )}
+
       {isTrialMode && isGeneMode && (
         <button
           type="button"
@@ -6281,8 +6617,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         <button
           type="button"
           aria-label={grayGadgetArmedRef.current
-            ? "手杖妙具已强化下一次普攻"
-            : grayGadgetCooldownDisplay > 0 ? `手杖妙具冷却 ${grayGadgetCooldownDisplay.toFixed(1)} 秒` : "启用手杖妙具"}
+            ? `${grayGadget === "walkingCane" ? "手杖" : "大钢琴"}已强化下一次普攻`
+            : grayGadgetCooldownDisplay > 0
+              ? `${grayGadget === "walkingCane" ? "手杖" : "大钢琴"}冷却 ${grayGadgetCooldownDisplay.toFixed(1)} 秒`
+              : `启用${grayGadget === "walkingCane" ? "手杖" : "大钢琴"}`}
           disabled={grayGadgetCooldownDisplay > 0 || grayGadgetArmedRef.current || paused}
           onPointerDown={beginActionButtonPress("grayGadget")}
           onPointerUp={finishActionButtonPress("grayGadget", activateGrayGadget)}
@@ -6304,7 +6642,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             background: grayGadgetArmedRef.current
               ? "radial-gradient(circle,#d7ff81 0 38%,#58a82f 42% 100%)"
               : grayGadgetCooldownDisplay > 0
-                ? `conic-gradient(#335024 ${(1 - grayGadgetCooldownDisplay / GRAY.gadgetCooldownSeconds) * 100}%,#182118 0)`
+                ? `conic-gradient(#335024 ${(1 - grayGadgetCooldownDisplay / (grayGadget === "walkingCane" ? GRAY.gadgetCooldownSeconds : GRAY.pianoCooldownSeconds)) * 100}%,#182118 0)`
                 : "linear-gradient(145deg,#8ed34f,#347c2d)",
             boxShadow: grayGadgetArmedRef.current ? "0 0 18px #bfff66" : "0 3px 10px #10240daa",
             touchAction: "none",
@@ -6359,7 +6697,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             className="training-gadget-button"
             aria-label={coltGadgetCooldownDisplay > 0
               ? `快速装弹冷却 ${coltGadgetCooldownDisplay.toFixed(1)} 秒`
-              : "快速装弹：点击自动瞄准，拖动指定方向"}
+              : `${coltGadget === "silverBullet" ? "银弹" : "快速装弹"}：点击自动瞄准，拖动指定方向`}
             disabled={coltGadgetCooldownDisplay > 0 || paused}
             onPointerDown={handleColtGadgetPointerDown}
             onPointerMove={handleColtGadgetPointerMove}
@@ -6379,7 +6717,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               fontWeight: 900,
               fontSize: "1rem",
               background: coltGadgetCooldownDisplay > 0
-                ? `conic-gradient(#27563c ${(1 - coltGadgetCooldownDisplay / COLT.speedloaderCooldownSeconds) * 100}%,#14251c 0)`
+                ? `conic-gradient(#27563c ${(1 - coltGadgetCooldownDisplay / (coltGadget === "silverBullet" ? COLT.silverBulletCooldownSeconds : COLT.speedloaderCooldownSeconds)) * 100}%,#14251c 0)`
                 : "linear-gradient(145deg,#51df91,#208450)",
               boxShadow: coltGadgetAimRef.current.active
                 ? "0 0 0 4px #d9ffe9, 0 0 20px #52e998"
@@ -6436,8 +6774,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             type="button"
             className="training-gadget-button"
             aria-label={spikeGadgetCooldownDisplay > 0
-              ? `生命植物冷却 ${spikeGadgetCooldownDisplay.toFixed(1)} 秒`
-              : "生命植物：点击自动投掷，拖动选取落点"}
+              ? `${spikeGadget === "lifePlant" ? "生命植物" : "尖刺针垫"}冷却 ${spikeGadgetCooldownDisplay.toFixed(1)} 秒`
+              : spikeGadget === "lifePlant" ? "生命植物：点击自动投掷，拖动选取落点" : "使用尖刺针垫"}
             disabled={spikeGadgetCooldownDisplay > 0 || paused}
             onPointerDown={handleSpikeGadgetPointerDown}
             onPointerMove={handleSpikeGadgetPointerMove}
@@ -6517,7 +6855,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             className="training-gadget-button"
             aria-label={minaGadgetCooldownDisplay > 0
               ? `风车冷却 ${minaGadgetCooldownDisplay.toFixed(1)} 秒`
-              : MINA_LOADOUT.gadget === "windmill" ? "放置风车阻挡敌方弹道" : "下一次普通大招命中后立即回满大招"}
+              : minaGadget === "windmill" ? "放置风车阻挡敌方弹道" : "下一次普通大招命中后立即回满大招"}
             disabled={minaGadgetCooldownDisplay > 0 || paused || minaWaveCastsRef.current.length > 0}
             onPointerDown={beginActionButtonPress("minaGadget")}
             onPointerUp={finishActionButtonPress("minaGadget", activateMinaGadget)}
@@ -6545,7 +6883,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           >
             {minaGadgetCooldownDisplay > 0
               ? Math.ceil(minaGadgetCooldownDisplay)
-              : <span aria-hidden="true">{minaCapoWhatArmedRef.current ? "✓" : MINA_LOADOUT.gadget === "windmill" ? "✣" : "↯"}</span>}
+              : <span aria-hidden="true">{minaCapoWhatArmedRef.current ? "✓" : minaGadget === "windmill" ? "✣" : "↯"}</span>}
           </button>
         </>
       )}

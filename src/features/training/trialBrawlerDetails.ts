@@ -10,6 +10,7 @@ import { PEARL, pearlVolleyDamages } from "./pearlCombat";
 import { OLLIE, OLLIE_DEFAULT_LOADOUT } from "./ollieCombat";
 import { SPIKE } from "./spikeCombat";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "./characterTrial";
+import { TRIAL_LOADOUTS } from "./trialLoadouts";
 
 export type TrialBrawlerDetailRow = {
   label: string;
@@ -702,5 +703,25 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
 };
 
 export function trialBrawlerDetails(heroId: string): TrialBrawlerDetailSection[] | undefined {
-  return TRIAL_BRAWLER_DETAILS[heroId as TrialBrawlerId];
+  const id = heroId as TrialBrawlerId;
+  const details = TRIAL_BRAWLER_DETAILS[id];
+  const loadout = TRIAL_LOADOUTS[id];
+  if (!details || !loadout) return details;
+  return [
+    ...details,
+    {
+      title: "试用可选妙具",
+      rows: loadout.gadgets.map((option) => ({
+        label: option.name,
+        value: option.description,
+      })),
+    },
+    {
+      title: "试用可选星辉",
+      rows: loadout.starPowers.map((option) => ({
+        label: option.name,
+        value: option.description,
+      })),
+    },
+  ];
 }
