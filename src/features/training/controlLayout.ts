@@ -1,4 +1,4 @@
-export type JoystickId = "movement" | "attack" | "super" | "hyper";
+export type JoystickId = "movement" | "attack" | "super" | "hyper" | "gadget";
 export type JoystickLayout = { x: number; y: number; size: number };
 export type ControlLayout = { version: 1; updatedAt: number; joysticks: Record<JoystickId, JoystickLayout> };
 
@@ -7,6 +7,7 @@ export const JOYSTICK_DEFINITIONS: Record<JoystickId, { label: string; color: st
   attack: { label: "普攻摇杆", color: "#ff5252" },
   super: { label: "大招摇杆", color: "#ffc107" },
   hyper: { label: "超充按键", color: "#ad64ff" },
+  gadget: { label: "妙具按键", color: "#57d67a" },
 };
 
 const STORAGE_KEY = "brawl-bp:control-layout:v1";
@@ -18,6 +19,7 @@ const DEFAULTS: ControlLayout = {
     attack: { x: 0.87, y: 0.78, size: 0.18 },
     super: { x: 0.74, y: 0.60, size: 0.15 },
     hyper: { x: 0.65, y: 0.43, size: 0.085 },
+    gadget: { x: 0.59, y: 0.58, size: 0.085 },
   },
 };
 
@@ -28,10 +30,10 @@ export const hyperButtonDiameter = (layout: JoystickLayout, width: number, heigh
   clamp(layout.size * Math.min(width, height), 44, 80);
 
 export function clampJoystick(layout: JoystickLayout, width: number, height: number, id: JoystickId = "movement"): JoystickLayout {
-  const isHyper = id === "hyper";
-  const size = clamp(Number.isFinite(layout.size) ? layout.size : isHyper ? 0.085 : 0.18,
-    isHyper ? 0.07 : 0.13, isHyper ? 0.13 : 0.32);
-  const diameter = isHyper
+  const isActionButton = id === "hyper" || id === "gadget";
+  const size = clamp(Number.isFinite(layout.size) ? layout.size : isActionButton ? 0.085 : 0.18,
+    isActionButton ? 0.07 : 0.13, isActionButton ? 0.13 : 0.32);
+  const diameter = isActionButton
     ? hyperButtonDiameter({ ...layout, size }, width, height)
     : joystickDiameter({ ...layout, size }, width, height);
   const pad = diameter / 2 + 12;
@@ -45,7 +47,9 @@ export function clampJoystick(layout: JoystickLayout, width: number, height: num
 /** 双摇杆布局：移动摇杆完整留在左半屏，攻击摇杆完整留在右半屏。 */
 export function clampJoystickToSide(layout: JoystickLayout, width: number, height: number, id: JoystickId): JoystickLayout {
   const clamped = clampJoystick(layout, width, height, id);
-  const diameter = id === "hyper" ? hyperButtonDiameter(clamped, width, height) : joystickDiameter(clamped, width, height);
+  const diameter = id === "hyper" || id === "gadget"
+    ? hyperButtonDiameter(clamped, width, height)
+    : joystickDiameter(clamped, width, height);
   const horizontalPad = diameter / 2 + 12;
   const leftMin = horizontalPad / width;
   const leftMax = Math.max(leftMin, 0.5 - horizontalPad / width);
@@ -69,6 +73,7 @@ export function loadControlLayout(): ControlLayout {
         attack: { ...DEFAULTS.joysticks.attack, ...value.joysticks.attack },
         super: { ...DEFAULTS.joysticks.super, ...value.joysticks.super },
         hyper: { ...DEFAULTS.joysticks.hyper, ...value.joysticks.hyper },
+        gadget: { ...DEFAULTS.joysticks.gadget, ...value.joysticks.gadget },
       },
     };
   } catch {

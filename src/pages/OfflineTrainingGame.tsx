@@ -29,6 +29,15 @@ import {
   type PearlStarPower,
 } from "../features/training/pearlCombat";
 import {
+  OLLIE,
+  OLLIE_DEFAULT_LOADOUT,
+  ollieAttackAngles,
+  ollieSuperIsInterruptedBy,
+  type OllieCrowdControl,
+  type OllieGadget,
+  type OllieStarPower,
+} from "../features/training/ollieCombat";
+import {
   SPIKE,
   SPIKE_LOADOUT,
   spikeShardAngles,
@@ -200,6 +209,7 @@ const BULLET_STYLES = {
   spikePlant: { color: "#7bd447", lengthScale: 1.2 },
   pearlCookie: { color: "#f5a54d", lengthScale: 1.3 },
   pearlLoveCookie: { color: "#79e0a1", lengthScale: 1.3 },
+  ollieWave: { color: "#6fe4dc", lengthScale: 1.45 },
 } as const;
 const TAUNT_EMOTE_TEXTURE = "/assets/emotes/taunt-thumb-down.png";
 const TAUNT_DURATION_MS = 3000;
@@ -242,6 +252,7 @@ function projectileDamage(texture: keyof typeof BULLET_STYLES, traveled: number)
   if (texture === "minaSuper") return MINA.superDamage;
   if (texture === "spikeBomb" || texture === "spikeShard") return SPIKE.attackDamage;
   if (texture === "pearlCookie" || texture === "pearlLoveCookie") return PEARL.attackMinDamage;
+  if (texture === "ollieWave") return OLLIE.attackDamage;
   return PIPER_MIN_DAMAGE
     + (PIPER_MAX_DAMAGE - PIPER_MIN_DAMAGE) * Math.min(1, traveled / BULLET_MAX_DIST);
 }
@@ -280,7 +291,9 @@ type Bullet = {
   pearlOvercooked?: boolean;
   pearlHealedAlly?: boolean;
   pearlHeatPending?: boolean;
-  crowdControlOnHit?: PearlCrowdControl;
+  ollieAttackCastId?: number;
+  ollieHypnosisSeconds?: number;
+  crowdControlOnHit?: PearlCrowdControl | OllieCrowdControl;
 };
 
 type ByronPoison = { ticksRemaining: number; timeToNextTick: number };
@@ -311,6 +324,15 @@ type PearlBurn = { ticksRemaining: number; timeToNextTick: number; damagePerTick
 type PearlSuperCast = { remainingSeconds: number; heat: number; hypercharged: boolean };
 type PearlFireArea = { x: number; y: number; remainingSeconds: number; nextTickSeconds: number };
 type PearlHeal = { ticksRemaining: number; timeToNextTick: number; healingPerTick: number };
+type OllieDash = {
+  kind: "super" | "gadget";
+  remainingDistance: number;
+  dx: number;
+  dy: number;
+  speed: number;
+  hypercharged: boolean;
+};
+type OllieBlast = { remainingSeconds: number; hypercharged: boolean };
 
 type TrainingStar = {
   id: number;
@@ -1079,10 +1101,15 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const isMinaMode = trialHeroId === "mina";
   const isSpikeMode = trialHeroId === "spike";
   const isPearlMode = trialHeroId === "pearl";
+  const isOllieMode = trialHeroId === "ollie";
   const pearlGadget: PearlGadget = searchParams.get("pearlGadget") === "madeWithLove"
     ? "madeWithLove" : PEARL_DEFAULT_LOADOUT.gadget;
   const pearlStarPower: PearlStarPower = searchParams.get("pearlStar") === "heatRetention"
     ? "heatRetention" : PEARL_DEFAULT_LOADOUT.starPower;
+  const ollieGadget: OllieGadget = searchParams.get("ollieGadget") === "allEyezOnMe"
+    ? "allEyezOnMe" : OLLIE_DEFAULT_LOADOUT.gadget;
+  const ollieStarPower: OllieStarPower = searchParams.get("ollieStar") === "kickPush"
+    ? "kickPush" : OLLIE_DEFAULT_LOADOUT.starPower;
   const magazineCapacity = projectileConfig.magazineCapacity;
   const controlledMoveSpeed = isSpikeDodgeMode ? TRIAL_BRAWLERS.max.moveSpeed : projectileConfig.moveSpeed;
   const magazineReloadSeconds = projectileConfig.reloadSeconds;
@@ -1204,6 +1231,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const [minaGadgetCooldownDisplay, setMinaGadgetCooldownDisplay] = useState(0);
   const [spikeGadgetCooldownDisplay, setSpikeGadgetCooldownDisplay] = useState(0);
   const [pearlGadgetCooldownDisplay, setPearlGadgetCooldownDisplay] = useState(0);
+  const [ollieGadgetCooldownDisplay, setOllieGadgetCooldownDisplay] = useState(0);
 
   // 暂停状态
   const [paused, setPaused] = useState(false);
@@ -1359,6 +1387,18 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const pearlGadgetCooldownShownRef = useRef(0);
   const pearlSuperCastRef = useRef<PearlSuperCast | null>(null);
   const pearlAllyRef = useRef({ x: TRIAL_TARGET_X, y: TRIAL_TARGET_Y - 1200, health: PEARL.health / 2 });
+  const ollieHyperChargeRef = useRef(0);
+  const ollieHyperRemainingRef = useRef(0);
+  const ollieHyperDurationRingRef = useRef<HTMLSpanElement>(null);
+  const ollieGadgetArmedRef = useRef(false);
+  const ollieGadgetCooldownRef = useRef(0);
+  const ollieGadgetCooldownShownRef = useRef(0);
+  const ollieDashRef = useRef<OllieDash | null>(null);
+  const ollieBlastRef = useRef<OllieBlast | null>(null);
+  const ollieTargetHypnosisRef = useRef(0);
+  const ollieRenegadeShieldRef = useRef(0);
+  const ollieRenegadeShieldRemainingRef = useRef(0);
+  const ollieAttackHitCastsRef = useRef(new Set<number>());
   const playerAttackCooldownRef = useRef(0);
   const maxSuperRemainingRef = useRef(0);
   const pierceSuperCastsRef = useRef<PierceSuperCast[]>([]);
@@ -1602,6 +1642,17 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     pearlGadgetCooldownShownRef.current = 0;
     pearlSuperCastRef.current = null;
     pearlAllyRef.current = { x: TRIAL_TARGET_X, y: TRIAL_TARGET_Y - 1200, health: PEARL.health / 2 };
+    ollieHyperChargeRef.current = 0;
+    ollieHyperRemainingRef.current = 0;
+    ollieGadgetArmedRef.current = false;
+    ollieGadgetCooldownRef.current = 0;
+    ollieGadgetCooldownShownRef.current = 0;
+    ollieDashRef.current = null;
+    ollieBlastRef.current = null;
+    ollieTargetHypnosisRef.current = 0;
+    ollieRenegadeShieldRef.current = 0;
+    ollieRenegadeShieldRemainingRef.current = 0;
+    ollieAttackHitCastsRef.current.clear();
     Object.assign(spikeGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false, exceededDeadzone: false });
     Object.assign(coltGadgetAimRef.current, { active: false, touchId: null, dx: 0, dy: 0, dragged: false, exceededDeadzone: false });
     actionButtonPointersRef.current.clear();
@@ -1619,6 +1670,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     setMinaGadgetCooldownDisplay(0);
     setSpikeGadgetCooldownDisplay(0);
     setPearlGadgetCooldownDisplay(0);
+    setOllieGadgetCooldownDisplay(0);
     fireTimerRef.current = fireIntervalMin + Math.random() * (fireIntervalMax - fireIntervalMin);
     setMagazineAmmo(magazineCapacity);
     setMagazineReloadProgress(0);
@@ -2007,6 +2059,64 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           if (poison.ticksRemaining <= 0) byronPoisons.splice(i, 1);
         }
 
+        if (isOllieMode) {
+          ollieTargetHypnosisRef.current = Math.max(0, ollieTargetHypnosisRef.current - dt);
+          if (ollieTargetHypnosisRef.current > 0 && aimingTargetHealthRef.current > 0) {
+            const target = aimingTargetRef.current;
+            const towardX = playerRef.current.x - target.x;
+            const towardY = playerRef.current.y - target.y;
+            const distance = Math.hypot(towardX, towardY);
+            if (distance > ENEMY_RADIUS + PLAYER_RADIUS) {
+              const step = Math.min(distance - ENEMY_RADIUS - PLAYER_RADIUS, OLLIE.hypnosisMoveSpeed * dt);
+              target.x += towardX / distance * step;
+              target.y += towardY / distance * step;
+            }
+          }
+          if (ollieGadgetCooldownRef.current > 0) {
+            ollieGadgetCooldownRef.current = Math.max(0, ollieGadgetCooldownRef.current - dt);
+            const shownCooldown = Math.ceil(ollieGadgetCooldownRef.current * 10) / 10;
+            if (shownCooldown !== ollieGadgetCooldownShownRef.current) {
+              ollieGadgetCooldownShownRef.current = shownCooldown;
+              setOllieGadgetCooldownDisplay(shownCooldown);
+            }
+          }
+          if (ollieHyperRemainingRef.current > 0) {
+            ollieHyperRemainingRef.current = Math.max(0, ollieHyperRemainingRef.current - dt);
+            ollieHyperDurationRingRef.current?.style.setProperty(
+              "--hyper-duration-angle",
+              `${ollieHyperRemainingRef.current / OLLIE.hyperDurationSeconds * 360}deg`,
+            );
+            if (ollieHyperRemainingRef.current === 0) forceUpdate((value) => value + 1);
+          }
+          if (ollieRenegadeShieldRemainingRef.current > 0) {
+            ollieRenegadeShieldRemainingRef.current = Math.max(0, ollieRenegadeShieldRemainingRef.current - dt);
+            ollieRenegadeShieldRef.current = OLLIE.renegadeShield
+              * ollieRenegadeShieldRemainingRef.current / OLLIE.renegadeShieldSeconds;
+          } else {
+            ollieRenegadeShieldRef.current = 0;
+          }
+          const blast = ollieBlastRef.current;
+          if (blast) {
+            blast.remainingSeconds = Math.max(0, blast.remainingSeconds - dt);
+            if (blast.remainingSeconds === 0) {
+              const radius = blast.hypercharged ? OLLIE.hyperSuperBlastRadius : OLLIE.superBlastRadius;
+              const target = aimingTargetRef.current;
+              if (aimingTargetHealthRef.current > 0
+                && Math.hypot(target.x - playerRef.current.x, target.y - playerRef.current.y) <= radius + ENEMY_RADIUS) {
+                damageTrialTarget(blast.hypercharged ? OLLIE.hyperSuperDamage : OLLIE.superDamage,
+                  OLLIE.superRechargePerTarget);
+                if (ollieHyperRemainingRef.current <= 0 && ollieHyperChargeRef.current < 1) {
+                  ollieHyperChargeRef.current = Math.min(1, ollieHyperChargeRef.current
+                    + OLLIE.superRechargePerTarget * OLLIE.hyperChargeMultiplier);
+                }
+                ollieTargetHypnosisRef.current = OLLIE.superHypnosisSeconds;
+                spawnHitParticles(target.x, target.y);
+              }
+              ollieBlastRef.current = null;
+            }
+          }
+        }
+
         if (isPearlMode) {
           pearlHeatRef.current = Math.min(1, pearlHeatRef.current + dt / PEARL.heatChargeSeconds);
           if (pearlGadgetCooldownRef.current > 0) {
@@ -2327,6 +2437,17 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         const baseMovementSpeed = isBeaMode && !isAimingMode && !isTrialMode && superSlowRemainingMs > 0
           ? controlledMoveSpeed * BEA_SUPER.slowMultiplier
           : controlledMoveSpeed;
+        const ollieNearWall = isOllieMode && ollieStarPower === "kickPush" && (
+          player.x <= PLAYER_RADIUS + OLLIE.kickPushNearWallDistance
+          || player.x >= MAP_WIDTH - PLAYER_RADIUS - OLLIE.kickPushNearWallDistance
+          || player.y <= PLAYER_RADIUS + OLLIE.kickPushNearWallDistance
+          || player.y >= MAP_HEIGHT - PLAYER_RADIUS - OLLIE.kickPushNearWallDistance
+          || [...wallTiles].some((wall) => {
+            const [column, row] = wall.split(",").map(Number);
+            return Math.hypot((column + 0.5) * TILE_SIZE - player.x,
+              (row + 0.5) * TILE_SIZE - player.y) <= OLLIE.kickPushNearWallDistance + TILE_SIZE;
+          })
+        );
         const movementSpeed = isColtMode
           ? coltMoveSpeed(coltSlickBootsBuffieRef.current, coltHyperRemainingRef.current > 0)
           : baseMovementSpeed
@@ -2334,20 +2455,26 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             * (isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperSpeedMultiplier : 1)
             * (isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperSpeedMultiplier : 1)
             * (isPearlMode && pearlHyperRemainingRef.current > 0 ? PEARL.hyperSpeedMultiplier : 1)
+            * (isOllieMode && ollieHyperRemainingRef.current > 0 ? OLLIE.hyperSpeedMultiplier : 1)
+            * (ollieNearWall ? OLLIE.kickPushSpeedMultiplier : 1)
             + (isTrialMode && isMaxMode && maxSuperRemainingRef.current > 0 ? MAX_SUPER_SPEED_BONUS : 0);
         const movement = advanceMovement(playerMovementElapsedRef.current, dt,
           !isAimingMode && Math.hypot(input.x, input.y) > 0);
         playerMovementElapsedRef.current = movement.elapsed;
         const dash = minaDashRef.current;
-        const dashDistance = dash ? Math.min(dash.remainingDistance, MINA.dashSpeed * dt) : 0;
+        const ollieDash = ollieDashRef.current;
+        const dashDistance = dash ? Math.min(dash.remainingDistance, MINA.dashSpeed * dt)
+          : ollieDash ? Math.min(ollieDash.remainingDistance, ollieDash.speed * dt) : 0;
         const requestedDx = dash ? dash.dx * dashDistance : input.x * movementSpeed * movement.distance;
-        const requestedDy = dash ? dash.dy * dashDistance : input.y * movementSpeed * movement.distance;
+        const requestedDy = dash ? dash.dy * dashDistance
+          : ollieDash ? ollieDash.dy * dashDistance : input.y * movementSpeed * movement.distance;
+        const effectiveRequestedDx = ollieDash ? ollieDash.dx * dashDistance : requestedDx;
         const playerBeforeMoveX = player.x;
         const playerBeforeMoveY = player.y;
         const resolvedPlayerMove = resolveSquareMovement({
           x: player.x,
           y: player.y,
-          dx: requestedDx,
+          dx: effectiveRequestedDx,
           dy: requestedDy,
           halfSize: PLAYER_COLLISION_HALF_SIZE,
           mapWidth: MAP_WIDTH,
@@ -2372,6 +2499,33 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           const actualDashDistance = Math.hypot(actualPlayerDx, actualPlayerDy);
           dash.remainingDistance = Math.max(0, dash.remainingDistance - actualDashDistance);
           if (dash.remainingDistance <= 0.01 || actualDashDistance + 0.01 < dashDistance) minaDashRef.current = null;
+        }
+        if (ollieDash) {
+          const actualDashDistance = Math.hypot(actualPlayerDx, actualPlayerDy);
+          ollieDash.remainingDistance = Math.max(0, ollieDash.remainingDistance - actualDashDistance);
+          if (ollieDash.remainingDistance <= 0.01 || actualDashDistance + 0.01 < dashDistance) {
+            if (ollieDash.kind === "super") {
+              ollieBlastRef.current = {
+                remainingSeconds: OLLIE.superBlastDelaySeconds,
+                hypercharged: ollieDash.hypercharged,
+              };
+              if (!ollieDash.hypercharged) {
+                magazineAmmoRef.current = Math.max(0, magazineAmmoRef.current - OLLIE.superAmmoCost);
+                setMagazineAmmo(magazineAmmoRef.current);
+              }
+              if (ollieStarPower === "renegade") {
+                ollieRenegadeShieldRef.current = OLLIE.renegadeShield;
+                ollieRenegadeShieldRemainingRef.current = OLLIE.renegadeShieldSeconds;
+              }
+            } else {
+              const target = aimingTargetRef.current;
+              if (aimingTargetHealthRef.current > 0
+                && Math.hypot(target.x - player.x, target.y - player.y) <= OLLIE.regulateHypnosisRadius + ENEMY_RADIUS) {
+                ollieTargetHypnosisRef.current = OLLIE.regulateHypnosisSeconds;
+              }
+            }
+            ollieDashRef.current = null;
+          }
         }
         const grayPortals = grayPortalsRef.current;
         if (grayPortals) {
@@ -3492,6 +3646,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 if (minaThirdAttackHitCastsRef.current.has(b.minaThirdAttackCastId)) continue;
                 minaThirdAttackHitCastsRef.current.add(b.minaThirdAttackCastId);
               }
+              if (b.ollieAttackCastId !== undefined) {
+                if (ollieAttackHitCastsRef.current.has(b.ollieAttackCastId)) continue;
+                ollieAttackHitCastsRef.current.add(b.ollieAttackCastId);
+              }
               if (isAimingMode) recordAiShotOutcome(true);
               spawnHitParticles(collisionTarget.x, collisionTarget.y);
               hitCountRef.current += 1;
@@ -3529,8 +3687,21 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   : b.texture === "minaSuper" ? MINA.superCharge
                   : b.texture === "spikeShard" ? SPIKE.attackSuperCharge
                   : b.texture === "pearlCookie" ? PEARL.attackSuperChargePerHit
+                  : b.texture === "ollieWave" ? OLLIE.attackSuperChargePerHit
                   : 0;
                 damageTrialTarget(damage, chargeGain);
+                if (isOllieMode && b.texture === "ollieWave") {
+                  if (ollieHyperRemainingRef.current <= 0 && ollieHyperChargeRef.current < 1) {
+                    ollieHyperChargeRef.current = Math.min(1,
+                      ollieHyperChargeRef.current + chargeGain * OLLIE.hyperChargeMultiplier);
+                  }
+                  if (b.ollieHypnosisSeconds) {
+                    ollieTargetHypnosisRef.current = Math.max(
+                      ollieTargetHypnosisRef.current,
+                      b.ollieHypnosisSeconds,
+                    );
+                  }
+                }
                 if (b.texture === "spikeShard") chargeSpikeHyper(chargeGain);
                 if (isPearlMode && b.texture === "pearlCookie") {
                   if (pearlHyperRemainingRef.current <= 0 && pearlHyperChargeRef.current < 1) {
@@ -3658,8 +3829,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               superSlowRemainingMs = BEA_SUPER.slowMs;
             }
             if (isPearlMode && pearlSuperCastRef.current && b.crowdControlOnHit
-              && pearlSuperIsInterruptedBy(b.crowdControlOnHit)) {
+              && pearlSuperIsInterruptedBy(b.crowdControlOnHit as PearlCrowdControl)) {
               pearlSuperCastRef.current = null;
+            }
+            if (isOllieMode && ollieDashRef.current?.kind === "super" && b.crowdControlOnHit
+              && ollieSuperIsInterruptedBy(b.crowdControlOnHit)) {
+              ollieDashRef.current = null;
             }
             if (b.texture === "high") triggerPiperSnappySniping();
             if (isBeaMode && !isAimingMode && (
@@ -3683,8 +3858,19 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                   ? 1 - (1 - (pearlHyperRemainingRef.current > 0 ? PEARL.hyperDamageReduction : 0))
                     * (1 - (pearlStarPower === "heatShield" && pearlHeatRef.current > PEARL.heatShieldThreshold
                       ? PEARL.heatShieldDamageReduction : 0))
+                : isOllieMode && ollieHyperRemainingRef.current > 0 ? OLLIE.hyperDamageReduction
                   : 0;
-              healthRef.current = Math.max(0, healthRef.current - damage * (1 - damageReduction));
+              let incomingDamage = damage * (1 - damageReduction);
+              if (isOllieMode && ollieRenegadeShieldRef.current > 0) {
+                const absorbed = Math.min(incomingDamage, ollieRenegadeShieldRef.current);
+                ollieRenegadeShieldRef.current -= absorbed;
+                incomingDamage -= absorbed;
+              }
+              healthRef.current = Math.max(0, healthRef.current - incomingDamage);
+              if (isOllieMode && incomingDamage > 0) {
+                playerSuperChargeRef.current = Math.min(1, playerSuperChargeRef.current
+                  + incomingDamage * OLLIE.tankTraitSuperChargePerDamage);
+              }
               secondsSinceDamageRef.current = 0;
               setHealth(Math.round(healthRef.current));
               if (isSurvivalMode && healthRef.current <= 0) {
@@ -3973,6 +4159,37 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           PEARL.superRadius * progress * scale * widthFactorAt(player.y),
           PEARL.superRadius * progress * scaleY, 0, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if (isOllieMode && ollieBlastRef.current) {
+        const blast = ollieBlastRef.current;
+        const progress = 1 - blast.remainingSeconds / OLLIE.superBlastDelaySeconds;
+        const radius = blast.hypercharged ? OLLIE.hyperSuperBlastRadius : OLLIE.superBlastRadius;
+        ctx.save();
+        ctx.fillStyle = `rgba(91, 231, 220, ${0.08 + progress * 0.18})`;
+        ctx.strokeStyle = "rgba(176, 255, 246, 0.92)";
+        ctx.lineWidth = Math.max(2, tiles(0.07) * scale);
+        ctx.beginPath();
+        ctx.ellipse(projectX(player.x, player.y), projectY(player.y),
+          radius * progress * scale * widthFactorAt(player.y), radius * progress * scaleY,
+          0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      if (isOllieMode && ollieTargetHypnosisRef.current > 0 && aimingTargetHealthRef.current > 0) {
+        const target = aimingTargetRef.current;
+        ctx.save();
+        ctx.strokeStyle = "rgba(93, 238, 225, 0.92)";
+        ctx.lineWidth = Math.max(2, tiles(0.06) * scale);
+        ctx.setLineDash([8, 6]);
+        ctx.beginPath();
+        ctx.ellipse(projectX(target.x, target.y), projectY(target.y),
+          ENEMY_RADIUS * 1.45 * scale * widthFactorAt(target.y), ENEMY_RADIUS * 1.45 * scaleY,
+          0, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
@@ -4301,6 +4518,9 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           progress: pearlHeatRef.current,
           color: pearlHeatRef.current > PEARL.heatShieldThreshold && pearlStarPower === "heatShield"
             ? "#ffd15c" : "#f28b3c",
+        } : isOllieMode && ollieRenegadeShieldRemainingRef.current > 0 ? {
+          progress: ollieRenegadeShieldRemainingRef.current / OLLIE.renegadeShieldSeconds,
+          color: "#70e4dc",
         } : undefined,
       });
 
@@ -4355,9 +4575,11 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             { x: splitX + sideX, y: splitY + sideY },
             { x: player.x + sideX, y: player.y + sideY },
           ];
-        } else if (isMaxMode || isPearlMode) {
-          const upperDegrees = isPearlMode ? -PEARL.attackSpreadDegrees / 2 : MAX_AIM_EXTENTS_DEGREES[0];
-          const lowerDegrees = isPearlMode ? PEARL.attackSpreadDegrees / 2 : MAX_AIM_EXTENTS_DEGREES[1];
+        } else if (isMaxMode || isPearlMode || isOllieMode) {
+          const upperDegrees = isPearlMode ? -PEARL.attackSpreadDegrees / 2
+            : isOllieMode ? -OLLIE.attackSpreadDegrees / 2 : MAX_AIM_EXTENTS_DEGREES[0];
+          const lowerDegrees = isPearlMode ? PEARL.attackSpreadDegrees / 2
+            : isOllieMode ? OLLIE.attackSpreadDegrees / 2 : MAX_AIM_EXTENTS_DEGREES[1];
           const upperAngle = angle + upperDegrees * Math.PI / 180;
           const lowerAngle = angle + lowerDegrees * Math.PI / 180;
           corners = [
@@ -4542,6 +4764,34 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           ctx.stroke();
           ctx.beginPath();
           ctx.ellipse(projectX(exitX, exitY), projectY(exitY), GRAY.portalVisualRadius * scale * widthFactorAt(exitY), GRAY.portalVisualRadius * scaleY, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        } else if (trialHeroId === "ollie") {
+          const target = aimingTargetRef.current;
+          const bounds = visibleWorldBoundsRef.current;
+          const targetVisible = aimingTargetHealthRef.current > 0
+            && target.x >= bounds.left && target.x <= bounds.right
+            && target.y >= bounds.top && target.y <= bounds.bottom;
+          const angle = stick.exceededDeadzone
+            ? Math.atan2(stick.knobY, stick.knobX)
+            : targetVisible ? Math.atan2(target.y - player.y, target.x - player.x) : playerMoveDirectionRef.current;
+          const hypercharged = ollieHyperRemainingRef.current > 0;
+          const distance = hypercharged ? OLLIE.hyperSuperDashDistance : OLLIE.superDashDistance;
+          const radius = hypercharged ? OLLIE.hyperSuperBlastRadius : OLLIE.superBlastRadius;
+          const endX = player.x + Math.cos(angle) * distance;
+          const endY = player.y + Math.sin(angle) * distance;
+          ctx.save();
+          ctx.strokeStyle = "rgba(255, 223, 94, 0.86)";
+          ctx.fillStyle = "rgba(255, 215, 78, 0.2)";
+          ctx.lineWidth = PLAYER_RADIUS * 2 * scaleY;
+          ctx.beginPath();
+          ctx.moveTo(playerCenterPx, playerCenterPy);
+          ctx.lineTo(projectX(endX, endY), projectY(endY));
+          ctx.stroke();
+          ctx.lineWidth = Math.max(2, tiles(0.08) * scale);
+          ctx.beginPath();
+          ctx.ellipse(projectX(endX, endY), projectY(endY), radius * scale * widthFactorAt(endY), radius * scaleY, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
           ctx.restore();
@@ -4823,7 +5073,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isSpikeDodgeMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isPiperMode, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, isPearlMode, pearlGadget, pearlStarPower, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isSpikeDodgeMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isPiperMode, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, isPearlMode, isOllieMode, pearlGadget, pearlStarPower, ollieGadget, ollieStarPower, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -4956,7 +5206,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const coltAttackBlocked = isColtMode
       && (coltActionRef.current?.kind === "super" || coltActionRef.current?.kind === "gadget");
     const pearlAttackBlocked = isPearlMode && pearlSuperCastRef.current !== null;
-    if (!cancelled && !coltAttackBlocked && !pearlAttackBlocked && !pausedRef.current && !countdownActiveRef.current && magazineAmmoRef.current > 0 && playerAttackCooldownRef.current <= 0) {
+    const ollieAttackBlocked = isOllieMode && (ollieDashRef.current !== null || ollieBlastRef.current !== null);
+    if (!cancelled && !coltAttackBlocked && !pearlAttackBlocked && !ollieAttackBlocked && !pausedRef.current && !countdownActiveRef.current && magazineAmmoRef.current > 0 && playerAttackCooldownRef.current <= 0) {
       const player = playerRef.current;
       const shotAngle = aim.exceededDeadzone
         ? Math.atan2(aim.knobY, aim.knobX)
@@ -5001,6 +5252,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         ? Array.from({ length: COLT.attackBullets }, () => shotAngle)
         : isPearlMode
         ? pearlAttackAngles(shotAngle)
+        : isOllieMode
+        ? ollieAttackAngles(shotAngle)
         : attackProjectileAngles(shotAngle, isMaxMode, shotSeed);
       const texture: keyof typeof BULLET_STYLES = isBeaMode
         ? (isEnhancedBeaShot ? "beaEnhanced" : "beaNormal")
@@ -5015,10 +5268,14 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         : isSpikeMode ? "spikeBomb"
         : isPearlMode && pearlGadgetArmedRef.current && pearlGadget === "madeWithLove" ? "pearlLoveCookie"
         : isPearlMode ? "pearlCookie"
+        : isOllieMode ? "ollieWave"
         : "high";
       const shotSpeed = isGrayCaneShot ? GRAY.caneOutboundSpeed : isMinaMode ? MINA.projectileSpeed : bulletSpeed;
       const pearlAttackCastId = isPearlMode ? shotSeed : undefined;
       const pearlOvercooked = isPearlMode && pearlGadgetArmedRef.current && pearlGadget === "overcooked";
+      const ollieAttackCastId = isOllieMode ? shotSeed : undefined;
+      const ollieHypnosisSeconds = isOllieMode && ollieGadgetArmedRef.current
+        && ollieGadget === "allEyezOnMe" ? OLLIE.allEyezHypnosisSeconds : undefined;
       for (const [index, angle] of projectileAngles.entries()) {
         bulletsRef.current.push({
           x: player.x,
@@ -5031,6 +5288,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             : isPierceLastShot ? 110
             : isMinaMode ? MINA.attackWidth[minaStage === 0 ? 0 : 1] / 2
             : isPearlMode ? PEARL.attackWidth / 2
+            : isOllieMode ? OLLIE.attackWidth / 2
             : bulletRadius,
           texture,
           owner: "player",
@@ -5040,6 +5298,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             : isColtMode && coltHyperRemainingRef.current > 0 ? COLT.hyperDamageMultiplier
             : isMinaMode && minaHyperRemainingRef.current > 0 ? MINA.hyperDamageMultiplier
             : isSpikeMode && spikeHyperRemainingRef.current > 0 ? SPIKE.hyperDamageMultiplier
+            : isOllieMode && ollieHyperRemainingRef.current > 0 ? OLLIE.hyperDamageMultiplier
             : 1,
           spawnDelay: isMaxMode
             ? index * MAX_PROJECTILE_INTERVAL_SECONDS
@@ -5047,10 +5306,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             : isPearlMode ? index * PEARL.attackBulletIntervalSeconds : 0,
           grayCaneOrigin: isGrayCaneShot ? { x: player.x, y: player.y } : undefined,
           spikeBomb: isSpikeMode ? { hypercharged: spikeHyperRemainingRef.current > 0 } : undefined,
-          piercesTarget: texture === "pearlLoveCookie" ? true : undefined,
           pearlAttackCastId,
           pearlOvercooked,
           pearlHeatPending: isPearlMode || undefined,
+          piercesTarget: isOllieMode ? true : texture === "pearlLoveCookie" ? true : undefined,
+          ollieAttackCastId,
+          ollieHypnosisSeconds,
         });
       }
       if (isMinaMode && minaStage === 2) {
@@ -5084,6 +5345,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
         pearlGadgetCooldownShownRef.current = pearlGadgetCooldownRef.current;
         setPearlGadgetCooldownDisplay(pearlGadgetCooldownRef.current);
       }
+      if (isOllieMode && ollieGadgetArmedRef.current) {
+        ollieGadgetArmedRef.current = false;
+        ollieGadgetCooldownRef.current = OLLIE.allEyezCooldownSeconds;
+        ollieGadgetCooldownShownRef.current = OLLIE.allEyezCooldownSeconds;
+        setOllieGadgetCooldownDisplay(OLLIE.allEyezCooldownSeconds);
+      }
       magazineAmmoRef.current -= 1;
       setMagazineAmmo(magazineAmmoRef.current);
       magazineReloadDelayRef.current = magazineReloadDelaySeconds * timingScaleRef.current;
@@ -5102,6 +5369,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     if (!isTrialMode || trialHeroId === "piper" || trialHeroId === "brock" || pausedRef.current || playerSuperChargeRef.current < 1) return;
     if (isMinaMode && minaWaveCastsRef.current.length > 0) return;
     if (isColtMode && (coltActionRef.current?.kind === "super" || coltActionRef.current?.kind === "gadget")) return;
+    if (isOllieMode && (ollieDashRef.current || ollieBlastRef.current)) return;
     e.preventDefault();
     e.stopPropagation();
     const stick = superJoystickRef.current;
@@ -5154,7 +5422,8 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const coltSuperBlocked = isColtMode
       && (coltActionRef.current?.kind === "super" || coltActionRef.current?.kind === "gadget");
     const minaSuperBlocked = isMinaMode && minaWaveCastsRef.current.length > 0;
-    if (!cancelled && !coltSuperBlocked && !minaSuperBlocked
+    const ollieSuperBlocked = isOllieMode && (ollieDashRef.current !== null || ollieBlastRef.current !== null);
+    if (!cancelled && !coltSuperBlocked && !minaSuperBlocked && !ollieSuperBlocked
       && !pausedRef.current && !countdownActiveRef.current && playerSuperChargeRef.current >= 1) {
       const player = playerRef.current;
       const angle = stick.exceededDeadzone
@@ -5347,6 +5616,16 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             breaksWalls: true,
           });
         }
+      } else if (trialHeroId === "ollie") {
+        const hypercharged = ollieHyperRemainingRef.current > 0;
+        ollieDashRef.current = {
+          kind: "super",
+          remainingDistance: hypercharged ? OLLIE.hyperSuperDashDistance : OLLIE.superDashDistance,
+          dx: Math.cos(angle),
+          dy: Math.sin(angle),
+          speed: hypercharged ? OLLIE.hyperSuperDashSpeed : OLLIE.superDashSpeed,
+          hypercharged,
+        };
       }
       playerSuperChargeRef.current = 0;
       if (isMinaMode && MINA_LOADOUT.gadget === "capoWhat" && minaCapoWhatArmedRef.current
@@ -5608,6 +5887,37 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     forceUpdate((value) => value + 1);
   };
 
+  const activateOllieHyper = () => {
+    if (!isOllieMode || pausedRef.current || ollieHyperChargeRef.current < 1 || ollieHyperRemainingRef.current > 0) return;
+    ollieHyperChargeRef.current = 0;
+    ollieHyperRemainingRef.current = OLLIE.hyperDurationSeconds;
+    forceUpdate((value) => value + 1);
+  };
+
+  const activateOllieGadget = () => {
+    if (!isOllieMode || pausedRef.current || ollieGadgetCooldownRef.current > 0
+      || ollieGadgetArmedRef.current || ollieDashRef.current || ollieBlastRef.current) return;
+    if (ollieGadget === "allEyezOnMe") {
+      ollieGadgetArmedRef.current = true;
+    } else {
+      const angle = Math.hypot(inputRef.current.x, inputRef.current.y) > 0.001
+        ? Math.atan2(inputRef.current.y, inputRef.current.x)
+        : playerMoveDirectionRef.current;
+      ollieDashRef.current = {
+        kind: "gadget",
+        remainingDistance: OLLIE.regulateDashDistance,
+        dx: Math.cos(angle),
+        dy: Math.sin(angle),
+        speed: OLLIE.regulateDashSpeed,
+        hypercharged: false,
+      };
+      ollieGadgetCooldownRef.current = OLLIE.regulateCooldownSeconds;
+      ollieGadgetCooldownShownRef.current = OLLIE.regulateCooldownSeconds;
+      setOllieGadgetCooldownDisplay(OLLIE.regulateCooldownSeconds);
+    }
+    forceUpdate((value) => value + 1);
+  };
+
   const beginActionButtonPress = (key: string) => (event: React.PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -5677,6 +5987,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
   const attackLayout = clampJoystick(controlLayoutRef.current.joysticks.attack, controlViewport.width, controlViewport.height);
   const superLayout = clampJoystick(controlLayoutRef.current.joysticks.super, controlViewport.width, controlViewport.height);
   const hyperLayout = clampJoystick(controlLayoutRef.current.joysticks.hyper, controlViewport.width, controlViewport.height, "hyper");
+  const gadgetLayout = clampJoystick(controlLayoutRef.current.joysticks.gadget, controlViewport.width, controlViewport.height, "gadget");
   const displayedMovementLayout = js.active
     ? { ...movementLayout, x: js.baseX / controlViewport.width, y: js.baseY / controlViewport.height }
     : movementLayout;
@@ -5973,12 +6284,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
           onClick={activateActionButtonFromKeyboard(activateGrayGadget)}
           style={{
             position: "absolute",
-            left: hyperLayout.x * controlViewport.width,
-            top: hyperLayout.y * controlViewport.height,
+            left: gadgetLayout.x * controlViewport.width,
+            top: gadgetLayout.y * controlViewport.height,
             transform: "translate(-50%, -50%)",
             zIndex: 20,
-            width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
-            height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+            width: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
+            height: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
             borderRadius: "50%",
             border: grayGadgetArmedRef.current ? "3px solid #f1ffd1" : "3px solid #b9ec85",
             color: "#fff",
@@ -6050,12 +6361,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             onPointerCancel={handleColtGadgetPointerUp}
             style={{
               position: "absolute",
-              left: 0.59 * controlViewport.width,
-              top: 0.58 * controlViewport.height,
+              left: gadgetLayout.x * controlViewport.width,
+              top: gadgetLayout.y * controlViewport.height,
               transform: "translate(-50%, -50%)",
               zIndex: 20,
-              width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
-              height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              width: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
+              height: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
               borderRadius: "50%",
               border: "3px solid #a8ffd0",
               color: "#fff",
@@ -6128,12 +6439,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             onPointerCancel={handleSpikeGadgetPointerUp}
             style={{
               position: "absolute",
-              left: 0.59 * controlViewport.width,
-              top: 0.58 * controlViewport.height,
+              left: gadgetLayout.x * controlViewport.width,
+              top: gadgetLayout.y * controlViewport.height,
               transform: "translate(-50%, -50%)",
               zIndex: 20,
-              width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
-              height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              width: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
+              height: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
               borderRadius: "50%",
               border: "3px solid #baff92",
               color: "#fff",
@@ -6208,12 +6519,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             onClick={activateActionButtonFromKeyboard(activateMinaGadget)}
             style={{
               position: "absolute",
-              left: 0.59 * controlViewport.width,
-              top: 0.58 * controlViewport.height,
+              left: gadgetLayout.x * controlViewport.width,
+              top: gadgetLayout.y * controlViewport.height,
               transform: "translate(-50%, -50%)",
               zIndex: 20,
-              width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
-              height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              width: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
+              height: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
               borderRadius: "50%",
               border: "3px solid #a8ffd0",
               color: "#fff",
@@ -6288,12 +6599,12 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             onClick={activateActionButtonFromKeyboard(activatePearlGadget)}
             style={{
               position: "absolute",
-              left: 0.59 * controlViewport.width,
-              top: 0.58 * controlViewport.height,
+              left: gadgetLayout.x * controlViewport.width,
+              top: gadgetLayout.y * controlViewport.height,
               transform: "translate(-50%, -50%)",
               zIndex: 20,
-              width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
-              height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              width: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
+              height: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
               borderRadius: "50%",
               border: pearlGadgetArmedRef.current ? "3px solid #efffc7" : "3px solid #a8ffd0",
               color: "#fff",
@@ -6309,6 +6620,87 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             }}
           >
             {pearlGadgetCooldownDisplay > 0 ? Math.ceil(pearlGadgetCooldownDisplay) : pearlGadgetArmedRef.current ? "✓" : "●"}
+          </button>
+        </>
+      )}
+
+      {isTrialMode && isOllieMode && (
+        <>
+          <button
+            type="button"
+            aria-label={ollieHyperRemainingRef.current > 0
+              ? "奥利超充生效中"
+              : `奥利超充 ${Math.round(ollieHyperChargeRef.current * 100)}%`}
+            disabled={ollieHyperChargeRef.current < 1 || ollieHyperRemainingRef.current > 0 || paused}
+            onPointerDown={beginActionButtonPress("ollieHyper")}
+            onPointerUp={finishActionButtonPress("ollieHyper", activateOllieHyper)}
+            onPointerCancel={finishActionButtonPress("ollieHyper", activateOllieHyper)}
+            onClick={activateActionButtonFromKeyboard(activateOllieHyper)}
+            style={{
+              position: "absolute",
+              left: hyperLayout.x * controlViewport.width,
+              top: hyperLayout.y * controlViewport.height,
+              transform: "translate(-50%, -50%)",
+              zIndex: 20,
+              width: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              height: hyperButtonDiameter(hyperLayout, controlViewport.width, controlViewport.height),
+              borderRadius: "50%",
+              border: "3px solid #e2baff",
+              background: ollieHyperRemainingRef.current > 0 ? "#9c4bff"
+                : `conic-gradient(#ba65ff ${ollieHyperChargeRef.current * 100}%, #332346 0)`,
+              boxShadow: ollieHyperChargeRef.current >= 1 || ollieHyperRemainingRef.current > 0
+                ? "0 0 0 2px #3d245d, 0 0 18px #ba65ff"
+                : "0 0 0 2px #3d245d, 0 2px 9px #21132caa",
+              touchAction: "none",
+            }}
+          >
+            <span
+              ref={ollieHyperDurationRingRef}
+              className="gene-hyper-duration-ring"
+              style={{
+                "--hyper-duration-angle": `${ollieHyperRemainingRef.current / OLLIE.hyperDurationSeconds * 360}deg`,
+                opacity: ollieHyperRemainingRef.current > 0 ? 1 : 0,
+              } as React.CSSProperties}
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            type="button"
+            className="training-gadget-button"
+            aria-label={ollieGadgetArmedRef.current
+              ? "全都看我已强化下一次普攻"
+              : ollieGadgetCooldownDisplay > 0
+                ? `奥利妙具冷却 ${ollieGadgetCooldownDisplay.toFixed(1)} 秒`
+                : ollieGadget === "regulate" ? "使用控场滑行" : "启用全都看我"}
+            disabled={ollieGadgetCooldownDisplay > 0 || ollieGadgetArmedRef.current || paused
+              || ollieDashRef.current !== null || ollieBlastRef.current !== null}
+            onPointerDown={beginActionButtonPress("ollieGadget")}
+            onPointerUp={finishActionButtonPress("ollieGadget", activateOllieGadget)}
+            onPointerCancel={finishActionButtonPress("ollieGadget", activateOllieGadget)}
+            onClick={activateActionButtonFromKeyboard(activateOllieGadget)}
+            style={{
+              position: "absolute",
+              left: gadgetLayout.x * controlViewport.width,
+              top: gadgetLayout.y * controlViewport.height,
+              transform: "translate(-50%, -50%)",
+              zIndex: 20,
+              width: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
+              height: hyperButtonDiameter(gadgetLayout, controlViewport.width, controlViewport.height),
+              borderRadius: "50%",
+              border: ollieGadgetArmedRef.current ? "3px solid #f4ffd2" : "3px solid #a8ffd0",
+              color: "#fff",
+              fontWeight: 900,
+              background: ollieGadgetArmedRef.current
+                ? "radial-gradient(circle,#f2e86f 0 38%,#319b70 42% 100%)"
+                : ollieGadgetCooldownDisplay > 0
+                  ? `conic-gradient(#286057 ${(1 - ollieGadgetCooldownDisplay / (ollieGadget === "regulate" ? OLLIE.regulateCooldownSeconds : OLLIE.allEyezCooldownSeconds)) * 100}%,#142824 0)`
+                  : "linear-gradient(145deg,#72dfb7,#278b72)",
+              boxShadow: ollieGadgetArmedRef.current ? "0 0 18px #eeff75" : "0 3px 10px #10240daa",
+              touchAction: "none",
+            }}
+          >
+            {ollieGadgetCooldownDisplay > 0 ? Math.ceil(ollieGadgetCooldownDisplay)
+              : ollieGadgetArmedRef.current ? "✓" : "●"}
           </button>
         </>
       )}

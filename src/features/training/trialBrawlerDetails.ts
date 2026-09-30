@@ -7,6 +7,7 @@ import { MINA, MINA_LOADOUT } from "./minaCombat";
 import { PIERCE_SHELL, PIERCE_SUPER } from "./pierceCombat";
 import { PIPER, PIPER_LOADOUT } from "./piperCombat";
 import { PEARL, pearlVolleyDamages } from "./pearlCombat";
+import { OLLIE, OLLIE_DEFAULT_LOADOUT } from "./ollieCombat";
 import { SPIKE, SPIKE_LOADOUT } from "./spikeCombat";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "./characterTrial";
 
@@ -533,6 +534,81 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "超充大招半径", value: units(SPIKE.superRadius * SPIKE.hyperSuperRadiusMultiplier) },
         { label: "二次爆炸延迟", value: seconds(SPIKE.hyperSecondExplosionDelaySeconds) },
         { label: "装备状态", value: "超充巴菲启用" },
+      ],
+    },
+  ],
+  ollie: [
+    base("ollie"),
+    {
+      title: "特性 · 坦克",
+      rows: [
+        { label: "被动充能", value: "受到敌方英雄或召唤物伤害时获得大招能量" },
+        { label: "当前模拟换算", value: "每承受60000伤害充满一次大招" },
+      ],
+    },
+    {
+      title: "普通攻击 · 制造喧闹",
+      rows: [
+        attackStartInterval("ollie"),
+        { label: "伤害", value: String(OLLIE.attackDamage), note: "两道声波重叠命中同一目标时只结算一次。" },
+        { label: "声波数量", value: `${OLLIE.attackProjectileCount}道` },
+        { label: "总散布", value: `${OLLIE.attackSpreadDegrees}°` },
+        { label: "射程", value: units(OLLIE.attackRange) },
+        { label: "弹丸速度", value: speed(OLLIE.attackProjectileSpeed) },
+        { label: "单道碰撞宽度", value: units(OLLIE.attackWidth) },
+        { label: "性质", value: "穿透敌方单位" },
+        { label: "命中大招充能", value: percent(OLLIE.attackSuperChargePerHit), note: "当前版本需6次普攻命中充满。" },
+      ],
+    },
+    {
+      title: "妙具",
+      rows: [
+        { label: "控场滑行", value: `向当前方向突进${units(OLLIE.regulateDashDistance)}，速度${speed(OLLIE.regulateDashSpeed)}` },
+        { label: "控场滑行落点", value: `半径${units(OLLIE.regulateHypnosisRadius)}，催眠${seconds(OLLIE.regulateHypnosisSeconds)}` },
+        { label: "控场滑行冷却", value: seconds(OLLIE.regulateCooldownSeconds) },
+        { label: "全都看我", value: `强化下一次普攻，命中后催眠${seconds(OLLIE.allEyezHypnosisSeconds)}` },
+        { label: "全都看我冷却", value: seconds(OLLIE.allEyezCooldownSeconds) },
+        { label: "当前装备", value: OLLIE_DEFAULT_LOADOUT.gadget === "regulate" ? "控场滑行" : "全都看我" },
+      ],
+    },
+    {
+      title: "星辉",
+      rows: [
+        { label: "借墙加速", value: `距离墙体不超过${units(OLLIE.kickPushNearWallDistance)}时移速${bonusPercent(OLLIE.kickPushSpeedMultiplier)}` },
+        { label: "借墙加速后移速", value: speed(OLLIE.moveSpeed * OLLIE.kickPushSpeedMultiplier) },
+        { label: "叛逆者", value: `大招冲刺完成后获得${OLLIE.renegadeShield}点衰减护盾，持续${seconds(OLLIE.renegadeShieldSeconds)}` },
+        { label: "当前装备", value: OLLIE_DEFAULT_LOADOUT.starPower === "renegade" ? "叛逆者" : "借墙加速" },
+      ],
+    },
+    {
+      title: "大招 · 催眠",
+      rows: [
+        { label: "冲刺距离", value: units(OLLIE.superDashDistance) },
+        { label: "冲刺速度", value: speed(OLLIE.superDashSpeed) },
+        { label: "冲刺打断", value: "可被眩晕、拉取、击退打断；被打断后不产生催眠爆发" },
+        { label: "冲刺后蓄力", value: seconds(OLLIE.superBlastDelaySeconds) },
+        { label: "爆发伤害", value: String(OLLIE.superDamage) },
+        { label: "爆发半径", value: units(OLLIE.superBlastRadius) },
+        { label: "催眠持续", value: seconds(OLLIE.superHypnosisSeconds) },
+        { label: "催眠移动", value: `目标失去控制并以${speed(OLLIE.hypnosisMoveSpeed)}向奥利移动` },
+        { label: "弹药消耗", value: `最多${OLLIE.superAmmoCost}格` },
+        { label: "命中回充", value: percent(OLLIE.superRechargePerTarget) },
+      ],
+    },
+    {
+      title: "超充 · Ain't No Half-Supering",
+      rows: [
+        { label: "充能倍率", value: `大招充能量 × ${OLLIE.hyperChargeMultiplier}` },
+        { label: "持续", value: seconds(OLLIE.hyperDurationSeconds) },
+        { label: "伤害加成", value: bonusPercent(OLLIE.hyperDamageMultiplier) },
+        { label: "移动速度加成", value: bonusPercent(OLLIE.hyperSpeedMultiplier) },
+        { label: "伤害减免", value: percent(OLLIE.hyperDamageReduction) },
+        { label: "强化冲刺距离", value: units(OLLIE.hyperSuperDashDistance) },
+        { label: "强化冲刺速度", value: speed(OLLIE.hyperSuperDashSpeed) },
+        { label: "强化爆发伤害", value: String(OLLIE.hyperSuperDamage) },
+        { label: "强化催眠半径", value: units(OLLIE.hyperSuperBlastRadius) },
+        { label: "强化冲刺打断", value: "仍可被眩晕、拉取、击退打断" },
+        { label: "弹药消耗", value: "0格" },
       ],
     },
   ],
