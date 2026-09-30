@@ -1,5 +1,5 @@
 import { BEA_SUPER, BEA_SUPER_AIM_SECONDS } from "./beaSuper";
-import { COLT, COLT_LOADOUT } from "./coltCombat";
+import { COLT } from "./coltCombat";
 import { MAX_PROJECTILE_INTERVAL_SECONDS } from "./config";
 import { GENE } from "./geneCombat";
 import { GRAY } from "./grayCombat";
@@ -8,7 +8,7 @@ import { PIERCE_SHELL, PIERCE_SUPER } from "./pierceCombat";
 import { PIPER, PIPER_LOADOUT } from "./piperCombat";
 import { PEARL, pearlVolleyDamages } from "./pearlCombat";
 import { OLLIE, OLLIE_DEFAULT_LOADOUT } from "./ollieCombat";
-import { SPIKE, SPIKE_LOADOUT } from "./spikeCombat";
+import { SPIKE } from "./spikeCombat";
 import { TRIAL_BRAWLERS, type TrialBrawlerId } from "./characterTrial";
 
 export type TrialBrawlerDetailRow = {
@@ -22,11 +22,13 @@ export type TrialBrawlerDetailSection = {
   rows: TrialBrawlerDetailRow[];
 };
 
-const units = (value: number) => `${value}（${Number((value / 300).toFixed(2))} 格）`;
-const seconds = (value: number) => `${Number(value.toFixed(3))} 秒`;
-const percent = (value: number) => `${Number((value * 100).toFixed(3))}%`;
+const formatNumber = (value: number, maximumFractionDigits = 3) =>
+  Number(value.toFixed(maximumFractionDigits)).toString();
+const units = (value: number) => `${formatNumber(value)} 单位`;
+const seconds = (value: number) => `${formatNumber(value)} 秒`;
+const percent = (value: number) => `${formatNumber(value * 100)}%`;
 const bonusPercent = (multiplier: number) => `+${percent(multiplier - 1)}`;
-const speed = (value: number) => `${Number(value.toFixed(3))} 单位/秒`;
+const speed = (value: number) => `${formatNumber(value)} 单位/秒`;
 const attackStartInterval = (id: TrialBrawlerId): TrialBrawlerDetailRow => ({
   label: "普攻起手间隔",
   value: seconds(TRIAL_BRAWLERS[id].attackIntervalSeconds),
@@ -74,7 +76,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "触发条件", value: "普通攻击命中敌方单位" },
         { label: "即时恢复", value: `${PIPER.snappySnipingAmmoGain} 发弹药` },
         { label: "弹药上限", value: "恢复后不超过3发" },
-        { label: "装备状态", value: PIPER_LOADOUT.starPower },
+        { label: "装备状态", value: PIPER_LOADOUT.starPower === "snappySniping" ? "回弹" : "未装备" },
       ],
     },
     notImplemented("大招、妙具、超充与巴菲"),
@@ -107,7 +109,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "共同直行阶段", value: seconds(BEA_SUPER.straightSeconds) },
         { label: "转向角速度", value: BEA_SUPER.angularSpeeds.join("、") + " rad/s" },
         { label: "整组全中充能", value: "17.5%", note: "每发均摊2.5%；满充不保存溢出。" },
-        { label: "人机瞄准时间", value: `${BEA_SUPER_AIM_SECONDS}秒`, note: "稳定瞄准至少0.12秒后释放。" },
+        { label: "人机瞄准时间", value: seconds(BEA_SUPER_AIM_SECONDS), note: "稳定瞄准至少0.12秒后释放。" },
       ],
     },
     notImplemented("妙具、星辉、超充与巴菲"),
@@ -121,7 +123,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "每次弹丸", value: "4 发" },
         { label: "单发伤害", value: "640" },
         { label: "理论总伤害", value: "2560" },
-        { label: "弹丸连发间隔", value: `${MAX_PROJECTILE_INTERVAL_SECONDS}秒/发`, note: "同一轮普攻的四发依次生成，不同时出膛。" },
+        { label: "弹丸连发间隔", value: `${formatNumber(MAX_PROJECTILE_INTERVAL_SECONDS)} 秒/发`, note: "同一轮普攻的四发依次生成，不同时出膛。" },
         { label: "偏角", value: "0°、−1.5°、+1.5°～+1.8°、−3°" },
         { label: "瞄准覆盖边界", value: "−3° 至 +1.8°" },
         { label: "中心射程", value: units(2500) },
@@ -192,7 +194,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
       rows: [
         { label: "掉落条件", value: "普攻/追踪弹命中敌方英雄" },
         { label: "不触发对象", value: "金库、召唤物及人形召唤物等非英雄单位" },
-        { label: "随机掉落距离", value: `${PIERCE_SHELL.minDistance}～${PIERCE_SHELL.maxDistance}单位` },
+        { label: "随机掉落距离", value: `${formatNumber(PIERCE_SHELL.minDistance)}～${units(PIERCE_SHELL.maxDistance)}` },
         { label: "存在时间", value: seconds(PIERCE_SHELL.lifetimeSeconds) },
         { label: "拾取半径", value: units(PIERCE_SHELL.pickupRadius) },
         { label: "拾取效果", value: "补1发弹药并自动射击" },
@@ -216,7 +218,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "追踪弹速度", value: `${PIERCE_SUPER.projectileSpeed} 单位/秒` },
         { label: "追踪弹碰撞半径", value: units(PIERCE_SUPER.projectileRadius) },
         { label: "追踪弹射程", value: units(PIERCE_SUPER.range) },
-        { label: "追踪参数", value: `强度${PIERCE_SUPER.steerStrength}；前${PIERCE_SUPER.steerIgnoreSeconds}秒不转向；持续${PIERCE_SUPER.steerSeconds}秒` },
+        { label: "追踪参数", value: `强度${formatNumber(PIERCE_SUPER.steerStrength)}；前${seconds(PIERCE_SUPER.steerIgnoreSeconds)}不转向；持续${seconds(PIERCE_SUPER.steerSeconds)}` },
         { label: "拦截", value: "可被非锁定敌方单位途中抵挡" },
         { label: "单发大招充能", value: percent(PIERCE_SUPER.chargePerHit) },
       ],
@@ -236,9 +238,9 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "爆炸半径", value: units(450) },
         { label: "燃烧区域半径", value: units(300) },
         { label: "燃烧伤害", value: "688/跳" },
-        { label: "首跳延迟", value: "0.9秒" },
-        { label: "后续跳伤", value: "每1秒一次" },
-        { label: "燃烧持续", value: "2.9秒" },
+        { label: "首跳延迟", value: "0.9 秒" },
+        { label: "后续跳伤", value: "每 1 秒一次" },
+        { label: "燃烧持续", value: "2.9 秒" },
       ],
     },
     notImplemented("大招、妙具、星辉、超充与巴菲"),
@@ -264,7 +266,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
       title: "大招 · 魔术手",
       rows: [
         { label: "基础射程", value: units(GENE.baseSuperRange) },
-        { label: "当前装备射程", value: units(GENE.superRange), note: "神话装备额外增加1格。" },
+        { label: "当前装备射程", value: units(GENE.superRange), note: "神话装备额外增加300单位。" },
         { label: "弹丸速度", value: `${GENE.superSpeed} 单位/秒` },
         { label: "碰撞宽度", value: units(GENE.superWidth) },
         { label: "普通拉回速度", value: `${GENE.pullSpeed} 单位/秒` },
@@ -362,7 +364,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
       rows: [
         { label: "常驻速度倍率", value: `×${COLT.slickBootsMultiplier}` },
         { label: "装备后移动速度", value: speed(COLT.baseMoveSpeed * COLT.slickBootsMultiplier), note: `基础${COLT.baseMoveSpeed} × ${COLT.slickBootsMultiplier}。` },
-        { label: "星辉巴菲", value: `攻击命中后额外${bonusPercent(COLT.slickBootsBuffieMultiplier)}基础移速，持续${COLT.slickBootsBuffieSeconds}秒` },
+        { label: "星辉巴菲", value: `攻击命中后额外${bonusPercent(COLT.slickBootsBuffieMultiplier)}基础移速，持续${seconds(COLT.slickBootsBuffieSeconds)}` },
         { label: "巴菲生效速度", value: speed(COLT.baseMoveSpeed * (COLT.slickBootsMultiplier + COLT.slickBootsBuffieMultiplier - 1)), note: "常驻+13%与临时+20%按基础移速相加。" },
       ],
     },
@@ -385,15 +387,15 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
       title: "超充与超充巴菲",
       rows: [
         { label: "基础持续", value: seconds(COLT.hyperBaseDurationSeconds) },
-        { label: "超充巴菲持续加成", value: `+${COLT.hyperBuffieBonusSeconds}秒` },
-        { label: "最终持续", value: `${COLT.hyperBaseDurationSeconds + COLT.hyperBuffieBonusSeconds}秒` },
+        { label: "超充巴菲持续加成", value: `+${seconds(COLT.hyperBuffieBonusSeconds)}` },
+        { label: "最终持续", value: seconds(COLT.hyperBaseDurationSeconds + COLT.hyperBuffieBonusSeconds) },
         { label: "伤害加成", value: bonusPercent(COLT.hyperDamageMultiplier) },
         { label: "移动速度加成", value: bonusPercent(COLT.hyperSpeedMultiplier) },
         { label: "伤害减免", value: percent(COLT.hyperDamageReduction) },
         { label: "超充且装备星辉移速", value: speed(COLT.baseMoveSpeed * (COLT.slickBootsMultiplier + COLT.hyperSpeedMultiplier - 1)) },
         { label: "全部移速增益叠加", value: speed(COLT.baseMoveSpeed * (COLT.slickBootsMultiplier + COLT.slickBootsBuffieMultiplier + COLT.hyperSpeedMultiplier - 2)), note: "特制皮靴、星辉巴菲和超充移速同时生效。" },
         { label: "普攻连发间隔", value: seconds(COLT.hyperAttackBulletIntervalSeconds) },
-        { label: "装备状态", value: `${COLT_LOADOUT.gadget} / ${COLT_LOADOUT.starPower} / 全巴菲` },
+        { label: "装备状态", value: "快速装弹 / 特制皮靴 / 全巴菲" },
       ],
     },
   ],
@@ -408,7 +410,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "前两段宽度", value: MINA.attackWidth.map(units).join(" / ") },
         { label: "弹丸速度", value: `${MINA.projectileSpeed} 单位/秒` },
         { label: "连携保持", value: seconds(MINA.comboWindowSeconds) },
-        { label: "每段冲刺", value: `${MINA.dashDistance}单位，速度${MINA.dashSpeed}` },
+        { label: "每段冲刺", value: `${units(MINA.dashDistance)}；${speed(MINA.dashSpeed)}` },
         { label: "三段大招充能", value: MINA.attackSuperCharge.map(percent).join(" / ") },
         { label: "三段超充充能", value: MINA.attackHyperCharge.map(percent).join(" / ") },
       ],
@@ -436,7 +438,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "备选妙具", value: "Capo-What?：下一次普通大招命中后立即充满大招" },
         { label: "当前星辉", value: MINA_LOADOUT.starPower === "zumZumZum" ? "Zum Zum Zum" : "Blown Away" },
         { label: "Zum Zum Zum", value: `第三段治疗造成伤害的${percent(MINA.zumZumZumHealingRatio)}` },
-        { label: "备选星辉", value: `Blown Away：大招额外定身${MINA.blownAwayRootSeconds}秒` },
+        { label: "备选星辉", value: `Blown Away：大招额外定身${seconds(MINA.blownAwayRootSeconds)}` },
       ],
     },
     {
@@ -463,8 +465,8 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "飓风数量", value: `${MINA.hyperHurricaneCount}发` },
         { label: "飓风总夹角", value: `${MINA.hyperSpreadDegrees}°` },
         { label: "速度", value: `${MINA.hyperSuperSpeed} 单位/秒` },
-        { label: "反弹", value: `最多${MINA.hyperSuperMaxBounces}次，每次追加${MINA.hyperSuperBounceDistanceBonus}距离` },
-        { label: "强化拉取", value: `${MINA.hyperSuperPullDistance}距离，${MINA.hyperSuperPullSpeed}速度` },
+        { label: "反弹", value: `最多${MINA.hyperSuperMaxBounces}次，每次追加${units(MINA.hyperSuperBounceDistanceBonus)}` },
+        { label: "强化拉取", value: `${units(MINA.hyperSuperPullDistance)}；${speed(MINA.hyperSuperPullSpeed)}` },
       ],
     },
   ],
@@ -490,10 +492,10 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
     {
       title: "星辉 · 旋转刺球及巴菲",
       rows: [
-        { label: "总偏转", value: `${Number((SPIKE.curveballTurnRadians * 180 / Math.PI).toFixed(1))}°` },
+        { label: "总偏转", value: `${formatNumber(SPIKE.curveballTurnRadians * 180 / Math.PI, 1)}°` },
         { label: "转向曲线", value: "进度平方递增；初始角速度接近0" },
         { label: "星辉巴菲额外射程", value: units(SPIKE.curveballBuffieExtraRange) },
-        { label: "装备状态", value: `${SPIKE_LOADOUT.starPower} / 巴菲启用` },
+        { label: "装备状态", value: "旋转刺球 / 星辉巴菲已启用" },
       ],
     },
     {
@@ -506,7 +508,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "植物碰撞半径", value: units(SPIKE.plantRadius) },
         { label: "摧毁治疗", value: `${SPIKE.plantHeal}，半径${units(SPIKE.plantHealRadius)}` },
         { label: "妙具巴菲爆炸", value: `${SPIKE.plantBuffieDamage}伤害，半径${units(SPIKE.plantBuffieBlastRadius)}` },
-        { label: "妙具巴菲击退", value: `${SPIKE.plantBuffieKnockback}距离` },
+        { label: "妙具巴菲击退", value: units(SPIKE.plantBuffieKnockback) },
       ],
     },
     {
@@ -569,7 +571,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "控场滑行冷却", value: seconds(OLLIE.regulateCooldownSeconds) },
         { label: "全都看我", value: `强化下一次普攻，命中后催眠${seconds(OLLIE.allEyezHypnosisSeconds)}` },
         { label: "全都看我冷却", value: seconds(OLLIE.allEyezCooldownSeconds) },
-        { label: "当前装备", value: OLLIE_DEFAULT_LOADOUT.gadget === "regulate" ? "控场滑行" : "全都看我" },
+        { label: "默认装备", value: OLLIE_DEFAULT_LOADOUT.gadget === "regulate" ? "控场滑行" : "全都看我" },
       ],
     },
     {
@@ -577,8 +579,8 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
       rows: [
         { label: "借墙加速", value: `距离墙体不超过${units(OLLIE.kickPushNearWallDistance)}时移速${bonusPercent(OLLIE.kickPushSpeedMultiplier)}` },
         { label: "借墙加速后移速", value: speed(OLLIE.moveSpeed * OLLIE.kickPushSpeedMultiplier) },
-        { label: "叛逆者", value: `大招冲刺完成后获得${OLLIE.renegadeShield}点衰减护盾，持续${seconds(OLLIE.renegadeShieldSeconds)}` },
-        { label: "当前装备", value: OLLIE_DEFAULT_LOADOUT.starPower === "renegade" ? "叛逆者" : "借墙加速" },
+        { label: "叛逆者", value: `发动大招冲刺后获得${OLLIE.renegadeShield}点衰减护盾，持续${seconds(OLLIE.renegadeShieldSeconds)}`, note: "冲刺被控制中断时仍会获得护盾。" },
+        { label: "默认装备", value: OLLIE_DEFAULT_LOADOUT.starPower === "renegade" ? "叛逆者" : "借墙加速" },
       ],
     },
     {
@@ -591,7 +593,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "爆发伤害", value: String(OLLIE.superDamage) },
         { label: "爆发半径", value: units(OLLIE.superBlastRadius) },
         { label: "催眠持续", value: seconds(OLLIE.superHypnosisSeconds) },
-        { label: "催眠移动", value: `目标失去控制并以${speed(OLLIE.hypnosisMoveSpeed)}向奥利移动` },
+        { label: "催眠移动", value: "目标失去控制并持续向奥利移动", note: `试用场暂以${speed(OLLIE.hypnosisMoveSpeed)}近似模拟；该速度不是已确认的官方独立参数。` },
         { label: "弹药消耗", value: `冲刺结束时扣除最大弹药的${percent(OLLIE.superAmmoReductionRatio)}，即最多${OLLIE.superAmmoCost}格`, note: "按最大弹药容量计算；当前弹药不足1.5格时只会扣到0，不产生负弹药。" },
         { label: "蓄力阶段操作", value: "扣弹后仍可普攻、继续装填或使用妙具；后续控制不会取消场域" },
         { label: "命中回充", value: percent(OLLIE.superRechargePerTarget) },
@@ -623,8 +625,8 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "初始热量", value: "0%" },
         { label: "自然充满", value: seconds(PEARL.heatChargeSeconds) },
         { label: "满热量增伤", value: bonusPercent(1 + PEARL.heatMaxDamageBonus) },
-        { label: "单颗消耗", value: `${PEARL.heatUseSecondsPerCookie}秒充能量（${percent(PEARL.heatUseSecondsPerCookie / PEARL.heatChargeSeconds)}）` },
-        { label: "整轮六颗消耗", value: `${PEARL.heatUseSecondsPerCookie * PEARL.attackBullets}秒充能量（${percent(PEARL.heatUseSecondsPerCookie * PEARL.attackBullets / PEARL.heatChargeSeconds)}）` },
+        { label: "单颗消耗", value: `${seconds(PEARL.heatUseSecondsPerCookie)}充能量（${percent(PEARL.heatUseSecondsPerCookie / PEARL.heatChargeSeconds)}）` },
+        { label: "整轮六颗消耗", value: `${seconds(PEARL.heatUseSecondsPerCookie * PEARL.attackBullets)}充能量（${percent(PEARL.heatUseSecondsPerCookie * PEARL.attackBullets / PEARL.heatChargeSeconds)}）` },
         { label: "伤害规则", value: "每颗出膛时读取热量，随后扣除热量；同一轮伤害逐颗下降" },
         { label: "攻击期间产热", value: "持续产热，不设置攻击后暂停", note: "原始配置只有自然产热周期与每颗消耗量，没有产热暂停字段；实测资料也显示连射期间继续产热。" },
       ],
@@ -650,7 +652,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
       title: "妙具",
       rows: [
         { label: "烤糊了", value: `下一轮命中附加${PEARL.overcookedMinDamage} → ${PEARL.overcookedMaxDamage}持续伤害` },
-        { label: "灼烧方式", value: `${PEARL.overcookedTicks}跳；命中时立即首跳，随后每${PEARL.overcookedTickSeconds}秒1跳，持续3秒；同一轮多颗命中不叠加` },
+        { label: "灼烧方式", value: `${PEARL.overcookedTicks}跳；命中时立即首跳，随后每 ${seconds(PEARL.overcookedTickSeconds)}1 跳，持续 3 秒；同一轮多颗命中不叠加` },
         { label: "灼烧充能", value: `每跳大招${percent(PEARL.overcookedSuperChargePerTick)}，超充${percent(PEARL.overcookedHyperChargePerTick)}` },
         { label: "烤糊了冷却", value: seconds(PEARL.overcookedCooldownSeconds) },
         { label: "爱心烘焙", value: `下一轮无视敌人并为队友持续恢复${PEARL.madeWithLoveHealing}` },
@@ -691,7 +693,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "移动速度加成", value: bonusPercent(PEARL.hyperSpeedMultiplier) },
         { label: "伤害减免", value: percent(PEARL.hyperDamageReduction) },
         { label: "与热能护盾叠加", value: "24%总减伤", note: "20%热能护盾与5%超充护盾按承伤倍率相乘。" },
-        { label: "超充大招火区", value: `持续${PEARL.hyperFireDurationSeconds}秒，${PEARL.hyperFireTicks}跳 × ${PEARL.hyperFireDamage}` },
+        { label: "超充大招火区", value: `持续${seconds(PEARL.hyperFireDurationSeconds)}，${PEARL.hyperFireTicks}跳 × ${PEARL.hyperFireDamage}` },
         { label: "火区每跳充能", value: `大招${percent(PEARL.hyperFireSuperChargePerTick)}，超充${percent(PEARL.hyperFireHyperChargePerTick)}` },
         { label: "巴菲", value: "当前版本未发布珀尔巴菲，试用中不添加虚构巴菲" },
       ],

@@ -259,7 +259,7 @@ export function HeroNote({ hero, onClose }: { hero: Hero; onClose: () => void })
         {combatDetails ? (
           <div className="hero-note-body combat-detail-body">
             <p className="combat-detail-intro">
-              以下为当前试用战斗实际采用的参数；距离统一按300单位=1格换算。
+              以下为当前试用战斗实际采用的参数；距离统一显示为战斗内部单位。
             </p>
             {combatDetails.map((section) => (
               <section className="combat-detail-section" key={section.title}>
