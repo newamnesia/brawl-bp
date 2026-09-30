@@ -543,7 +543,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
       title: "特性 · 坦克",
       rows: [
         { label: "被动充能", value: "受到敌方英雄或召唤物伤害时获得大招能量" },
-        { label: "当前模拟换算", value: "每承受60000伤害充满一次大招" },
+        { label: "完整充能所需承伤", value: String(OLLIE.tankTraitDamageForFullSuper), note: "等于奥利最大生命值的2.4倍；按护盾和减伤结算后的实际承伤计算。" },
       ],
     },
     {
@@ -558,6 +558,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "单道碰撞宽度", value: units(OLLIE.attackWidth) },
         { label: "性质", value: "穿透敌方单位" },
         { label: "命中大招充能", value: percent(OLLIE.attackSuperChargePerHit), note: "当前版本需6次普攻命中充满。" },
+        { label: "命中超充充能", value: percent(OLLIE.attackSuperChargePerHit * OLLIE.hyperChargeMultiplier) },
       ],
     },
     {
@@ -591,7 +592,8 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "爆发半径", value: units(OLLIE.superBlastRadius) },
         { label: "催眠持续", value: seconds(OLLIE.superHypnosisSeconds) },
         { label: "催眠移动", value: `目标失去控制并以${speed(OLLIE.hypnosisMoveSpeed)}向奥利移动` },
-        { label: "弹药消耗", value: `最多${OLLIE.superAmmoCost}格` },
+        { label: "弹药消耗", value: `冲刺结束时扣除最大弹药的${percent(OLLIE.superAmmoReductionRatio)}，即最多${OLLIE.superAmmoCost}格`, note: "按最大弹药容量计算；当前弹药不足1.5格时只会扣到0，不产生负弹药。" },
+        { label: "蓄力阶段操作", value: "扣弹后仍可普攻、继续装填或使用妙具；后续控制不会取消场域" },
         { label: "命中回充", value: percent(OLLIE.superRechargePerTarget) },
       ],
     },
@@ -607,6 +609,7 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "强化冲刺速度", value: speed(OLLIE.hyperSuperDashSpeed) },
         { label: "强化爆发伤害", value: String(OLLIE.hyperSuperDamage) },
         { label: "强化催眠半径", value: units(OLLIE.hyperSuperBlastRadius) },
+        { label: "强化命中回充", value: percent(OLLIE.hyperSuperRechargePerTarget) },
         { label: "强化冲刺打断", value: "仍可被眩晕、拉取、击退打断" },
         { label: "弹药消耗", value: "0格" },
       ],

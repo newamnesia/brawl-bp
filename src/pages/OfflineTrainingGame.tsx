@@ -2103,11 +2103,13 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
               const target = aimingTargetRef.current;
               if (aimingTargetHealthRef.current > 0
                 && Math.hypot(target.x - playerRef.current.x, target.y - playerRef.current.y) <= radius + ENEMY_RADIUS) {
+                const superRecharge = blast.hypercharged
+                  ? OLLIE.hyperSuperRechargePerTarget : OLLIE.superRechargePerTarget;
                 damageTrialTarget(blast.hypercharged ? OLLIE.hyperSuperDamage : OLLIE.superDamage,
-                  OLLIE.superRechargePerTarget);
+                  superRecharge);
                 if (ollieHyperRemainingRef.current <= 0 && ollieHyperChargeRef.current < 1) {
                   ollieHyperChargeRef.current = Math.min(1, ollieHyperChargeRef.current
-                    + OLLIE.superRechargePerTarget * OLLIE.hyperChargeMultiplier);
+                    + superRecharge * OLLIE.hyperChargeMultiplier);
                 }
                 ollieTargetHypnosisRef.current = OLLIE.superHypnosisSeconds;
                 spawnHitParticles(target.x, target.y);
@@ -3835,6 +3837,10 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
             if (isOllieMode && ollieDashRef.current?.kind === "super" && b.crowdControlOnHit
               && ollieSuperIsInterruptedBy(b.crowdControlOnHit)) {
               ollieDashRef.current = null;
+              if (ollieStarPower === "renegade") {
+                ollieRenegadeShieldRef.current = OLLIE.renegadeShield;
+                ollieRenegadeShieldRemainingRef.current = OLLIE.renegadeShieldSeconds;
+              }
             }
             if (b.texture === "high") triggerPiperSnappySniping();
             if (isBeaMode && !isAimingMode && (
@@ -5206,7 +5212,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
     const coltAttackBlocked = isColtMode
       && (coltActionRef.current?.kind === "super" || coltActionRef.current?.kind === "gadget");
     const pearlAttackBlocked = isPearlMode && pearlSuperCastRef.current !== null;
-    const ollieAttackBlocked = isOllieMode && (ollieDashRef.current !== null || ollieBlastRef.current !== null);
+    const ollieAttackBlocked = isOllieMode && ollieDashRef.current !== null;
     if (!cancelled && !coltAttackBlocked && !pearlAttackBlocked && !ollieAttackBlocked && !pausedRef.current && !countdownActiveRef.current && magazineAmmoRef.current > 0 && playerAttackCooldownRef.current <= 0) {
       const player = playerRef.current;
       const shotAngle = aim.exceededDeadzone
@@ -5896,7 +5902,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
 
   const activateOllieGadget = () => {
     if (!isOllieMode || pausedRef.current || ollieGadgetCooldownRef.current > 0
-      || ollieGadgetArmedRef.current || ollieDashRef.current || ollieBlastRef.current) return;
+      || ollieGadgetArmedRef.current || ollieDashRef.current) return;
     if (ollieGadget === "allEyezOnMe") {
       ollieGadgetArmedRef.current = true;
     } else {
@@ -6673,7 +6679,7 @@ export default function OfflineTrainingGame({ trialHeroId }: { trialHeroId?: Tri
                 ? `奥利妙具冷却 ${ollieGadgetCooldownDisplay.toFixed(1)} 秒`
                 : ollieGadget === "regulate" ? "使用控场滑行" : "启用全都看我"}
             disabled={ollieGadgetCooldownDisplay > 0 || ollieGadgetArmedRef.current || paused
-              || ollieDashRef.current !== null || ollieBlastRef.current !== null}
+              || ollieDashRef.current !== null}
             onPointerDown={beginActionButtonPress("ollieGadget")}
             onPointerUp={finishActionButtonPress("ollieGadget", activateOllieGadget)}
             onPointerCancel={finishActionButtonPress("ollieGadget", activateOllieGadget)}
