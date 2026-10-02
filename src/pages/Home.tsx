@@ -43,6 +43,19 @@ export default function Home() {
     });
   };
 
+  const handleCreateTournamentTest = () => {
+    setError("");
+    setLoading(true);
+    socket.emit("create_tournament_test_room", nickname, (res: { ok: boolean; code?: string; error?: string }) => {
+      setLoading(false);
+      if (!res.ok || !res.code) {
+        setError(res.error ?? "创建单人测试房失败");
+        return;
+      }
+      navigate(`/tournament/${res.code}`);
+    });
+  };
+
   const handleJoin = (code: string) => {
     setError("");
     setLoading(true);
@@ -119,6 +132,7 @@ export default function Home() {
         <div className="create-actions">
           <button className="btn-primary" disabled={!nickname.trim() || loading} onClick={handleCreate}>创建房间</button>
           <button className="btn-secondary" disabled={!nickname.trim() || loading} onClick={handleCreateTournament}>创建六席赛事房</button>
+          <button className="btn-secondary" disabled={!nickname.trim() || loading} onClick={handleCreateTournamentTest}>单人测试六席 BP</button>
         </div>
       </div>
 

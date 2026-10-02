@@ -1,5 +1,5 @@
 import { GAME_MODES, type GameMode, type TournamentTeam } from "../../shared/types";
-import { HERO_MAP, MAP_MAP, heroImageUrl, modeIconUrl } from "../../shared/catalog";
+import { HERO_MAP, MAP_MAP, heroImageUrl, mapThumbnailUrl, modeIconUrl } from "../../shared/catalog";
 
 function Slot({ heroId, label, compact = false, pending = false }: { heroId?: string | null; label: string; compact?: boolean; pending?: boolean }) {
   const hero = heroId ? HERO_MAP[heroId] : null;
@@ -63,7 +63,12 @@ export default function TournamentDraftOverview({
   return (
     <div className="solo-draft-overview">
       <TeamPanel team="blue" bans={blueBans} globalBans={blueGlobalBans} picks={bluePicks} pendingBans={bluePendingBans} />
-      <div className="solo-match-center">
+      <div className="solo-match-center tournament-match-center">
+        {map && (
+          <div className="tournament-map-preview">
+            <img src={mapThumbnailUrl(map)} alt={`${map.localizedName ?? map.name}地图缩略图`} />
+          </div>
+        )}
         <div className="solo-map-readout">
           {modeInfo && <img src={modeIconUrl(modeInfo)} alt={modeInfo.name} />}
           <div>

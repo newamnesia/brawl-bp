@@ -375,6 +375,9 @@ export interface TournamentRoomState {
   myTeam: TournamentTeam | null;
   mySeatIndex: number | null;
   isSpectator: boolean;
+  /** 单人测试房允许房主在蓝红双方之间切换并代管全部席位。 */
+  isSoloTest: boolean;
+  controlledTeam: TournamentTeam | null;
   firstPickTeam: TournamentTeam | null;
   gameMode: GameMode | null;
   teamMapIds: Record<TournamentTeam, string | null>;

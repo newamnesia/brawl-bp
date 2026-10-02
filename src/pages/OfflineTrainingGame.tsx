@@ -43,6 +43,7 @@ import {
   spikeShardTangentAngle,
 } from "../features/training/spikeCombat";
 import { battleCanvasDpr } from "../features/training/performance";
+import { BELLES_ROCK_MAP } from "../features/miniGames/bellesRockMap";
 
 type ControlMode = "joystick" | "keyboard";
 type TrainingMode = "practice" | "survival" | "aiming" | "spikeDodge";
@@ -55,6 +56,13 @@ type SpikeTrajectoryHint = {
   x: number;
   y: number;
   phase: "bomb" | "shards";
+};
+type TrainingScenarioId = "twist-fate";
+type ScenarioPuppet = {
+  id: TrialBrawlerId;
+  x: number;
+  y: number;
+  team: "ally" | "enemy";
 };
 type TrainingSnapshot = {
   stickMag: number[];
@@ -81,6 +89,14 @@ const PERSPECTIVE_WIDTH_STRENGTH = 0.16; // 上沿约窄 8%，下沿约宽 8%
 const PLAYER_RADIUS = tiles(0.5); // 玩家半径 150 单位
 const PLAYER_COLLISION_HALF_SIZE = tiles(0.5); // 隐形 300 × 300 正方形移动碰撞体
 const WALL_TILES: ReadonlySet<WallCell> = new Set(); // 地图暂时为空；以后在此接入障碍格
+const TWIST_FATE_PLAYER_START = { x: tiles(10.5), y: tiles(30.5) };
+const TWIST_FATE_PRIMARY_TARGET_START = { x: tiles(7.5), y: tiles(1.5) };
+const TWIST_FATE_PUPPETS: readonly ScenarioPuppet[] = [
+  { id: "pearl", x: tiles(7.5), y: tiles(30.5), team: "ally" },
+  { id: "brock", x: tiles(13.5), y: tiles(30.5), team: "ally" },
+  { id: "max", x: tiles(10.5), y: tiles(1.5), team: "enemy" },
+  { id: "ollie", x: tiles(13.5), y: tiles(1.5), team: "enemy" },
+];
 const MOVE_SPEED = CHARACTER_MOVE_SPEED;
 
 // 敌人 + 子弹常量
@@ -185,6 +201,7 @@ const STAR_SPAWN_MIN_SECONDS = 2;
 const STAR_SPAWN_MAX_SECONDS = 3;
 const STAR_LIFETIME_SECONDS = 15;
 const STAR_MAX_ACTIVE = 4;
+const AIMING_AI_VISION_SCALE = 0.7;
 const BULLET_STYLES = {
   beaNormal: { color: "#ffd43b", lengthScale: 1.8 },
   beaEnhanced: { color: "#39cfff", lengthScale: 1.8 },
@@ -223,6 +240,8 @@ const TAUNT_DURATION_MS = 3000;
 const TAUNT_SPIN_DURATION_MS = 900;
 const TAUNT_SPIN_MIN_RPS = 3;
 const TAUNT_SPIN_MAX_RPS = 4;
+const TAUNT_DURATION_SCALE = 0.6;
+const TAUNT_SPIN_SPEED_SCALE = 1.4;
 const TAUNT_DODGES_MIN = 2;
 const TAUNT_DODGES_MAX = 5;
 const TAUNT_DELAY_MIN_MS = 500;
@@ -357,10 +376,13 @@ type TrainingStar = {
 
 type PlayerShotObservation = { at: number; angle: number };
 
-function starReward(distance: number) {
-  const closeness = Math.max(0, Math.min(1, (STAR_SPAWN_MAX_DISTANCE - distance)
-    / (STAR_SPAWN_MAX_DISTANCE - STAR_SPAWN_MIN_DISTANCE)));
-  return { heal: Math.round(1000 + 1000 * closeness), points: 1 + closeness };
+function starReward(distance: number, minDistance: number, maxDistance: number, scoreScale: number) {
+  const closeness = Math.max(0, Math.min(1, (maxDistance - distance)
+    / Math.max(1, maxDistance - minDistance)));
+  return {
+    heal: Math.round(1000 + 1000 * closeness),
+    points: (1 + closeness) * scoreScale,
+  };
 }
 
 function rayDistanceToPoint(originX: number, originY: number, angle: number, pointX: number, pointY: number, maxDistance = BULLET_MAX_DIST) {
@@ -1056,12 +1078,15 @@ function predictSpikeDodgeTarget(
 export default function OfflineTrainingGame({
   trialHeroId,
   trialLoadout,
+  scenarioId,
 }: {
   trialHeroId?: TrialBrawlerId;
   trialLoadout?: TrialLoadoutSelection;
+  scenarioId?: TrainingScenarioId;
 } = {}) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const isTwistFateMode = scenarioId === "twist-fate";
   const isTrialMode = Boolean(trialHeroId);
   const mode: ControlMode = isTrialMode ? "joystick" : (searchParams.get("mode") as ControlMode) || "keyboard";
   const requestedSpeedTier = trialHeroId === "piper" ? "high" : trialHeroId === "max" ? "max" : trialHeroId === "bea" ? "mid" : searchParams.get("speedTier");
@@ -1081,7 +1106,9 @@ export default function OfflineTrainingGame({
     : trainingMode === "practice" || isSpikeDodgeMode ? PRACTICE_PLAYER_MAX_HEALTH : PLAYER_MAX_HEALTH;
   const aimingRule: AimingRule = searchParams.get("aimingRule") === "infinite" ? "infinite" : "challenge";
   const isAimingInfinite = isAimingMode && aimingRule === "infinite";
-  const aimingTargetMaxHealth = isTrialMode ? TRIAL_TARGET_MAX_HEALTH : isAimingInfinite ? AIMING_INFINITE_MAX_HEALTH : PLAYER_MAX_HEALTH;
+  const aimingTargetMaxHealth = isTwistFateMode
+    ? TRIAL_BRAWLERS.piper.health
+    : isTrialMode ? TRIAL_TARGET_MAX_HEALTH : isAimingInfinite ? AIMING_INFINITE_MAX_HEALTH : PLAYER_MAX_HEALTH;
   const requestedReactionTier = searchParams.get("reactionTier");
   const reactionTier: AimReactionTier = requestedReactionTier === "legendary" || requestedReactionTier === "master"
     ? requestedReactionTier
@@ -1105,6 +1132,9 @@ export default function OfflineTrainingGame({
   const bulletSpeed = projectileConfig.value;
   const bulletRadius = projectileConfig.bulletWidth / 2;
   const projectileRange = projectileConfig.range;
+  const starDistanceScale = projectileRange / STAR_SPAWN_MAX_DISTANCE;
+  const starSpawnMinDistance = STAR_SPAWN_MIN_DISTANCE * starDistanceScale;
+  const starSpawnMaxDistance = STAR_SPAWN_MAX_DISTANCE * starDistanceScale;
   const isBeaMode = isSpikeDodgeMode ? false : trialHeroId ? trialHeroId === "bea" : speedTier === "mid";
   const isPiperMode = isSpikeDodgeMode ? false : trialHeroId ? trialHeroId === "piper" : speedTier === "high";
   const isMaxMode = isSpikeDodgeMode ? false : trialHeroId ? trialHeroId === "max" : speedTier === "max";
@@ -1245,6 +1275,14 @@ export default function OfflineTrainingGame({
   const aimingTargetHealthRef = useRef(PLAYER_MAX_HEALTH);
   const aimingTargetSecondsSinceDamageRef = useRef(0);
   const visibleWorldBoundsRef = useRef({ left: 0, right: MAP_WIDTH, top: 0, bottom: MAP_HEIGHT });
+  const scenarioBushTilesRef = useRef<Set<WallCell>>(new Set());
+
+  const scenarioEnemyIsRevealed = (target: { x: number; y: number }) => {
+    if (!isTwistFateMode) return true;
+    const bush = `${Math.floor(target.x / TILE_SIZE)},${Math.floor(target.y / TILE_SIZE)}` as WallCell;
+    return !scenarioBushTilesRef.current.has(bush)
+      || Math.hypot(target.x - playerRef.current.x, target.y - playerRef.current.y) <= tiles(2);
+  };
 
   // 仅在离散输入事件中刷新摇杆 UI；逐帧游戏状态全部保存在 ref 中。
   const [, forceUpdate] = useState(0);
@@ -1333,6 +1371,10 @@ export default function OfflineTrainingGame({
   };
 
   const endTraining = () => {
+    if (isTwistFateMode) {
+      navigate("/mini-games/twist-fate");
+      return;
+    }
     pausedRef.current = true;
     setPaused(false);
     setRoundResult("ended");
@@ -1583,6 +1625,7 @@ export default function OfflineTrainingGame({
     let tauntSpinRemainingMs = 0;
     let tauntSpinHeading = 0;
     let tauntSpinAngularSpeed = 0;
+    const aiBulletVisionEnteredAt = new Map<number, number>();
     const stars: TrainingStar[] = [];
     let nextStarId = 1;
     let starSpawnTimer = isTrialMode || isSpikeDodgeMode
@@ -1611,7 +1654,9 @@ export default function OfflineTrainingGame({
 
     // 初始化 Profiler
     profilerRef.current = createProfiler(nowStart, !isSpikeDodgeMode);
-    playerRef.current = isTrialMode
+    playerRef.current = isTwistFateMode
+      ? { ...TWIST_FATE_PLAYER_START }
+      : isTrialMode
       ? { x: TRIAL_TARGET_X, y: TRIAL_TARGET_Y + tiles(7) }
       : isAimingMode
       ? { x: ENEMY_X, y: ENEMY_Y }
@@ -1619,8 +1664,10 @@ export default function OfflineTrainingGame({
       ? { x: SPIKE_DODGE_CENTER_X, y: SPIKE_DODGE_CENTER_Y }
       : { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
     aimingTargetRef.current = {
-      x: isTrialMode ? TRIAL_TARGET_X : isSpikeDodgeMode ? SPIKE_DODGE_CENTER_X : ENEMY_X,
-      y: isTrialMode ? TRIAL_TARGET_Y : isSpikeDodgeMode ? SPIKE_DODGE_CENTER_Y - SPIKE.attackRange : ENEMY_Y - tiles(9),
+      x: isTwistFateMode ? TWIST_FATE_PRIMARY_TARGET_START.x
+        : isTrialMode ? TRIAL_TARGET_X : isSpikeDodgeMode ? SPIKE_DODGE_CENTER_X : ENEMY_X,
+      y: isTwistFateMode ? TWIST_FATE_PRIMARY_TARGET_START.y
+        : isTrialMode ? TRIAL_TARGET_Y : isSpikeDodgeMode ? SPIKE_DODGE_CENTER_Y - SPIKE.attackRange : ENEMY_Y - tiles(9),
       angle: -Math.PI / 2,
       direction: 1,
       switchTimer: 0.7,
@@ -1763,10 +1810,23 @@ export default function OfflineTrainingGame({
     const pearlBurnedAttackCasts = new Set<number>();
     const pearlHeals: PearlHeal[] = [];
     let pearlActiveHealCastId: number | null = null;
-    const wallTiles = new Set(WALL_TILES);
+    const wallTiles = new Set<WallCell>(isTwistFateMode
+      ? [...BELLES_ROCK_MAP.ordinaryWalls, ...BELLES_ROCK_MAP.steelWalls]
+      : WALL_TILES);
+    const steelWallTiles = new Set<WallCell>(isTwistFateMode ? BELLES_ROCK_MAP.steelWalls : []);
+    const bushTiles = new Set<WallCell>(isTwistFateMode ? BELLES_ROCK_MAP.bushes : []);
+    scenarioBushTilesRef.current = bushTiles;
+    const restoreSteelWalls = () => {
+      for (const wall of steelWallTiles) wallTiles.add(wall);
+    };
+    const scenarioPuppets = TWIST_FATE_PUPPETS.map((puppet) => ({
+      ...puppet,
+      health: TRIAL_BRAWLERS[puppet.id].health,
+    }));
     let genePullActive = false;
     let genePullSpeed: number = GENE.pullSpeed;
     let genePullBreaksWalls = false;
+    let genePulledScenarioPuppet: (typeof scenarioPuppets)[number] | null = null;
     let nextPierceShellId = 1;
     const trainingTargetUnitClass: CombatUnitClass = "hero";
 
@@ -1801,6 +1861,7 @@ export default function OfflineTrainingGame({
       const target = aimingTargetRef.current;
       const bounds = visibleWorldBoundsRef.current;
       const targetVisible = aimingTargetHealthRef.current > 0
+        && scenarioEnemyIsRevealed(target)
         && target.x >= bounds.left && target.x <= bounds.right
         && target.y >= bounds.top && target.y <= bounds.bottom;
       // 蛋壳射击只要求目标处于玩家视野，不检查墙体；没有目标则沿当前移动方向射出。
@@ -1935,8 +1996,8 @@ export default function OfflineTrainingGame({
       if (stars.length >= STAR_MAX_ACTIVE) return;
       const shooter = isAimingMode ? playerRef.current : { x: ENEMY_X, y: ENEMY_Y };
       for (let attempt = 0; attempt < 30; attempt++) {
-        const radiusSquared = STAR_SPAWN_MIN_DISTANCE ** 2
-          + Math.random() * (STAR_SPAWN_MAX_DISTANCE ** 2 - STAR_SPAWN_MIN_DISTANCE ** 2);
+        const radiusSquared = starSpawnMinDistance ** 2
+          + Math.random() * (starSpawnMaxDistance ** 2 - starSpawnMinDistance ** 2);
         const distance = Math.sqrt(radiusSquared);
         const angle = isAimingMode
           ? AIMING_FRONT_ANGLE + (Math.random() * 2 - 1) * AIMING_SECTOR_HALF_ANGLE
@@ -1947,7 +2008,7 @@ export default function OfflineTrainingGame({
         const collector = isAimingMode ? aimingTargetRef.current : playerRef.current;
         if (Math.hypot(x - collector.x, y - collector.y) < PLAYER_RADIUS + STAR_RADIUS + tiles(0.35)) continue;
         if (stars.some((star) => Math.hypot(x - star.x, y - star.y) < STAR_RADIUS * 2 + tiles(0.35))) continue;
-        const reward = starReward(distance);
+        const reward = starReward(distance, starSpawnMinDistance, starSpawnMaxDistance, starDistanceScale);
         stars.push({ id: nextStarId++, x, y, radius: STAR_RADIUS, spawnDistance: distance, ...reward, remainingSeconds: STAR_LIFETIME_SECONDS });
         return;
       }
@@ -2006,7 +2067,7 @@ export default function OfflineTrainingGame({
       combatUiDirty = true;
       aimingTargetHealthRef.current = Math.max(0, aimingTargetHealthRef.current - damage);
       aimingTargetSecondsSinceDamageRef.current = 0;
-      if (isTrialMode && aimingTargetHealthRef.current <= 0) {
+      if (isTrialMode && aimingTargetHealthRef.current <= 0 && !isTwistFateMode) {
         aimingTargetHealthRef.current = 0;
         trialTargetRespawnRemainingRef.current = TRIAL_TARGET_RESPAWN_SECONDS;
         byronPoisons.length = 0;
@@ -2087,8 +2148,8 @@ export default function OfflineTrainingGame({
           trialTargetRespawnRemainingRef.current = Math.max(0, trialTargetRespawnRemainingRef.current - dt);
           if (trialTargetRespawnRemainingRef.current === 0) {
             aimingTargetHealthRef.current = aimingTargetMaxHealth;
-            aimingTargetRef.current.x = TRIAL_TARGET_X;
-            aimingTargetRef.current.y = TRIAL_TARGET_Y;
+            aimingTargetRef.current.x = isTwistFateMode ? TWIST_FATE_PRIMARY_TARGET_START.x : TRIAL_TARGET_X;
+            aimingTargetRef.current.y = isTwistFateMode ? TWIST_FATE_PRIMARY_TARGET_START.y : TRIAL_TARGET_Y;
             aimingTargetSecondsSinceDamageRef.current = 0;
             refreshCombatUi();
           }
@@ -2235,11 +2296,20 @@ export default function OfflineTrainingGame({
                 spawnHitParticles(target.x, target.y);
               }
               for (const wall of [...wallTiles]) {
+                if (steelWallTiles.has(wall)) continue;
                 const [column, row] = wall.split(",").map(Number);
                 const wallX = (column + 0.5) * TILE_SIZE;
                 const wallY = (row + 0.5) * TILE_SIZE;
                 if (Math.hypot(wallX - origin.x, wallY - origin.y) <= PEARL.superRadius + TILE_SIZE * Math.SQRT1_2) {
                   wallTiles.delete(wall);
+                }
+              }
+              for (const bush of [...bushTiles]) {
+                const [column, row] = bush.split(",").map(Number);
+                const bushX = (column + 0.5) * TILE_SIZE;
+                const bushY = (row + 0.5) * TILE_SIZE;
+                if (Math.hypot(bushX - origin.x, bushY - origin.y) <= PEARL.superRadius + TILE_SIZE * Math.SQRT1_2) {
+                  bushTiles.delete(bush);
                 }
               }
               if (superCast.hypercharged) {
@@ -2291,6 +2361,7 @@ export default function OfflineTrainingGame({
             maxLife: 0.42,
           });
           for (const cell of wallTiles) {
+            if (steelWallTiles.has(cell)) continue;
             const [column, row] = cell.split(",").map(Number);
             const wallX = (column + 0.5) * TILE_SIZE;
             const wallY = (row + 0.5) * TILE_SIZE;
@@ -2298,6 +2369,13 @@ export default function OfflineTrainingGame({
               <= GRAY.pianoRadius + TILE_SIZE * Math.SQRT1_2) {
               wallTiles.delete(cell);
             }
+          }
+          for (const cell of [...bushTiles]) {
+            const [column, row] = cell.split(",").map(Number);
+            const bushX = (column + 0.5) * TILE_SIZE;
+            const bushY = (row + 0.5) * TILE_SIZE;
+            if (Math.hypot(bushX - piano.x, bushY - piano.y)
+              <= GRAY.pianoRadius + TILE_SIZE * Math.SQRT1_2) bushTiles.delete(cell);
           }
           const target = aimingTargetRef.current;
           const dx = target.x - piano.x;
@@ -2354,15 +2432,16 @@ export default function OfflineTrainingGame({
           tauntDelayRemainingMs -= dtMs;
           if (tauntDelayRemainingMs <= 0) {
             tauntDelayRemainingMs = null;
-            tauntVisibleRemainingMs = TAUNT_DURATION_MS;
-            tauntSpinRemainingMs = TAUNT_SPIN_DURATION_MS;
+            tauntVisibleRemainingMs = TAUNT_DURATION_MS * TAUNT_DURATION_SCALE;
+            tauntSpinRemainingMs = TAUNT_SPIN_DURATION_MS * TAUNT_DURATION_SCALE;
             const target = aimingTargetRef.current;
             const player = playerRef.current;
             const spinSign = Math.random() < 0.5 ? -1 : 1;
             const radialAngle = Math.atan2(target.y - player.y, target.x - player.x);
             tauntSpinHeading = radialAngle + spinSign * Math.PI / 2;
             tauntSpinAngularSpeed = spinSign * Math.PI * 2
-              * (TAUNT_SPIN_MIN_RPS + Math.random() * (TAUNT_SPIN_MAX_RPS - TAUNT_SPIN_MIN_RPS));
+              * (TAUNT_SPIN_MIN_RPS + Math.random() * (TAUNT_SPIN_MAX_RPS - TAUNT_SPIN_MIN_RPS))
+              * TAUNT_SPIN_SPEED_SCALE;
             dodgesSinceTaunt = 0;
             tauntDodgeGoal = randomTauntDodgeGoal();
           }
@@ -2837,18 +2916,38 @@ export default function OfflineTrainingGame({
             }
           }
 
-          // 子弹飞行达到当前段位反应时间后，开始把模拟摇杆拖向弹道的垂直方向。
-          const tauntSpinning = tauntSpinRemainingMs > 0;
-          const threat = !tauntSpinning && aimingDodgesProjectiles
-            ? bulletsRef.current
-              .filter((bullet) => bullet.owner === "player" && (bullet.spawnDelay ?? 0) <= 0 && !ai.reactedBulletIds.has(bullet.id))
-              .filter((bullet) => bullet.traveled / Math.max(0.01, Math.hypot(bullet.vx, bullet.vy)) >= aimingReactionSeconds)
+          // 人机视野以自身为中心，长宽均为玩家当前可见范围的 70%。子弹进入后才开始反应计时。
+          const viewBounds = visibleWorldBoundsRef.current;
+          const aiVisionHalfWidth = (viewBounds.right - viewBounds.left) * AIMING_AI_VISION_SCALE / 2;
+          const aiVisionHalfHeight = (viewBounds.bottom - viewBounds.top) * AIMING_AI_VISION_SCALE / 2;
+          const activePlayerBullets = bulletsRef.current.filter((bullet) =>
+            bullet.owner === "player" && (bullet.spawnDelay ?? 0) <= 0);
+          const activePlayerBulletIds = new Set(activePlayerBullets.map((bullet) => bullet.id));
+          for (const bulletId of aiBulletVisionEnteredAt.keys()) {
+            if (!activePlayerBulletIds.has(bulletId)) aiBulletVisionEnteredAt.delete(bulletId);
+          }
+          for (const bullet of activePlayerBullets) {
+            const insideActualVision = Math.abs(bullet.x - target.x) <= aiVisionHalfWidth
+              && Math.abs(bullet.y - target.y) <= aiVisionHalfHeight;
+            if (insideActualVision && !aiBulletVisionEnteredAt.has(bullet.id)) {
+              aiBulletVisionEnteredAt.set(bullet.id, now);
+            }
+          }
+
+          let tauntSpinning = tauntSpinRemainingMs > 0;
+          const threat = aimingDodgesProjectiles
+            ? activePlayerBullets
+              .filter((bullet) => !ai.reactedBulletIds.has(bullet.id))
+              .filter((bullet) => {
+                const enteredAt = aiBulletVisionEnteredAt.get(bullet.id);
+                return enteredAt !== undefined && now - enteredAt >= aimingReactionSeconds * 1000;
+              })
               .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))[0]
             : undefined;
-          if (tauntSpinning) {
-            // 嘲讽转圈直接连续改变移动方向；不经过普通转向加速，保持满速形成极小圆轨迹。
-            aiDodgeTurn = null;
-          } else if (threat) {
+          if (threat) {
+            // 嘲讽不是强制动作；反应时间结束后立即停止转圈并正常闪避。
+            tauntSpinRemainingMs = 0;
+            tauntSpinning = false;
             const bulletHeading = Math.atan2(threat.vy, threat.vx);
             const projectileSpeed = Math.max(0.01, Math.hypot(threat.vx, threat.vy));
             const perpendicularX = -threat.vy / projectileSpeed;
@@ -2882,6 +2981,9 @@ export default function OfflineTrainingGame({
             ai.dodgeLockTimer = Math.hypot(threat.x - target.x, threat.y - target.y) / projectileSpeed
               + (ENEMY_RADIUS + threat.radius) / projectileSpeed;
             ai.reactedBulletIds.add(threat.id);
+          } else if (tauntSpinning) {
+            // 嘲讽期间连续改变移动方向；没有需要闪避的子弹时保持满速形成小圆轨迹。
+            aiDodgeTurn = null;
           } else if (aiRetreating) {
             const radialAngle = Math.atan2(radialY, radialX);
             const sectorOffset = Math.atan2(
@@ -3178,15 +3280,22 @@ export default function OfflineTrainingGame({
         };
 
         if (genePullActive) {
-          const grabbed = aimingTargetRef.current;
-          if (aimingTargetHealthRef.current <= 0) {
+          const grabbed = genePulledScenarioPuppet ?? aimingTargetRef.current;
+          const grabbedHealth = genePulledScenarioPuppet?.health ?? aimingTargetHealthRef.current;
+          if (grabbedHealth <= 0) {
             genePullActive = false;
+            genePulledScenarioPuppet = null;
           } else {
             const next = advanceGenePull(grabbed, player, dt, PLAYER_RADIUS + ENEMY_RADIUS, genePullSpeed);
-            if (genePullBreaksWalls) destroyWallsAlongGenePull(wallTiles, grabbed, next, TILE_SIZE, ENEMY_RADIUS);
+            if (genePullBreaksWalls) {
+              destroyWallsAlongGenePull(wallTiles, grabbed, next, TILE_SIZE, ENEMY_RADIUS);
+              destroyWallsAlongGenePull(bushTiles, grabbed, next, TILE_SIZE, ENEMY_RADIUS);
+              restoreSteelWalls();
+            }
             grabbed.x = next.x;
             grabbed.y = next.y;
             genePullActive = !next.finished;
+            if (next.finished) genePulledScenarioPuppet = null;
           }
         }
         const grayPull = grayPullRef.current;
@@ -3201,7 +3310,11 @@ export default function OfflineTrainingGame({
             }
             const start = { x: grabbed.x, y: grabbed.y };
             const next = advanceGrayPull(grayPull, grabbed, dt);
-            if (grayPull.breakWalls) destroyWallsAlongGrayPull(wallTiles, start, next, TILE_SIZE, ENEMY_RADIUS);
+            if (grayPull.breakWalls) {
+              destroyWallsAlongGrayPull(wallTiles, start, next, TILE_SIZE, ENEMY_RADIUS);
+              destroyWallsAlongGrayPull(bushTiles, start, next, TILE_SIZE, ENEMY_RADIUS);
+              restoreSteelWalls();
+            }
             grabbed.x = next.x;
             grabbed.y = next.y;
             if (next.finished && grayPull.phase === "hard" && grayPull.sourceMovedAfterHit) {
@@ -3616,6 +3729,31 @@ export default function OfflineTrainingGame({
 
           if (b.breaksWalls) {
             destroyWallsAlongColtBullet(wallTiles, { x: previousX, y: previousY }, b, TILE_SIZE, b.radius);
+            destroyWallsAlongColtBullet(bushTiles, { x: previousX, y: previousY }, b, TILE_SIZE, b.radius);
+            restoreSteelWalls();
+          }
+
+          if (isTwistFateMode && b.owner === "player") {
+            const wall = `${Math.floor(b.x / TILE_SIZE)},${Math.floor(b.y / TILE_SIZE)}` as WallCell;
+            if (wallTiles.has(wall) && b.texture !== "geneSuper") {
+              if (b.texture === "geneDirect") {
+                const heading = Math.atan2(b.vy, b.vx);
+                for (const angle of geneSplitAngles(heading)) {
+                  bullets.push({
+                    x: previousX, y: previousY,
+                    vx: Math.cos(angle) * bulletSpeed, vy: Math.sin(angle) * bulletSpeed,
+                    traveled: GENE.directRange, id: bulletIdRef.current++, radius: GENE.splitWidth / 2,
+                    texture: "geneSplit", owner: "player", maxDistance: GENE.totalRange,
+                    damageMultiplier: b.damageMultiplier,
+                  });
+                }
+                firedShotCountRef.current += GENE.splitCount;
+              }
+              bullets.splice(i, 1);
+              profileBulletRemoved(prof, b.id);
+              aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
+              continue;
+            }
           }
 
           const windmill = minaWindmillRef.current;
@@ -3724,6 +3862,56 @@ export default function OfflineTrainingGame({
           const segmentX = b.x - previousX;
           const segmentY = b.y - previousY;
           const segmentLength2 = segmentX * segmentX + segmentY * segmentY;
+          if (isTwistFateMode && b.owner === "player" && (b.ignoreTargetSeconds ?? 0) <= 0) {
+            let hitPuppet: (typeof scenarioPuppets)[number] | null = null;
+            let hitProjection = Number.POSITIVE_INFINITY;
+            for (const puppet of scenarioPuppets) {
+              if (puppet.team !== "enemy" || puppet.health <= 0) continue;
+              const projection = segmentLength2 > 0
+                ? Math.max(0, Math.min(1,
+                  ((puppet.x - previousX) * segmentX + (puppet.y - previousY) * segmentY) / segmentLength2))
+                : 0;
+              const closestX = previousX + segmentX * projection;
+              const closestY = previousY + segmentY * projection;
+              const hitRadius = ENEMY_RADIUS + b.radius;
+              if ((puppet.x - closestX) ** 2 + (puppet.y - closestY) ** 2 <= hitRadius ** 2
+                && projection < hitProjection) {
+                hitPuppet = puppet;
+                hitProjection = projection;
+              }
+            }
+            if (hitPuppet) {
+              bullets.splice(i, 1);
+              profileBulletRemoved(prof, b.id);
+              aimingTargetAiRef.current.reactedBulletIds.delete(b.id);
+              spawnHitParticles(hitPuppet.x, hitPuppet.y);
+              hitCountRef.current += 1;
+              combatUiDirty = true;
+              if (b.texture === "geneSuper") {
+                if (equippedLoadout?.starPower === "spiritSlap") {
+                  hitPuppet.health = Math.max(0, hitPuppet.health - GENE.directDamage);
+                  totalDamageRef.current += GENE.directDamage;
+                }
+                genePulledScenarioPuppet = hitPuppet;
+                genePullActive = true;
+                genePullSpeed = b.geneHyperHand ? GENE.hyperPullSpeed : GENE.pullSpeed;
+                genePullBreaksWalls = !b.geneHyperHand;
+              } else {
+                const damage = projectileDamage(b.texture, b.traveled) * (b.damageMultiplier ?? 1);
+                const chargeGain = b.texture === "geneDirect" ? GENE.directSuperCharge
+                  : b.texture === "geneSplit" ? GENE.splitSuperCharge : 0;
+                hitPuppet.health = Math.max(0, hitPuppet.health - damage);
+                totalDamageRef.current += damage;
+                playerSuperChargeRef.current = Math.min(1, playerSuperChargeRef.current + chargeGain);
+                if (geneHyperRemainingRef.current <= 0 && geneHyperChargeRef.current < 1) {
+                  const hyperGain = b.texture === "geneDirect" ? GENE.hyperDirectCharge
+                    : b.texture === "geneSplit" ? GENE.hyperSplitCharge : 0;
+                  geneHyperChargeRef.current = Math.min(1, geneHyperChargeRef.current + hyperGain);
+                }
+              }
+              continue;
+            }
+          }
           if (b.owner === "player" && b.texture === "pearlLoveCookie" && !b.pearlHealedAlly) {
             const ally = pearlAllyRef.current;
             const allyProjection = segmentLength2 > 0
@@ -3803,6 +3991,7 @@ export default function OfflineTrainingGame({
                 if (equippedLoadout?.starPower === "spiritSlap") {
                   damageTrialTarget(GENE.directDamage);
                 }
+                genePulledScenarioPuppet = null;
                 genePullActive = true;
                 genePullSpeed = b.geneHyperHand ? GENE.hyperPullSpeed : GENE.pullSpeed;
                 genePullBreaksWalls = !b.geneHyperHand;
@@ -4204,6 +4393,37 @@ export default function OfflineTrainingGame({
       }
       ctx.stroke();
 
+      if (isTwistFateMode) {
+        const drawMapCell = (cell: WallCell, fill: string, stroke: string) => {
+          const [column, row] = cell.split(",").map(Number);
+          const left = column * TILE_SIZE;
+          const right = left + TILE_SIZE;
+          const top = row * TILE_SIZE;
+          const bottom = top + TILE_SIZE;
+          ctx.fillStyle = fill;
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = Math.max(1.5, TILE_SIZE * scale * 0.025);
+          ctx.beginPath();
+          ctx.moveTo(projectX(left, top), projectY(top));
+          ctx.lineTo(projectX(right, top), projectY(top));
+          ctx.lineTo(projectX(right, bottom), projectY(bottom));
+          ctx.lineTo(projectX(left, bottom), projectY(bottom));
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        };
+        for (const bush of bushTiles) {
+          drawMapCell(bush, "rgba(65, 148, 75, 0.86)", "rgba(123, 207, 99, 0.82)");
+        }
+        for (const wall of wallTiles) {
+          if (steelWallTiles.has(wall)) {
+            drawMapCell(wall, "#66788b", "#a9bdcf");
+          } else {
+            drawMapCell(wall, "#8c513c", "#d18a64");
+          }
+        }
+      }
+
       // 地图边框
       ctx.strokeStyle = "#2d3f55";
       ctx.lineWidth = 3;
@@ -4550,8 +4770,37 @@ export default function OfflineTrainingGame({
         ctx.restore();
       }
 
+      if (isTwistFateMode) {
+        for (const puppet of scenarioPuppets) {
+          const hero = TRIAL_BRAWLERS[puppet.id];
+          if (puppet.team === "enemy" && !scenarioEnemyIsRevealed(puppet)) continue;
+          const centerX = projectX(puppet.x, puppet.y);
+          const centerY = projectY(puppet.y);
+          const radiusX = ENEMY_RADIUS * scale * widthFactorAt(puppet.y);
+          const radiusY = ENEMY_RADIUS * scaleY;
+          drawTrainingUnitModel(ctx, {
+            centerX,
+            centerY,
+            radiusX,
+            radiusY,
+            statusWidth: TILE_SIZE * scale * widthFactorAt(puppet.y),
+            health: puppet.health,
+            maxHealth: hero.health,
+            team: puppet.team,
+            relation: puppet.team,
+            equipment: { gadgetReady: false, starPower: false },
+          });
+          ctx.fillStyle = "#f5f8ff";
+          ctx.font = `800 ${Math.max(10, tiles(0.12) * scale)}px 'Nunito', system-ui, sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          ctx.fillText(hero.name, centerX, centerY + radiusY * 0.82);
+        }
+      }
+
       // 地面阵营圈：中心透明，外缘浓色；物理半径不变。
-      drawTrainingUnitModel(ctx, {
+      const primaryTargetRevealed = scenarioEnemyIsRevealed(renderedEnemy);
+      if (primaryTargetRevealed) drawTrainingUnitModel(ctx, {
         centerX: enemyCenterPx,
         centerY: enemyCenterPy,
         radiusX: enemyRadiusPx,
@@ -4572,6 +4821,13 @@ export default function OfflineTrainingGame({
           ? () => drawSuperRing(ctx, enemyCenterPx, enemyCenterPy, enemyRadiusPx, enemyRadiusPy, superRingPhase, superAiming)
           : undefined,
       });
+      if (isTwistFateMode && primaryTargetRevealed) {
+        ctx.fillStyle = "#f5f8ff";
+        ctx.font = `800 ${Math.max(10, tiles(0.12) * scale)}px 'Nunito', system-ui, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText("佩佩", enemyCenterPx, enemyCenterPy + enemyRadiusPy * 0.82);
+      }
 
       if (isColtMode && coltTargetSlowRemainingRef.current > 0) {
         ctx.save();
@@ -4687,6 +4943,13 @@ export default function OfflineTrainingGame({
           color: "#70e4dc",
         } : undefined,
       });
+      if (isTwistFateMode) {
+        ctx.fillStyle = "#f5f8ff";
+        ctx.font = `800 ${Math.max(10, tiles(0.12) * scale)}px 'Nunito', system-ui, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText("基恩", playerCenterPx, playerCenterPy + playerRadiusPy * 0.82);
+      }
 
       if (isPlayerAttackMode && aimJoystickRef.current.active && !stickReturnedToDeadzone(aimJoystickRef.current)) {
         const aim = aimJoystickRef.current;
@@ -4694,6 +4957,7 @@ export default function OfflineTrainingGame({
         const target = aimingTargetRef.current;
         const bounds = visibleWorldBoundsRef.current;
         const targetVisible = aimingTargetHealthRef.current > 0
+          && scenarioEnemyIsRevealed(target)
           && target.x >= bounds.left && target.x <= bounds.right
           && target.y >= bounds.top && target.y <= bounds.bottom;
         const angle = aimLength > 8
@@ -4907,6 +5171,7 @@ export default function OfflineTrainingGame({
           const target = aimingTargetRef.current;
           const bounds = visibleWorldBoundsRef.current;
           const targetVisible = aimingTargetHealthRef.current > 0
+            && scenarioEnemyIsRevealed(target)
             && target.x >= bounds.left && target.x <= bounds.right
             && target.y >= bounds.top && target.y <= bounds.bottom;
           const angle = stick.exceededDeadzone
@@ -4935,6 +5200,7 @@ export default function OfflineTrainingGame({
           const target = aimingTargetRef.current;
           const bounds = visibleWorldBoundsRef.current;
           const targetVisible = aimingTargetHealthRef.current > 0
+            && scenarioEnemyIsRevealed(target)
             && target.x >= bounds.left && target.x <= bounds.right
             && target.y >= bounds.top && target.y <= bounds.bottom;
           const angle = stick.exceededDeadzone
@@ -4988,6 +5254,7 @@ export default function OfflineTrainingGame({
           const target = aimingTargetRef.current;
           const bounds = visibleWorldBoundsRef.current;
           const targetVisible = aimingTargetHealthRef.current > 0
+            && scenarioEnemyIsRevealed(target)
             && target.x >= bounds.left && target.x <= bounds.right
             && target.y >= bounds.top && target.y <= bounds.bottom;
           const stickDistance = Math.hypot(stick.knobX, stick.knobY);
@@ -5237,7 +5504,7 @@ export default function OfflineTrainingGame({
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isSpikeDodgeMode, isPlayerAttackMode, isTrialMode, isAimingInfinite, isPiperMode, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, isPearlMode, isOllieMode, pearlGadget, pearlStarPower, ollieGadget, ollieStarPower, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isSpikeDodgeMode, isPlayerAttackMode, isTrialMode, isTwistFateMode, isAimingInfinite, isPiperMode, isByronMode, isPierceMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, isPearlMode, isOllieMode, pearlGadget, pearlStarPower, ollieGadget, ollieStarPower, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -5365,6 +5632,7 @@ export default function OfflineTrainingGame({
     const target = aimingTargetRef.current;
     const bounds = visibleWorldBoundsRef.current;
     const autoAimTargetVisible = aimingTargetHealthRef.current > 0
+      && scenarioEnemyIsRevealed(target)
       && target.x >= bounds.left && target.x <= bounds.right
       && target.y >= bounds.top && target.y <= bounds.bottom;
     const coltAttackBlocked = isColtMode
@@ -5608,6 +5876,7 @@ export default function OfflineTrainingGame({
     const target = aimingTargetRef.current;
     const bounds = visibleWorldBoundsRef.current;
     const autoAimTargetVisible = aimingTargetHealthRef.current > 0
+      && scenarioEnemyIsRevealed(target)
       && target.x >= bounds.left && target.x <= bounds.right
       && target.y >= bounds.top && target.y <= bounds.bottom;
     const coltSuperBlocked = isColtMode
@@ -5935,6 +6204,7 @@ export default function OfflineTrainingGame({
     const target = aimingTargetRef.current;
     const bounds = visibleWorldBoundsRef.current;
     const targetVisible = aimingTargetHealthRef.current > 0
+      && scenarioEnemyIsRevealed(target)
       && target.x >= bounds.left && target.x <= bounds.right
       && target.y >= bounds.top && target.y <= bounds.bottom;
     const angle = aimAngle ?? (targetVisible
@@ -6375,6 +6645,15 @@ export default function OfflineTrainingGame({
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+            {isTwistFateMode && <div style={{
+              background: "rgba(27, 38, 53, 0.82)",
+              border: "1px solid rgba(169, 189, 207, 0.7)",
+              color: "#f5f8ff",
+              fontWeight: 900,
+              padding: "0.35rem 0.8rem",
+              borderRadius: "10px",
+              fontSize: "0.86rem",
+            }}>扭转乾坤 · 摇滚贝尔</div>}
             {/* 受击计数器（左上角） */}
             {isSurvivalMode && <div
               style={{
@@ -6448,7 +6727,7 @@ export default function OfflineTrainingGame({
               whiteSpace: "nowrap",
             }}
           >
-            结束本局
+            {isTwistFateMode ? "主动退出" : "结束本局"}
           </button>
         </div>
       </div>

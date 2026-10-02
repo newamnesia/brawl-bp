@@ -17,6 +17,20 @@ export type MiniGameTheme = {
 
 export const MINI_GAME_THEMES: readonly MiniGameTheme[] = [
   {
+    id: "twist-fate",
+    title: "扭转乾坤",
+    heroId: "gene",
+    emblem: "🪝",
+    description: "操控基恩，在摇滚贝尔打破敌方阵型",
+    levels: [
+      {
+        title: "残局初阵",
+        description: "摇滚贝尔 · 基础地图与静止角色木偶",
+        completed: () => false,
+      },
+    ],
+  },
+  {
     id: "tidal-wave",
     title: "排山倒海",
     heroId: "pierce",

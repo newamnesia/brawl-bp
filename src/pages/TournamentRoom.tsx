@@ -16,6 +16,7 @@ import {
 import { MAP_MAP, mapThumbnailUrl, modeIconUrl } from "../../shared/catalog";
 
 function SeatGrid({ state }: { state: TournamentRoomState }) {
+  const tester = state.isSoloTest ? state.players[0] : null;
   return (
     <div className="tournament-teams">
       {(["blue", "red"] as TournamentTeam[]).map((team) => (
@@ -23,10 +24,20 @@ function SeatGrid({ state }: { state: TournamentRoomState }) {
           <h3>{team === "blue" ? "蓝方" : "红方"}{state.firstPickTeam === team ? " · 先手" : ""}</h3>
           {[0, 1, 2].map((seatIndex) => {
             const player = state.players.find((item) => item.team === team && item.seatIndex === seatIndex);
-            return <div key={seatIndex} className={`tournament-seat ${player?.ready ? "ready" : ""}`}><span>{seatIndex + 1} 席</span><strong>{player?.nickname ?? "等待选手"}</strong><em>{player?.ready ? "已准备" : player ? "未准备" : "空席"}</em></div>;
+            return <div key={seatIndex} className={`tournament-seat ${player?.ready ? "ready" : ""}`}><span>{seatIndex + 1} 席</span><strong>{tester ? `${tester.nickname}（代管）` : player?.nickname ?? "等待选手"}</strong><em>{tester ? "测试席" : player?.ready ? "已准备" : player ? "未准备" : "空席"}</em></div>;
           })}
         </section>
       ))}
+    </div>
+  );
+}
+
+function TestTeamSwitcher({ team, onChange }: { team: TournamentTeam; onChange: (team: TournamentTeam) => void }) {
+  return (
+    <div className="tournament-test-switcher" aria-label="切换当前代管方">
+      <span>当前代管</span>
+      <button className={team === "blue" ? "active blue" : ""} onClick={() => onChange("blue")}>蓝方</button>
+      <button className={team === "red" ? "active red" : ""} onClick={() => onChange("red")}>红方</button>
     </div>
   );
 }
@@ -76,8 +87,25 @@ export default function TournamentRoom() {
   const validTimes = [Number(banSeconds), Number(pickSeconds)].every((value) => Number.isInteger(value) && value >= MIN_TURN_DURATION_SECONDS && value <= MAX_TURN_DURATION_SECONDS);
   const canReady = Boolean(state.firstPickTeam && state.confirmedMapId);
   const inviteUrl = `${window.location.origin}/bp?code=${state.code}`;
+  const sideLabel = state.isSoloTest
+    ? `${state.myTeam === "red" ? "红方" : "蓝方"} · 单人代管`
+    : state.isSpectator
+      ? "观战席"
+      : state.myTeam === "blue"
+        ? `蓝方 ${Number(state.mySeatIndex) + 1} 席`
+        : `红方 ${Number(state.mySeatIndex) + 1} 席`;
+  const phaseHint = state.canAct
+    ? selected
+      ? "已预选，确定后锁定"
+      : state.phase === "ban" ? "可留空并确认" : "请选择角色"
+    : state.isSoloTest
+      ? state.phase === "pick" && state.activePickTeam
+        ? `请切换到${state.activePickTeam === "blue" ? "蓝方" : "红方"}继续`
+        : "本方 Ban 已完成，请切换另一方"
+      : "等待负责本位置的选手确认";
 
   const leave = () => { socket.emit("leave_tournament_room"); navigate("/bp"); };
+  const switchTestTeam = (team: TournamentTeam) => socket.emit("set_tournament_test_team", team);
   const overview = <TournamentDraftOverview mode={state.gameMode} mapId={state.confirmedMapId} blueBans={state.blueBans} redBans={state.redBans} blueGlobalBans={state.blueGlobalBans ?? []} redGlobalBans={state.redGlobalBans ?? []} bluePicks={state.bluePicks} redPicks={state.redPicks} bluePendingBans={state.visibleBluePendingBans} redPendingBans={state.visibleRedPendingBans} />;
 
   if (state.phase === "complete") {
@@ -89,10 +117,11 @@ export default function TournamentRoom() {
       <div className="app-shell tournament-lobby">
         <h1 className="page-title">{state.roomName}</h1>
         <div className="room-code">{state.code}</div>
+        {state.isSoloTest && <><div className="tutorial-box tournament-test-notice"><p className="tutorial-intro">单人测试模式</p><p>切换蓝方与红方，依次完成双方地图确认、全局 Ban、三席 Ban 和六手 Pick。</p></div><TestTeamSwitcher team={state.controlledTeam ?? "blue"} onChange={switchTestTeam} /></>}
         <SeatGrid state={state} />
         <div className="card">
-          <p className="waiting-text">双方各至少 1 名选手、所有在席选手准备后即可开始；空席的操作由队友代管。</p>
-          {!state.isSpectator && <div className="invite-box"><input readOnly value={inviteUrl} /><button className="btn-secondary" onClick={async () => { await navigator.clipboard.writeText(inviteUrl); setCopied(true); }}>{copied ? "已复制" : "复制邀请链接"}</button></div>}
+          <p className="waiting-text">{state.isSoloTest ? "完成双方地图确认并设置先后手后，即可开始单人测试。" : "双方各至少 1 名选手、所有在席选手准备后即可开始；空席的操作由队友代管。"}</p>
+          {!state.isSpectator && !state.isSoloTest && <div className="invite-box"><input readOnly value={inviteUrl} /><button className="btn-secondary" onClick={async () => { await navigator.clipboard.writeText(inviteUrl); setCopied(true); }}>{copied ? "已复制" : "复制邀请链接"}</button></div>}
 
           <div className="time-limit-settings">
             <p className="time-limit-title">BP 时间限制</p>
@@ -109,7 +138,7 @@ export default function TournamentRoom() {
 
         {!state.isSpectator && <div className={`card tournament-global-ban ${state.myTeam}`}><h2>本队全局 Ban（队内共享，敌方不可见）</h2><p>单击预选或撤销，最多 2 个；开赛后双方公开且均不可再次 Ban 或 Pick。</p><div className="picked-row">{state.myGlobalBans.length ? state.myGlobalBans.map((id) => <HeroChip key={id} heroId={id} variant="ban" />) : <span className="empty-slot">可留空</span>}</div><HeroGrid mode="ban" selectedIds={state.myGlobalBans} disabledIds={[...DISABLED_HERO_IDS]} onToggle={(id) => socket.emit("toggle_tournament_global_ban", id)} /></div>}
 
-        {!state.isSpectator && <button className="btn-primary tournament-ready" disabled={!canReady} onClick={() => socket.emit("set_tournament_ready", !me?.ready)}>{me?.ready ? "取消准备" : "准备就绪"}</button>}
+        {!state.isSpectator && <button className="btn-primary tournament-ready" disabled={!canReady} onClick={() => socket.emit("set_tournament_ready", !me?.ready)}>{state.isSoloTest ? "开始单人测试" : me?.ready ? "取消准备" : "准备就绪"}</button>}
         <button className="btn-secondary" style={{ marginTop: ".75rem", width: "100%" }} onClick={leave}>退出赛事房</button>
       </div>
     );
@@ -120,9 +149,10 @@ export default function TournamentRoom() {
     <main className="solo-board-page tournament-board-page">
       <section className="solo-tactical-screen solo-overview-screen"><header className="solo-screen-header"><span>TOURNAMENT DRAFT // {phaseName}</span><button onClick={leave}>退出赛事房</button></header>{overview}</section>
       <section className={`solo-tactical-screen solo-roster-screen ${state.myTeam === "red" ? "opponent" : "self"} ${state.phase}`}>
-        <div className="solo-roster-toolbar"><div className={`solo-side-switch ${state.myTeam === "red" ? "opponent" : "self"}`}>{state.isSpectator ? "观战席" : state.myTeam === "blue" ? `蓝方 ${Number(state.mySeatIndex) + 1} 席` : `红方 ${Number(state.mySeatIndex) + 1} 席`}</div><div className="solo-phase-copy"><strong>{state.phase === "ban" ? "双方同时 Ban" : `第 ${state.pickStep + 1}/6 手 Pick`}</strong><span>{state.canAct ? selected ? "已预选，确定后锁定" : state.phase === "ban" ? "可留空并确认" : "请选择角色" : "等待负责本位置的选手确认"}</span></div>{state.canAct && <div className="tournament-confirm-actions"><button className="solo-phase-action" disabled={state.phase === "pick" && !state.pendingPick} onClick={() => socket.emit("confirm_tournament_selection")}>确定</button>{state.phase === "ban" && <button className="btn-secondary" onClick={() => socket.emit("finish_tournament_ban")}>结束本队 Ban</button>}</div>}</div>
+        {state.isSoloTest && <TestTeamSwitcher team={state.controlledTeam ?? "blue"} onChange={switchTestTeam} />}
+        <div className="solo-roster-toolbar"><div className={`solo-side-switch ${state.myTeam === "red" ? "opponent" : "self"}`}>{sideLabel}</div><div className="solo-phase-copy"><strong>{state.phase === "ban" ? "双方同时 Ban" : `第 ${state.pickStep + 1}/6 手 Pick`}</strong><span>{phaseHint}</span></div>{state.canAct && <div className="tournament-confirm-actions"><button className="solo-phase-action" disabled={state.phase === "pick" && !state.pendingPick} onClick={() => socket.emit("confirm_tournament_selection")}>确定</button>{state.phase === "ban" && <button className="btn-secondary" onClick={() => socket.emit("finish_tournament_ban")}>结束本队 Ban</button>}</div>}</div>
         <Timer endsAt={state.phaseEndsAt} label={state.phase === "ban" ? "Ban 总剩余时间" : "本手剩余时间"} />
-        {state.canAct ? <div className="solo-roster-grid-wrap"><HeroGrid mode={state.phase === "ban" ? "ban" : "pick"} selectedIds={selected ? [selected] : []} disabledIds={disabledIds} onToggle={(id) => socket.emit("tournament_preselect", id)} onPick={(id) => socket.emit("tournament_preselect", id)} highlight /></div> : <div className="tournament-waiting-panel"><p>当前预选</p>{selected ? <HeroChip heroId={selected} /> : <span>尚未预选角色</span>}</div>}
+        {state.canAct ? <div className="solo-roster-grid-wrap"><HeroGrid mode={state.phase === "ban" ? "ban" : "pick"} selectedIds={selected ? [selected] : []} disabledIds={disabledIds} onToggle={(id) => socket.emit("tournament_preselect", id)} onPick={(id) => socket.emit("tournament_preselect", id)} highlight /></div> : <div className="tournament-waiting-panel"><p>{state.isSoloTest ? "请切换代管方" : "当前预选"}</p>{state.isSoloTest ? <span>{state.phase === "pick" && state.activePickTeam ? `当前轮到${state.activePickTeam === "blue" ? "蓝方" : "红方"}` : "当前一方已完成 Ban，请切换另一方"}</span> : selected ? <HeroChip heroId={selected} /> : <span>尚未预选角色</span>}</div>}
       </section>
     </main>
   );

@@ -32,6 +32,8 @@ interface TournamentRoom {
   hostId: string;
   players: Map<string, TournamentPlayer>;
   spectators: Map<string, TournamentSpectator>;
+  isSoloTest: boolean;
+  testActiveTeam: TournamentTeam;
   phase: "lobby" | "ban" | "pick" | "complete";
   firstPickTeam: TournamentTeam | null;
   gameMode: GameMode | null;
@@ -112,8 +114,22 @@ function activeBanSlotForPlayer(room: TournamentRoom, player: TournamentPlayer) 
   return null;
 }
 
-function canPlayerBan(room: TournamentRoom, player: TournamentPlayer) {
-  return activeBanSlotForPlayer(room, player) !== null;
+function controlledTeamFor(room: TournamentRoom, player: TournamentPlayer): TournamentTeam {
+  return room.isSoloTest && player.id === room.hostId ? room.testActiveTeam : player.team;
+}
+
+function activeBanSlotForActor(room: TournamentRoom, player: TournamentPlayer) {
+  if (!room.isSoloTest || player.id !== room.hostId) return activeBanSlotForPlayer(room, player);
+  const team = room.testActiveTeam;
+  if (room.phase !== "ban" || room.banFinished[team]) return null;
+  const slot = room.banConfirmed[team].findIndex((confirmed) => !confirmed);
+  return slot >= 0 ? slot : null;
+}
+
+function canActorPick(room: TournamentRoom, player: TournamentPlayer) {
+  if (room.phase !== "pick") return false;
+  if (room.isSoloTest && player.id === room.hostId) return teamForPick(room) === room.testActiveTeam;
+  return activeController(room)?.id === player.id;
 }
 
 function globalBanSet(room: TournamentRoom) {
@@ -146,14 +162,15 @@ function buildState(room: TournamentRoom, viewerId: string): TournamentRoomState
   const activeTeam = teamForPick(room);
   const activeSlot = room.phase === "pick" ? PICK_ORDER[room.pickStep]?.slot ?? null : null;
   const controller = activeController(room);
-  const myActiveBanSlot = player ? activeBanSlotForPlayer(room, player) : null;
+  const controlledTeam = player ? controlledTeamFor(room, player) : null;
+  const myActiveBanSlot = player ? activeBanSlotForActor(room, player) : null;
   const canAct = player
     ? room.phase === "ban"
-      ? canPlayerBan(room, player)
-      : room.phase === "pick" && controller?.id === player.id
+      ? myActiveBanSlot !== null
+      : room.phase === "pick" && (room.isSoloTest ? activeTeam === controlledTeam : controller?.id === player.id)
     : false;
-  const canSeeBluePending = spectator || player?.team === "blue";
-  const canSeeRedPending = spectator || player?.team === "red";
+  const canSeeBluePending = spectator || room.isSoloTest || controlledTeam === "blue";
+  const canSeeRedPending = spectator || room.isSoloTest || controlledTeam === "red";
 
   return {
     roomKind: "tournament",
@@ -163,9 +180,11 @@ function buildState(room: TournamentRoom, viewerId: string): TournamentRoomState
     hostId: room.hostId,
     players: [...room.players.values()].map(({ id, nickname, team, seatIndex, ready }) => ({ id, nickname, team, seatIndex, ready })),
     spectators: [...room.spectators.values()].map(({ id, nickname }) => ({ id, nickname })),
-    myTeam: player?.team ?? null,
+    myTeam: controlledTeam,
     mySeatIndex: player?.seatIndex ?? null,
     isSpectator: spectator,
+    isSoloTest: room.isSoloTest,
+    controlledTeam: room.isSoloTest ? controlledTeam : null,
     firstPickTeam: room.firstPickTeam,
     gameMode: room.gameMode,
     teamMapIds: { ...room.teamMapIds },
@@ -173,9 +192,9 @@ function buildState(room: TournamentRoom, viewerId: string): TournamentRoomState
     banDurationSeconds: room.banDurationMs / 1000,
     pickDurationSeconds: room.pickDurationMs / 1000,
     phaseEndsAt: room.phaseEndsAt,
-    blueGlobalBans: revealGlobal || player?.team === "blue" ? [...room.globalBans.blue] : null,
-    redGlobalBans: revealGlobal || player?.team === "red" ? [...room.globalBans.red] : null,
-    myGlobalBans: player ? [...room.globalBans[player.team]] : [],
+    blueGlobalBans: revealGlobal || room.isSoloTest || controlledTeam === "blue" ? [...room.globalBans.blue] : null,
+    redGlobalBans: revealGlobal || room.isSoloTest || controlledTeam === "red" ? [...room.globalBans.red] : null,
+    myGlobalBans: controlledTeam ? [...room.globalBans[controlledTeam]] : [],
     blueBans: [...room.bans.blue],
     redBans: [...room.bans.red],
     bluePicks: [...room.picks.blue],
@@ -313,7 +332,7 @@ function resetReady(room: TournamentRoom) {
 
 function tryStart(io: Server, room: TournamentRoom) {
   const players = [...room.players.values()];
-  if (!players.some((player) => player.team === "blue") || !players.some((player) => player.team === "red")) return;
+  if (!room.isSoloTest && (!players.some((player) => player.team === "blue") || !players.some((player) => player.team === "red"))) return;
   if (!room.firstPickTeam || !room.confirmedMapId || !players.every((player) => player.ready)) return;
   startBan(io, room);
 }
@@ -329,45 +348,60 @@ function nextSeat(room: TournamentRoom): { team: TournamentTeam; seatIndex: numb
   return order.find((seat) => ![...room.players.values()].some((player) => player.team === seat.team && player.seatIndex === seat.seatIndex)) ?? null;
 }
 
+function createTournamentRoom(socket: Socket, name: string, isSoloTest: boolean) {
+  const code = generateCode();
+  const room: TournamentRoom = {
+    code,
+    roomName: isSoloTest ? `${name}的单人测试房` : `${name}的赛事房`,
+    hostId: socket.id,
+    players: new Map(),
+    spectators: new Map(),
+    isSoloTest,
+    testActiveTeam: "blue",
+    phase: "lobby",
+    firstPickTeam: null,
+    gameMode: null,
+    teamMapIds: { blue: null, red: null },
+    confirmedMapId: null,
+    globalBans: { blue: [], red: [] },
+    bans: { blue: [null, null, null], red: [null, null, null] },
+    picks: { blue: [null, null, null], red: [null, null, null] },
+    banLockedCount: { blue: 0, red: 0 },
+    banFinished: { blue: false, red: false },
+    pendingBans: { blue: [null, null, null], red: [null, null, null] },
+    banConfirmed: { blue: [false, false, false], red: [false, false, false] },
+    pendingPick: null,
+    pickStep: 0,
+    banDurationMs: BAN_DURATION_MS,
+    pickDurationMs: PICK_DURATION_MS,
+    phaseEndsAt: null,
+    phaseTimer: null,
+    cleanupTimer: null,
+    timedOutSeatId: null,
+    timeoutMessage: null,
+  };
+  room.players.set(socket.id, { id: socket.id, nickname: name, team: "blue", seatIndex: 0, ready: false });
+  rooms.set(code, room);
+  socketToRoom.set(socket.id, code);
+  socket.join(code);
+  return room;
+}
+
 export function registerTournamentRoomHandlers(io: Server) {
   io.on("connection", (socket: Socket) => {
     socket.on("create_tournament_room", (nickname: string, cb: (result: { ok: boolean; code?: string; error?: string }) => void) => {
       const name = nickname?.trim().slice(0, 16);
       if (!name) return cb({ ok: false, error: "请输入昵称" });
-      const code = generateCode();
-      const room: TournamentRoom = {
-        code,
-        roomName: `${name}的赛事房`,
-        hostId: socket.id,
-        players: new Map(),
-        spectators: new Map(),
-        phase: "lobby",
-        firstPickTeam: null,
-        gameMode: null,
-        teamMapIds: { blue: null, red: null },
-        confirmedMapId: null,
-        globalBans: { blue: [], red: [] },
-        bans: { blue: [null, null, null], red: [null, null, null] },
-        picks: { blue: [null, null, null], red: [null, null, null] },
-        banLockedCount: { blue: 0, red: 0 },
-        banFinished: { blue: false, red: false },
-        pendingBans: { blue: [null, null, null], red: [null, null, null] },
-        banConfirmed: { blue: [false, false, false], red: [false, false, false] },
-        pendingPick: null,
-        pickStep: 0,
-        banDurationMs: BAN_DURATION_MS,
-        pickDurationMs: PICK_DURATION_MS,
-        phaseEndsAt: null,
-        phaseTimer: null,
-        cleanupTimer: null,
-        timedOutSeatId: null,
-        timeoutMessage: null,
-      };
-      room.players.set(socket.id, { id: socket.id, nickname: name, team: "blue", seatIndex: 0, ready: false });
-      rooms.set(code, room);
-      socketToRoom.set(socket.id, code);
-      socket.join(code);
-      cb({ ok: true, code });
+      const room = createTournamentRoom(socket, name, false);
+      cb({ ok: true, code: room.code });
+      broadcast(io, room);
+    });
+
+    socket.on("create_tournament_test_room", (nickname: string, cb: (result: { ok: boolean; code?: string; error?: string }) => void) => {
+      const name = nickname?.trim().slice(0, 16);
+      if (!name) return cb({ ok: false, error: "请输入昵称" });
+      const room = createTournamentRoom(socket, name, true);
+      cb({ ok: true, code: room.code });
       broadcast(io, room);
     });
 
@@ -377,6 +411,7 @@ export function registerTournamentRoomHandlers(io: Server) {
       const room = rooms.get(code);
       if (!room) return cb({ ok: false, found: false });
       if (!name) return cb({ ok: false, found: true, error: "请输入昵称" });
+      if (room.isSoloTest) return cb({ ok: false, found: true, error: "单人测试房不接受其他选手加入" });
       if (room.phase !== "lobby") return cb({ ok: false, found: true, error: "赛事已经开始，请改为观战加入" });
       const seat = nextSeat(room);
       if (!seat) return cb({ ok: false, found: true, error: "六个选手席已满" });
@@ -393,6 +428,7 @@ export function registerTournamentRoomHandlers(io: Server) {
       const room = rooms.get(code);
       if (!room) return cb({ ok: false, found: false });
       if (!name) return cb({ ok: false, found: true, error: "请输入昵称" });
+      if (room.isSoloTest) return cb({ ok: false, found: true, error: "单人测试房不开放观战加入" });
       if (room.phase === "complete") return cb({ ok: false, found: true, error: "赛事已经结束" });
       room.spectators.set(socket.id, { id: socket.id, nickname: name });
       socketToRoom.set(socket.id, code);
@@ -404,6 +440,13 @@ export function registerTournamentRoomHandlers(io: Server) {
     socket.on("request_tournament_state", () => {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       if (room && (room.players.has(socket.id) || room.spectators.has(socket.id))) socket.emit("tournament_room_state", buildState(room, socket.id));
+    });
+
+    socket.on("set_tournament_test_team", (team: TournamentTeam) => {
+      const room = rooms.get(socketToRoom.get(socket.id) ?? "");
+      if (!room?.isSoloTest || room.hostId !== socket.id || (team !== "blue" && team !== "red")) return;
+      room.testActiveTeam = team;
+      broadcast(io, room);
     });
 
     socket.on("set_tournament_room_name", (name: string) => {
@@ -430,7 +473,7 @@ export function registerTournamentRoomHandlers(io: Server) {
       const player = room?.players.get(socket.id);
       if (!room || !player || room.phase !== "lobby") return;
       if (mapId !== null && !MAPS.some((map) => map.id === mapId && map.mode === room.gameMode)) return;
-      room.teamMapIds[player.team] = mapId;
+      room.teamMapIds[controlledTeamFor(room, player)] = mapId;
       room.confirmedMapId = room.teamMapIds.blue && room.teamMapIds.blue === room.teamMapIds.red ? room.teamMapIds.blue : null;
       resetReady(room);
       broadcast(io, room);
@@ -460,7 +503,7 @@ export function registerTournamentRoomHandlers(io: Server) {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       const player = room?.players.get(socket.id);
       if (!room || !player || room.phase !== "lobby" || !ALL_HERO_IDS.has(heroId) || DISABLED_HERO_IDS.has(heroId)) return;
-      const bans = room.globalBans[player.team];
+      const bans = room.globalBans[controlledTeamFor(room, player)];
       const index = bans.indexOf(heroId);
       if (index >= 0) bans.splice(index, 1);
       else if (bans.length < MAX_GLOBAL_BANS_PER_TEAM) bans.push(heroId);
@@ -481,11 +524,12 @@ export function registerTournamentRoomHandlers(io: Server) {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       const player = room?.players.get(socket.id);
       if (!room || !player || !room.phase) return;
-      const banSlot = activeBanSlotForPlayer(room, player);
-      if (room.phase === "ban" && banSlot !== null && availableForBan(room, player.team, heroId, banSlot)) {
-        room.pendingBans[player.team][banSlot] = room.pendingBans[player.team][banSlot] === heroId ? null : heroId;
+      const team = controlledTeamFor(room, player);
+      const banSlot = activeBanSlotForActor(room, player);
+      if (room.phase === "ban" && banSlot !== null && availableForBan(room, team, heroId, banSlot)) {
+        room.pendingBans[team][banSlot] = room.pendingBans[team][banSlot] === heroId ? null : heroId;
         broadcast(io, room);
-      } else if (room.phase === "pick" && activeController(room)?.id === player.id && availableForPick(room, heroId)) {
+      } else if (room.phase === "pick" && canActorPick(room, player) && availableForPick(room, heroId)) {
         room.pendingPick = room.pendingPick === heroId ? null : heroId;
         broadcast(io, room);
       }
@@ -495,9 +539,9 @@ export function registerTournamentRoomHandlers(io: Server) {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       const player = room?.players.get(socket.id);
       if (!room || !player) return;
-      if (room.phase === "ban" && canPlayerBan(room, player)) {
-        const team = player.team;
-        const index = activeBanSlotForPlayer(room, player);
+      if (room.phase === "ban" && activeBanSlotForActor(room, player) !== null) {
+        const team = controlledTeamFor(room, player);
+        const index = activeBanSlotForActor(room, player);
         if (index === null) return;
         const pending = room.pendingBans[team][index];
         room.bans[team][index] = pending && availableForBan(room, team, pending, index) ? pending : null;
@@ -507,7 +551,7 @@ export function registerTournamentRoomHandlers(io: Server) {
         if (room.banLockedCount[team] >= MAX_TEAM_SEATS) room.banFinished[team] = true;
         if (room.banFinished.blue && room.banFinished.red) startPick(io, room);
         else broadcast(io, room);
-      } else if (room.phase === "pick" && activeController(room)?.id === player.id && room.pendingPick && availableForPick(room, room.pendingPick)) {
+      } else if (room.phase === "pick" && canActorPick(room, player) && room.pendingPick && availableForPick(room, room.pendingPick)) {
         const team = teamForPick(room);
         const slot = PICK_ORDER[room.pickStep]?.slot;
         if (!team || slot == null) return;
@@ -519,8 +563,8 @@ export function registerTournamentRoomHandlers(io: Server) {
     socket.on("finish_tournament_ban", () => {
       const room = rooms.get(socketToRoom.get(socket.id) ?? "");
       const player = room?.players.get(socket.id);
-      if (!room || !player || room.phase !== "ban" || !canPlayerBan(room, player)) return;
-      finishTeamBan(room, player.team, true);
+      if (!room || !player || room.phase !== "ban" || activeBanSlotForActor(room, player) === null) return;
+      finishTeamBan(room, controlledTeamFor(room, player), true);
       if (room.banFinished.blue && room.banFinished.red) startPick(io, room);
       else broadcast(io, room);
     });
