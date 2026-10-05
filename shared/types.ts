@@ -385,10 +385,12 @@ export interface TournamentRoomState {
   banDurationSeconds: number;
   pickDurationSeconds: number;
   phaseEndsAt: number | null;
-  /** 大厅阶段：选手仅收到本队内容；观战席为空。开赛后双方公开。 */
+  /** 大厅阶段：选手仅收到本队内容，观战席可见双方；开赛后双方公开。 */
   blueGlobalBans: string[] | null;
   redGlobalBans: string[] | null;
   myGlobalBans: string[];
+  /** 首局开赛后即锁定；后续对局的大厅阶段也不可再更改。 */
+  globalBansLocked: boolean;
   blueBans: Array<string | null>;
   redBans: Array<string | null>;
   bluePicks: Array<string | null>;
@@ -400,6 +402,7 @@ export interface TournamentRoomState {
   visibleBluePendingBans: Array<string | null>;
   visibleRedPendingBans: Array<string | null>;
   myActiveBanSlot: number | null;
+  /** 当前 Pick 预选；仅本方与观战席可见。 */
   pendingPick: string | null;
   pickStep: number;
   activePickTeam: TournamentTeam | null;

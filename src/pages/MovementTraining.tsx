@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { SPEED_TIERS, type SpeedTier } from "../features/training/config";
 
 type ControlMode = "joystick" | "keyboard";
-type MovementRule = "practice" | "survival" | "spikeDodge";
+type MovementRule = "practice" | "survival" | "spikeDodge" | "tensai";
 
 export default function MovementTraining() {
   const navigate = useNavigate();
@@ -12,6 +12,10 @@ export default function MovementTraining() {
   const [rule, setRule] = useState<MovementRule>("practice");
 
   const start = () => {
+    if (rule === "tensai") {
+      navigate("/offline-training/game?mode=joystick&trainingMode=tensai");
+      return;
+    }
     if (!controlMode) return;
     const speed = rule === "spikeDodge" ? "" : `&speedTier=${speedTier}`;
     navigate(`/offline-training/game?mode=${controlMode}${speed}&trainingMode=${rule}`);
@@ -30,16 +34,19 @@ export default function MovementTraining() {
             <Choice active={rule === "practice"} onClick={() => setRule("practice")} title="无限训练" detail="100000 生命，不会回血，无限练习" />
             <Choice active={rule === "survival"} onClick={() => setRule("survival")} title="挑战模式" detail="6000 生命，无限时；每 10 秒回弹耗时与射击间隔 ×0.95" />
             <Choice active={rule === "spikeDodge"} onClick={() => setRule("spikeDodge")} title="斯派克躲避特训！" detail="在 5 格半径内移动；斯派克会在上方射程扇面内随机走位" />
+            <Choice active={rule === "tensai"} onClick={() => setRule("tensai")} title="Tensai特训！" detail="全程不能松开或拖出摇杆；到达目标后把摇杆停回中心死区" />
           </div>
         </div>
-        {rule !== "spikeDodge" && <SpeedPicker value={speedTier} onChange={setSpeedTier} />}
-        <div className="form-group"><label>选择操作方式</label></div>
-        <div className="toggle-group" style={{ flexDirection: "column" }}>
-          <Choice active={controlMode === "joystick"} onClick={() => setControlMode("joystick")} title="🕹️ 触控摇杆" detail="自由拖动方向，适合触屏设备" align="left" />
-          <Choice active={controlMode === "keyboard"} onClick={() => setControlMode("keyboard")} title="⌨️ 键盘 WASD" detail="W 上 / A 左 / S 下 / D 右，适合桌面设备" align="left" />
-        </div>
-        <button className="btn-primary" disabled={!controlMode} onClick={start} style={{ marginTop: "1rem" }}>开始训练</button>
-        <button className="btn-secondary" onClick={() => navigate("/control-layout/movement")} style={{ marginTop: "0.5rem", width: "100%" }}>调整键位布置</button>
+        {rule !== "tensai" && <>
+          {rule !== "spikeDodge" && <SpeedPicker value={speedTier} onChange={setSpeedTier} />}
+          <div className="form-group"><label>选择操作方式</label></div>
+          <div className="toggle-group" style={{ flexDirection: "column" }}>
+            <Choice active={controlMode === "joystick"} onClick={() => setControlMode("joystick")} title="🕹️ 触控摇杆" detail="自由拖动方向，适合触屏设备" align="left" />
+            <Choice active={controlMode === "keyboard"} onClick={() => setControlMode("keyboard")} title="⌨️ 键盘 WASD" detail="W 上 / A 左 / S 下 / D 右，适合桌面设备" align="left" />
+          </div>
+        </>}
+        <button className="btn-primary" disabled={rule !== "tensai" && !controlMode} onClick={start} style={{ marginTop: "1rem" }}>开始训练</button>
+        {rule !== "tensai" && <button className="btn-secondary" onClick={() => navigate("/control-layout/movement")} style={{ marginTop: "0.5rem", width: "100%" }}>调整键位布置</button>}
         <BackButton />
       </div>
       <MapGuide />

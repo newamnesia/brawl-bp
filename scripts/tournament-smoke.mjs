@@ -3,10 +3,12 @@ import { io } from "socket.io-client";
 const endpoint = process.env.TOURNAMENT_TEST_URL ?? "http://127.0.0.1:10001";
 const host = io(endpoint, { transports: ["websocket"] });
 const guest = io(endpoint, { transports: ["websocket"] });
+const spectator = io(endpoint, { transports: ["websocket"] });
 
 const latest = new Map();
 host.on("tournament_room_state", (state) => latest.set("host", state));
 guest.on("tournament_room_state", (state) => latest.set("guest", state));
+spectator.on("tournament_room_state", (state) => latest.set("spectator", state));
 
 function waitUntil(predicate, timeout = 5000) {
   const started = Date.now();
@@ -35,11 +37,14 @@ try {
   await Promise.all([
     new Promise((resolve) => host.on("connect", resolve)),
     new Promise((resolve) => guest.on("connect", resolve)),
+    new Promise((resolve) => spectator.on("connect", resolve)),
   ]);
   const created = await emitAck(host, "create_tournament_room", "蓝一");
   assert(created.ok && created.code, "创建赛事房失败");
   const joined = await emitAck(guest, "join_tournament_room", { code: created.code, nickname: "红一" });
   assert(joined.ok, "红方加入失败");
+  const watched = await emitAck(spectator, "join_tournament_spectator", { code: created.code, nickname: "裁判" });
+  assert(watched.ok, "观战席加入失败");
   await waitUntil(() => latest.get("guest")?.players.length === 2);
 
   host.emit("set_tournament_mode", "knockout");
@@ -51,6 +56,7 @@ try {
   await waitUntil(() => latest.get("guest")?.myGlobalBans.includes("shelly"));
   assert(latest.get("guest").blueGlobalBans === null, "大厅阶段泄露了对方全局 Ban");
   assert(latest.get("host").redGlobalBans === null, "大厅阶段泄露了对方全局 Ban");
+  assert(latest.get("spectator").blueGlobalBans.includes("shelly") && latest.get("spectator").redGlobalBans.includes("shelly"), "观战席未看到双方全局 Ban 预选");
 
   host.emit("set_tournament_ready", true);
   guest.emit("set_tournament_ready", true);
@@ -78,17 +84,30 @@ try {
   for (let step = 0; step < picks.length; step++) {
     const [socket, hero] = picks[step];
     socket.emit("tournament_preselect", hero);
-    await waitUntil(() => latest.get("host")?.pendingPick === hero);
+    const ownViewer = socket === host ? "host" : "guest";
+    const enemyViewer = socket === host ? "guest" : "host";
+    await waitUntil(() => latest.get(ownViewer)?.pendingPick === hero && latest.get("spectator")?.pendingPick === hero);
+    assert(latest.get(enemyViewer).pendingPick === null, `第 ${step + 1} 手 Pick 预选泄露给敌方`);
     socket.emit("confirm_tournament_selection");
     await waitUntil(() => latest.get("host")?.pickStep > step || latest.get("host")?.phase === "complete");
   }
   await waitUntil(() => latest.get("host")?.phase === "complete");
   assert(latest.get("host").bluePicks.filter(Boolean).length === 3, "蓝方 Pick 数量错误");
   assert(latest.get("host").redPicks.filter(Boolean).length === 3, "红方 Pick 数量错误");
+  host.emit("start_next_tournament_game");
+  await waitUntil(() => latest.get("host")?.phase === "lobby");
+  assert(latest.get("host").players.length === 2 && latest.get("host").spectators.length === 1, "下一局未保留选手或观战席");
+  assert(latest.get("host").confirmedMapId === null && latest.get("host").firstPickTeam === null, "下一局未重置地图或先后手");
+  assert(latest.get("host").globalBansLocked && latest.get("host").myGlobalBans.includes("shelly"), "下一局未保留并锁定全局 Ban");
+  assert(latest.get("host").redGlobalBans.includes("shelly") && latest.get("guest").blueGlobalBans.includes("shelly"), "下一局大厅未继续公开已锁定的全局 Ban");
+  host.emit("toggle_tournament_global_ban", "shelly");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert(latest.get("host").myGlobalBans.includes("shelly"), "下一局仍可更改全局 Ban");
   console.log("赛事房双客户端流程验证通过");
 } finally {
   host.disconnect();
   guest.disconnect();
+  spectator.disconnect();
 }
 
 const sixPlayers = Array.from({ length: 6 }, () => io(endpoint, { transports: ["websocket"] }));

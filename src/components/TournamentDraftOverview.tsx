@@ -10,25 +10,28 @@ function Slot({ heroId, label, compact = false, pending = false }: { heroId?: st
   );
 }
 
-function TeamPanel({ team, bans, globalBans, picks, pendingBans }: {
+function TeamPanel({ team, bans, globalBans, picks, pendingBans, pendingPick, pendingPickSlot, globalBansPending }: {
   team: TournamentTeam;
   bans: Array<string | null>;
   globalBans: string[];
   picks: Array<string | null>;
   pendingBans: Array<string | null>;
+  pendingPick: string | null;
+  pendingPickSlot: number | null;
+  globalBansPending: boolean;
 }) {
   const order = team === "blue" ? [0, 1, 2] : [2, 1, 0];
   return (
     <section className={`solo-team-draft ${team}`}>
       <div className="solo-pick-slots">
-        {order.map((index) => <Slot key={index} heroId={picks[index]} label={`${index + 1}选`} />)}
+        {order.map((index) => <Slot key={index} heroId={picks[index] ?? (pendingPickSlot === index ? pendingPick : null)} pending={!picks[index] && pendingPickSlot === index && Boolean(pendingPick)} label={`${index + 1}选`} />)}
       </div>
       <div className="solo-ban-columns">
         <div className="solo-ban-column">
           {[0, 1, 2].map((index) => <Slot key={index} heroId={bans[index] ?? pendingBans[index]} pending={!bans[index] && Boolean(pendingBans[index])} label={`${index + 1} Ban`} compact />)}
         </div>
         <div className="solo-global-ban-column">
-          {[0, 1].map((index) => <Slot key={index} heroId={globalBans[index]} label="全局 Ban" compact />)}
+          {[0, 1].map((index) => <Slot key={index} heroId={globalBans[index]} label="全局 Ban" compact pending={globalBansPending && Boolean(globalBans[index])} />)}
         </div>
       </div>
     </section>
@@ -46,6 +49,10 @@ export default function TournamentDraftOverview({
   redPicks,
   bluePendingBans = [null, null, null],
   redPendingBans = [null, null, null],
+  pendingPick = null,
+  activePickTeam = null,
+  activePickSlot = null,
+  globalBansPending = false,
 }: {
   mode: GameMode | null;
   mapId: string | null;
@@ -57,12 +64,16 @@ export default function TournamentDraftOverview({
   redPicks: Array<string | null>;
   bluePendingBans?: Array<string | null>;
   redPendingBans?: Array<string | null>;
+  pendingPick?: string | null;
+  activePickTeam?: TournamentTeam | null;
+  activePickSlot?: number | null;
+  globalBansPending?: boolean;
 }) {
   const map = mapId ? MAP_MAP[mapId] : null;
   const modeInfo = mode ? GAME_MODES.find((item) => item.id === mode) : null;
   return (
     <div className="solo-draft-overview">
-      <TeamPanel team="blue" bans={blueBans} globalBans={blueGlobalBans} picks={bluePicks} pendingBans={bluePendingBans} />
+      <TeamPanel team="blue" bans={blueBans} globalBans={blueGlobalBans} picks={bluePicks} pendingBans={bluePendingBans} pendingPick={activePickTeam === "blue" ? pendingPick : null} pendingPickSlot={activePickTeam === "blue" ? activePickSlot : null} globalBansPending={globalBansPending} />
       <div className="solo-match-center tournament-match-center">
         {map && (
           <div className="tournament-map-preview">
@@ -77,7 +88,7 @@ export default function TournamentDraftOverview({
           </div>
         </div>
       </div>
-      <TeamPanel team="red" bans={redBans} globalBans={redGlobalBans} picks={redPicks} pendingBans={redPendingBans} />
+      <TeamPanel team="red" bans={redBans} globalBans={redGlobalBans} picks={redPicks} pendingBans={redPendingBans} pendingPick={activePickTeam === "red" ? pendingPick : null} pendingPickSlot={activePickTeam === "red" ? activePickSlot : null} globalBansPending={globalBansPending} />
     </div>
   );
 }

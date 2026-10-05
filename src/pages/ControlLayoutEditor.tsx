@@ -6,7 +6,9 @@ import { CHARACTER_MOVE_SPEED } from "../features/training/config";
 import {
   clampJoystick,
   clampJoystickToSide,
+  ACTION_BUTTON_SIZE_MIN,
   JOYSTICK_DEFINITIONS,
+  JOYSTICK_SIZE_MIN,
   joystickDiameter,
   loadControlLayout,
   resetControlLayout,
@@ -145,7 +147,7 @@ export default function ControlLayoutEditor() {
     <button className="layout-back" onClick={() => navigate(backPath)}>返回设置</button>
     {editing && selected && selectedItem && <div className="layout-size-control">
       <span>{JOYSTICK_DEFINITIONS[selected].label}大小</span>
-      <input aria-label="按键大小" type="range" min={selected === "hyper" || selected === "gadget" ? "0.07" : "0.13"}
+      <input aria-label="按键大小" type="range" min={selected === "hyper" || selected === "gadget" ? ACTION_BUTTON_SIZE_MIN : JOYSTICK_SIZE_MIN}
         max={selected === "hyper" || selected === "gadget" ? "0.13" : "0.32"} step="0.005" value={selectedItem.size}
         onChange={event => updateJoystick(selected, { ...selectedItem, size: Number(event.target.value) })} />
       <output>{Math.round(selectedItem.size * 100)}%</output>

@@ -106,10 +106,10 @@ export default function TournamentRoom() {
 
   const leave = () => { socket.emit("leave_tournament_room"); navigate("/bp"); };
   const switchTestTeam = (team: TournamentTeam) => socket.emit("set_tournament_test_team", team);
-  const overview = <TournamentDraftOverview mode={state.gameMode} mapId={state.confirmedMapId} blueBans={state.blueBans} redBans={state.redBans} blueGlobalBans={state.blueGlobalBans ?? []} redGlobalBans={state.redGlobalBans ?? []} bluePicks={state.bluePicks} redPicks={state.redPicks} bluePendingBans={state.visibleBluePendingBans} redPendingBans={state.visibleRedPendingBans} />;
+  const overview = <TournamentDraftOverview mode={state.gameMode} mapId={state.confirmedMapId} blueBans={state.blueBans} redBans={state.redBans} blueGlobalBans={state.blueGlobalBans ?? []} redGlobalBans={state.redGlobalBans ?? []} bluePicks={state.bluePicks} redPicks={state.redPicks} bluePendingBans={state.visibleBluePendingBans} redPendingBans={state.visibleRedPendingBans} pendingPick={state.pendingPick} activePickTeam={state.activePickTeam} activePickSlot={state.activePickSlot} globalBansPending={state.phase === "lobby" && !state.globalBansLocked} />;
 
   if (state.phase === "complete") {
-    return <main className="solo-board-page solo-result-page"><section className="solo-tactical-screen solo-overview-screen"><header className="solo-screen-header"><span>TOURNAMENT DRAFT // BP RESULT</span><button onClick={leave}>回到 BP 菜单</button></header>{overview}{state.timeoutMessage && <p className="tournament-timeout">{state.timeoutMessage}</p>}</section></main>;
+    return <main className="solo-board-page solo-result-page"><section className="solo-tactical-screen solo-overview-screen"><header className="solo-screen-header"><span>TOURNAMENT DRAFT // BP RESULT</span><div className="tournament-result-actions">{isHost && <button className="btn-primary" onClick={() => socket.emit("start_next_tournament_game")}>进入下一局</button>}<button onClick={leave}>回到 BP 菜单</button></div></header>{overview}{state.timeoutMessage && <p className="tournament-timeout">{state.timeoutMessage}</p>}{!isHost && <p className="tournament-next-hint">等待房主进入下一局</p>}</section></main>;
   }
 
   if (state.phase === "lobby") {
@@ -119,6 +119,7 @@ export default function TournamentRoom() {
         <div className="room-code">{state.code}</div>
         {state.isSoloTest && <><div className="tutorial-box tournament-test-notice"><p className="tutorial-intro">单人测试模式</p><p>切换蓝方与红方，依次完成双方地图确认、全局 Ban、三席 Ban 和六手 Pick。</p></div><TestTeamSwitcher team={state.controlledTeam ?? "blue"} onChange={switchTestTeam} /></>}
         <SeatGrid state={state} />
+        <section className="solo-tactical-screen solo-overview-screen tournament-lobby-overview">{overview}</section>
         <div className="card">
           <p className="waiting-text">{state.isSoloTest ? "完成双方地图确认并设置先后手后，即可开始单人测试。" : "双方各至少 1 名选手、所有在席选手准备后即可开始；空席的操作由队友代管。"}</p>
           {!state.isSpectator && !state.isSoloTest && <div className="invite-box"><input readOnly value={inviteUrl} /><button className="btn-secondary" onClick={async () => { await navigator.clipboard.writeText(inviteUrl); setCopied(true); }}>{copied ? "已复制" : "复制邀请链接"}</button></div>}
@@ -136,7 +137,7 @@ export default function TournamentRoom() {
           {isHost && <><p className="map-picker-label">确定先后手</p><div className="toggle-group"><button className={state.firstPickTeam === "blue" ? "active" : ""} onClick={() => socket.emit("set_tournament_first_picker", "blue")}>蓝方先手</button><button className={state.firstPickTeam === "red" ? "active" : ""} onClick={() => socket.emit("set_tournament_first_picker", "red")}>红方先手</button></div></>}
         </div>
 
-        {!state.isSpectator && <div className={`card tournament-global-ban ${state.myTeam}`}><h2>本队全局 Ban（队内共享，敌方不可见）</h2><p>单击预选或撤销，最多 2 个；开赛后双方公开且均不可再次 Ban 或 Pick。</p><div className="picked-row">{state.myGlobalBans.length ? state.myGlobalBans.map((id) => <HeroChip key={id} heroId={id} variant="ban" />) : <span className="empty-slot">可留空</span>}</div><HeroGrid mode="ban" selectedIds={state.myGlobalBans} disabledIds={[...DISABLED_HERO_IDS]} onToggle={(id) => socket.emit("toggle_tournament_global_ban", id)} /></div>}
+        {!state.isSpectator && <div className={`card tournament-global-ban ${state.myTeam}`}><h2>本队全局 Ban（队内共享，敌方不可见）</h2><p>{state.globalBansLocked ? "全局 Ban 已在首局开赛时锁定，后续对局不可更改。" : "单击预选或撤销，最多 2 个；预选会半透明显示在上方 BP 栏，开赛后锁定并公开。"}</p><div className="picked-row">{state.myGlobalBans.length ? state.myGlobalBans.map((id) => <HeroChip key={id} heroId={id} variant="ban" />) : <span className="empty-slot">可留空</span>}</div>{!state.globalBansLocked && <HeroGrid mode="ban" selectedIds={state.myGlobalBans} disabledIds={[...DISABLED_HERO_IDS]} onToggle={(id) => socket.emit("toggle_tournament_global_ban", id)} />}</div>}
 
         {!state.isSpectator && <button className="btn-primary tournament-ready" disabled={!canReady} onClick={() => socket.emit("set_tournament_ready", !me?.ready)}>{state.isSoloTest ? "开始单人测试" : me?.ready ? "取消准备" : "准备就绪"}</button>}
         <button className="btn-secondary" style={{ marginTop: ".75rem", width: "100%" }} onClick={leave}>退出赛事房</button>

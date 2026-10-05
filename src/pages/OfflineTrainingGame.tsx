@@ -64,7 +64,7 @@ import {
 } from "../features/training/brawlerCombatSystem";
 
 type ControlMode = "joystick" | "keyboard";
-type TrainingMode = "practice" | "survival" | "aiming" | "spikeDodge";
+type TrainingMode = "practice" | "survival" | "aiming" | "spikeDodge" | "tensai";
 type AimingRule = "infinite" | "challenge";
 type SpikeTimeScale = 0.25 | 0.5 | 0.75 | 1;
 type SpikeTrajectoryHintMode = "off" | "impact" | "shards";
@@ -185,6 +185,12 @@ const SPIKE_DODGE_BASE_FIRE_INTERVAL = TRIAL_BRAWLERS.spike.reloadSeconds
 const SPIKE_DODGE_FIRE_INTERVAL_VARIANCE = 0.06;
 const SPIKE_DODGE_LANDING_HISTORY_SIZE = 12;
 const SPIKE_DODGE_LANDING_IMBALANCE = 2;
+const TENSAI_CENTER_X = MAP_WIDTH / 2;
+const TENSAI_CENTER_Y = MAP_HEIGHT / 2;
+const TENSAI_PLAYER_RADIUS = tiles(10);
+const TENSAI_TARGET_INTERVAL_SECONDS = 10;
+const TENSAI_TARGET_RADIUS = PLAYER_RADIUS;
+const TENSAI_DEADZONE_PX = 8;
 // 走位训练射击节奏见 firing.ts，普通射击保留两发弹药。
 const BEA_SUPER_UNIT = TILE_SIZE;
 const BULLET_MAX_DIST = tiles(10); // 子弹最远行进 3000 单位
@@ -1169,22 +1175,28 @@ export default function OfflineTrainingGame({
   const [searchParams] = useSearchParams();
   const isTwistFateMode = scenarioId === "twist-fate";
   const isTrialMode = Boolean(trialHeroId);
-  const mode: ControlMode = isTrialMode ? "joystick" : (searchParams.get("mode") as ControlMode) || "keyboard";
+  const requestedTrainingMode = searchParams.get("trainingMode");
+  const isRequestedTensaiMode = requestedTrainingMode === "tensai";
+  const mode: ControlMode = isTrialMode || isRequestedTensaiMode
+    ? "joystick"
+    : (searchParams.get("mode") as ControlMode) || "keyboard";
   const requestedSpeedTier = trialHeroId === "piper" ? "high" : trialHeroId === "max" ? "max" : trialHeroId === "bea" ? "mid" : searchParams.get("speedTier");
   const speedTier = requestedSpeedTier === "high" || requestedSpeedTier === "max" ? requestedSpeedTier : "mid";
-  const requestedTrainingMode = searchParams.get("trainingMode");
   const trainingMode: TrainingMode = requestedTrainingMode === "survival"
     ? "survival"
     : requestedTrainingMode === "aiming"
       ? "aiming"
-      : requestedTrainingMode === "spikeDodge" ? "spikeDodge" : "practice";
+      : requestedTrainingMode === "spikeDodge"
+        ? "spikeDodge"
+        : requestedTrainingMode === "tensai" ? "tensai" : "practice";
   const isSurvivalMode = trainingMode === "survival";
   const isAimingMode = trainingMode === "aiming";
   const isSpikeDodgeMode = trainingMode === "spikeDodge";
+  const isTensaiMode = trainingMode === "tensai";
   const isPlayerAttackMode = isAimingMode || isTrialMode;
   const playerMaxHealth = trialHeroId
     ? TRIAL_BRAWLERS[trialHeroId].health
-    : trainingMode === "practice" || isSpikeDodgeMode ? PRACTICE_PLAYER_MAX_HEALTH : PLAYER_MAX_HEALTH;
+    : trainingMode === "practice" || isSpikeDodgeMode || isTensaiMode ? PRACTICE_PLAYER_MAX_HEALTH : PLAYER_MAX_HEALTH;
   const aimingRule: AimingRule = searchParams.get("aimingRule") === "infinite" ? "infinite" : "challenge";
   const isAimingInfinite = isAimingMode && aimingRule === "infinite";
   const aimingTargetMaxHealth = isTwistFateMode
@@ -1216,9 +1228,9 @@ export default function OfflineTrainingGame({
   const starDistanceScale = projectileRange / STAR_SPAWN_MAX_DISTANCE;
   const starSpawnMinDistance = STAR_SPAWN_MIN_DISTANCE * starDistanceScale;
   const starSpawnMaxDistance = STAR_SPAWN_MAX_DISTANCE * starDistanceScale;
-  const isBeaMode = isSpikeDodgeMode ? false : trialHeroId ? trialHeroId === "bea" : speedTier === "mid";
-  const isPiperMode = isSpikeDodgeMode ? false : trialHeroId ? trialHeroId === "piper" : speedTier === "high";
-  const isMaxMode = isSpikeDodgeMode ? false : trialHeroId ? trialHeroId === "max" : speedTier === "max";
+  const isBeaMode = isSpikeDodgeMode || isTensaiMode ? false : trialHeroId ? trialHeroId === "bea" : speedTier === "mid";
+  const isPiperMode = isSpikeDodgeMode || isTensaiMode ? false : trialHeroId ? trialHeroId === "piper" : speedTier === "high";
+  const isMaxMode = isSpikeDodgeMode || isTensaiMode ? false : trialHeroId ? trialHeroId === "max" : speedTier === "max";
   const isByronMode = trialHeroId === "byron";
   const isPierceMode = trialHeroId === "pierce";
   const isBrockMode = trialHeroId === "brock";
@@ -1296,6 +1308,7 @@ export default function OfflineTrainingGame({
     maxRadius: 60,
     rawMagnitude: 0, // 玩家真实按出的归一化距离（0~1），1=推到摇杆边界
   });
+  const tensaiStartedRef = useRef(false);
   const aimJoystickRef = useRef({
     active: false,
     touchId: null as number | null,
@@ -1426,6 +1439,7 @@ export default function OfflineTrainingGame({
   const [, setHealth] = useState(playerMaxHealth);
   const [, setSurvivalTime] = useState(0);
   const [roundResult, setRoundResult] = useState<"victory" | "defeat" | "draw" | "ended" | null>(null);
+  const [tensaiFailureReason, setTensaiFailureReason] = useState("");
   const [restartNonce, setRestartNonce] = useState(0);
   const [, setMagazineAmmo] = useState(magazineCapacity);
   const [, setMagazineReloadProgress] = useState(0);
@@ -1445,8 +1459,8 @@ export default function OfflineTrainingGame({
   const [spikeTrajectoryHintMode, setSpikeTrajectoryHintMode] = useState<SpikeTrajectoryHintMode>("off");
   const spikeTrajectoryHintModeRef = useRef<SpikeTrajectoryHintMode>("off");
   const clearSpikeTrajectoryHintsRef = useRef<() => void>(() => undefined);
-  const [countdown, setCountdown] = useState<number | null>(3);
-  const countdownActiveRef = useRef(true);
+  const [countdown, setCountdown] = useState<number | null>(isTensaiMode ? null : 3);
+  const countdownActiveRef = useRef(!isTensaiMode);
 
   useEffect(() => {
     const updateControlViewport = () => setControlViewport({ width: window.innerWidth, height: window.innerHeight });
@@ -1511,6 +1525,14 @@ export default function OfflineTrainingGame({
     pausedRef.current = true;
     setPaused(false);
     setRoundResult("ended");
+  };
+
+  const failTensaiTraining = (reason: string) => {
+    if (!isTensaiMode || !tensaiStartedRef.current || pausedRef.current) return;
+    pausedRef.current = true;
+    inputRef.current = { x: 0, y: 0 };
+    setTensaiFailureReason(reason);
+    setRoundResult("defeat");
   };
 
   useEffect(() => {
@@ -1716,10 +1738,12 @@ export default function OfflineTrainingGame({
     let animationId: number;
     let lastTime = performance.now();
     const nowStart = lastTime;
-    let countdownRemainingMs = 3000;
-    let countdownShown = 3;
-    countdownActiveRef.current = true;
-    setCountdown(3);
+    let countdownRemainingMs = isTensaiMode ? 0 : 3000;
+    let countdownShown = isTensaiMode ? 0 : 3;
+    countdownActiveRef.current = !isTensaiMode;
+    tensaiStartedRef.current = false;
+    setTensaiFailureReason("");
+    setCountdown(isTensaiMode ? null : 3);
     let superCharge = 0;
     const superAim = { elapsed: 0, stable: 0, angle: 0 };
     let superAiming = false;
@@ -1764,9 +1788,26 @@ export default function OfflineTrainingGame({
     const aiBulletVisionEnteredAt = new Map<number, number>();
     const stars: TrainingStar[] = [];
     let nextStarId = 1;
-    let starSpawnTimer = isTrialMode || isSpikeDodgeMode
+    let starSpawnTimer = isTrialMode || isSpikeDodgeMode || isTensaiMode
       ? Number.POSITIVE_INFINITY
       : STAR_SPAWN_MIN_SECONDS + Math.random() * (STAR_SPAWN_MAX_SECONDS - STAR_SPAWN_MIN_SECONDS);
+    let tensaiTargetTimer = TENSAI_TARGET_INTERVAL_SECONDS;
+    let tensaiTarget: { x: number; y: number } | null = null;
+    const spawnTensaiTarget = () => {
+      const player = playerRef.current;
+      const allowedRadius = TENSAI_PLAYER_RADIUS - TENSAI_TARGET_RADIUS;
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = tiles(2) + Math.random() * tiles(3);
+        const x = player.x + Math.cos(angle) * distance;
+        const y = player.y + Math.sin(angle) * distance;
+        if (Math.hypot(x - TENSAI_CENTER_X, y - TENSAI_CENTER_Y) <= allowedRadius) {
+          tensaiTarget = { x, y };
+          return;
+        }
+      }
+      tensaiTarget = { x: TENSAI_CENTER_X, y: TENSAI_CENTER_Y };
+    };
     let aiTargetStarId: number | null = null;
     let aiFeintCooldown = 0;
     let aiFeint: { starId: number; phase: "approach" | "break"; remaining: number; startedAt: number; breakHeading: number } | null = null;
@@ -1789,7 +1830,7 @@ export default function OfflineTrainingGame({
     let superSlowRemainingMs = 0;
 
     // 初始化 Profiler
-    profilerRef.current = createProfiler(nowStart, !isSpikeDodgeMode);
+    profilerRef.current = createProfiler(nowStart, !isSpikeDodgeMode && !isTensaiMode);
     playerRef.current = isTwistFateMode
       ? { ...TWIST_FATE_PLAYER_START }
       : isTrialMode
@@ -1798,6 +1839,8 @@ export default function OfflineTrainingGame({
       ? { x: ENEMY_X, y: ENEMY_Y }
       : isSpikeDodgeMode
       ? { x: SPIKE_DODGE_CENTER_X, y: SPIKE_DODGE_CENTER_Y }
+      : isTensaiMode
+      ? { x: TENSAI_CENTER_X, y: TENSAI_CENTER_Y }
       : { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 };
     aimingTargetRef.current = {
       x: isTwistFateMode ? TWIST_FATE_PRIMARY_TARGET_START.x
@@ -2652,13 +2695,29 @@ export default function OfflineTrainingGame({
         if (countdownRemainingMs === 0) {
           countdownActiveRef.current = false;
           // 所有分析计时从正式开局时刻起算，不把倒计时算入反应或稳定移动时间。
-          profilerRef.current = createProfiler(now, !isSpikeDodgeMode);
+          profilerRef.current = createProfiler(now, !isSpikeDodgeMode && !isTensaiMode);
         }
       }
 
-      if (!pausedRef.current && !countdownActiveRef.current) {
+      if (!pausedRef.current && !countdownActiveRef.current && (!isTensaiMode || tensaiStartedRef.current)) {
         // —— 逻辑更新（暂停时跳过） ——
         starSpawnTimer -= dt;
+        if (isTensaiMode) {
+          tensaiTargetTimer -= dt;
+          if (tensaiTargetTimer <= 0) {
+            spawnTensaiTarget();
+            tensaiTargetTimer += TENSAI_TARGET_INTERVAL_SECONDS;
+          }
+          if (tensaiTarget
+            && joystickRef.current.active
+            && joystickRef.current.rawMagnitude <= TENSAI_DEADZONE_PX / joystickRef.current.maxRadius
+            && Math.hypot(playerRef.current.x - tensaiTarget.x, playerRef.current.y - tensaiTarget.y)
+              <= PLAYER_RADIUS + TENSAI_TARGET_RADIUS) {
+            tensaiTarget = null;
+            scoreRef.current += 1;
+            setScore(scoreRef.current);
+          }
+        }
         playerAttackCooldownRef.current = Math.max(0, playerAttackCooldownRef.current - dt);
         if (coltActionRef.current) {
           coltActionRef.current.remainingSeconds = Math.max(0, coltActionRef.current.remainingSeconds - dt);
@@ -3218,6 +3277,15 @@ export default function OfflineTrainingGame({
           if (centerDistance > SPIKE_DODGE_PLAYER_RADIUS) {
             player.x = SPIKE_DODGE_CENTER_X + centerDx / centerDistance * SPIKE_DODGE_PLAYER_RADIUS;
             player.y = SPIKE_DODGE_CENTER_Y + centerDy / centerDistance * SPIKE_DODGE_PLAYER_RADIUS;
+          }
+        }
+        if (isTensaiMode) {
+          const centerDx = player.x - TENSAI_CENTER_X;
+          const centerDy = player.y - TENSAI_CENTER_Y;
+          const centerDistance = Math.hypot(centerDx, centerDy);
+          if (centerDistance > TENSAI_PLAYER_RADIUS) {
+            player.x = TENSAI_CENTER_X + centerDx / centerDistance * TENSAI_PLAYER_RADIUS;
+            player.y = TENSAI_CENTER_Y + centerDy / centerDistance * TENSAI_PLAYER_RADIUS;
           }
         }
         const actualPlayerDx = player.x - playerBeforeMoveX;
@@ -3910,8 +3978,8 @@ export default function OfflineTrainingGame({
           magazineReloadTimerRef.current = currentReloadSeconds;
         }
 
-        if (!isAimingMode && !isTrialMode && !isSpikeDodgeMode) fireTimerRef.current -= dt;
-        if (!isAimingMode && !isTrialMode && !isSpikeDodgeMode && fireTimerRef.current <= 0) {
+        if (!isAimingMode && !isTrialMode && !isSpikeDodgeMode && !isTensaiMode) fireTimerRef.current -= dt;
+        if (!isAimingMode && !isTrialMode && !isSpikeDodgeMode && !isTensaiMode && fireTimerRef.current <= 0) {
           const dx = player.x - ENEMY_X;
           const dy = player.y - ENEMY_Y;
           // 射程判定：用玩家当前位置
@@ -5271,6 +5339,43 @@ export default function OfflineTrainingGame({
         ctx.restore();
       }
 
+      if (isTensaiMode) {
+        ctx.save();
+        ctx.fillStyle = "rgba(72, 190, 255, 0.045)";
+        ctx.strokeStyle = "rgba(87, 205, 255, 0.9)";
+        ctx.lineWidth = Math.max(2, tiles(0.06) * scale);
+        ctx.beginPath();
+        for (let step = 0; step <= 96; step++) {
+          const angle = step / 96 * Math.PI * 2;
+          const worldX = TENSAI_CENTER_X + Math.cos(angle) * TENSAI_PLAYER_RADIUS;
+          const worldY = TENSAI_CENTER_Y + Math.sin(angle) * TENSAI_PLAYER_RADIUS;
+          if (step === 0) ctx.moveTo(projectX(worldX, worldY), projectY(worldY));
+          else ctx.lineTo(projectX(worldX, worldY), projectY(worldY));
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        if (tensaiTarget) {
+          const pulse = 1 + Math.sin(now * 0.008) * 0.08;
+          ctx.fillStyle = "rgba(255, 215, 64, 0.36)";
+          ctx.strokeStyle = "#fff3a0";
+          ctx.lineWidth = Math.max(2, tiles(0.06) * scale);
+          ctx.beginPath();
+          ctx.ellipse(
+            projectX(tensaiTarget.x, tensaiTarget.y),
+            projectY(tensaiTarget.y),
+            TENSAI_TARGET_RADIUS * pulse * scale * widthFactorAt(tensaiTarget.y),
+            TENSAI_TARGET_RADIUS * pulse * scaleY,
+            0,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
       for (const rocket of brockSuperRockets) {
         const progress = 1 - rocket.remainingSeconds / BROCK.superLandingDelaySeconds;
         ctx.save();
@@ -5430,7 +5535,7 @@ export default function OfflineTrainingGame({
       const enemyCenterPy = projectY(renderedEnemy.y);
       const enemyRadiusPx = ENEMY_RADIUS * scale * widthFactorAt(renderedEnemy.y);
       const enemyRadiusPy = ENEMY_RADIUS * scaleY;
-      if (!isSpikeDodgeMode) {
+      if (!isSpikeDodgeMode && !isTensaiMode) {
         ctx.save();
         ctx.strokeStyle = "rgba(255, 82, 82, 0.25)";
         ctx.lineWidth = 1;
@@ -5618,7 +5723,8 @@ export default function OfflineTrainingGame({
       }
 
       // 地面阵营圈：中心透明，外缘浓色；物理半径不变。
-      const primaryTargetRevealed = aimingTargetHealthRef.current > 0 && scenarioEnemyIsRevealed(renderedEnemy);
+      const primaryTargetRevealed = !isTensaiMode
+        && aimingTargetHealthRef.current > 0 && scenarioEnemyIsRevealed(renderedEnemy);
       if (primaryTargetRevealed) drawTrainingUnitModel(ctx, {
         centerX: enemyCenterPx,
         centerY: enemyCenterPy,
@@ -6312,7 +6418,7 @@ export default function OfflineTrainingGame({
       superJoystickRef.current.touchId = null;
       lastSurvivalUiUpdateRef.current = 0;
     };
-  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isSpikeDodgeMode, isPlayerAttackMode, isTrialMode, isTwistFateMode, isAimingInfinite, isPiperMode, isByronMode, isPierceMode, isBrockMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, isPearlMode, isOllieMode, brockStarPower, pearlGadget, pearlStarPower, ollieGadget, ollieStarPower, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
+  }, [mode, speedTier, bulletSpeed, projectileRange, magazineCapacity, magazineReloadSeconds, magazineReloadDelaySeconds, playerAttackIntervalSeconds, controlledMoveSpeed, isSurvivalMode, isAimingMode, isSpikeDodgeMode, isTensaiMode, isPlayerAttackMode, isTrialMode, isTwistFateMode, isAimingInfinite, isPiperMode, isByronMode, isPierceMode, isBrockMode, isGeneMode, isGrayMode, isColtMode, isMinaMode, isSpikeMode, isPearlMode, isOllieMode, brockStarPower, pearlGadget, pearlStarPower, ollieGadget, ollieStarPower, aimingReactionSeconds, aimingDodgesProjectiles, aimingReactionConfig, playerMaxHealth, aimingTargetMaxHealth, restartNonce]);
 
   // 摇杆触摸/鼠标处理
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -6334,6 +6440,7 @@ export default function OfflineTrainingGame({
     inputRef.current.x = 0;
     inputRef.current.y = 0;
     playerMovementElapsedRef.current = 0;
+    if (isTensaiMode) tensaiStartedRef.current = true;
     forceUpdate((n) => n + 1);
   };
 
@@ -6346,6 +6453,11 @@ export default function OfflineTrainingGame({
     let dx = e.clientX - rect.left - js.baseX;
     let dy = e.clientY - rect.top - js.baseY;
     let dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (isTensaiMode && dist > js.maxRadius) {
+      failTensaiTraining("触点拖出了摇杆圆范围");
+      return;
+    }
 
     // 钳制到 maxRadius 内，并同步更新 dist，保证 dx/dist 为单位向量
     if (dist > js.maxRadius) {
@@ -6377,6 +6489,7 @@ export default function OfflineTrainingGame({
     const js = joystickRef.current;
     if (js.touchId !== e.pointerId) return;
     e.preventDefault();
+    if (isTensaiMode) failTensaiTraining("训练期间抬起了移动摇杆");
     js.active = false;
     playerMovementElapsedRef.current = 0;
     js.touchId = null;
@@ -7458,9 +7571,19 @@ export default function OfflineTrainingGame({
         </div>
       )}
 
-      {!isAimingMode && !isTrialMode && !isSpikeDodgeMode && (
+      {!isAimingMode && !isTrialMode && !isSpikeDodgeMode && !isTensaiMode && (
         <div className="training-survival-status" aria-live="polite">
           <div className="training-survival-time">积分 {score.toFixed(1)}</div>
+        </div>
+      )}
+      {isTensaiMode && (
+        <div className="training-survival-status" aria-live="polite">
+          <div className="training-survival-time">完成目标 {score}</div>
+        </div>
+      )}
+      {isTensaiMode && !tensaiStartedRef.current && !roundResult && (
+        <div className="training-countdown" role="status" aria-live="polite">
+          <span style={{ fontSize: "clamp(1.2rem, 3vw, 2rem)" }}>按下移动摇杆开始</span>
         </div>
       )}
       {isAimingMode && (
@@ -7518,7 +7641,7 @@ export default function OfflineTrainingGame({
 
         <div className="training-hud-actions" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <div className="training-control-label" style={{ fontSize: "0.8rem", color: "#8899aa", whiteSpace: "nowrap" }}>
-            操作方式: {isTrialMode ? "移动、普攻与大招摇杆" : isAimingMode ? "右侧攻击摇杆" : mode === "joystick" ? "触控摇杆" : "键盘 WASD"}
+            操作方式: {isTensaiMode ? "强制触控摇杆" : isTrialMode ? "移动、普攻与大招摇杆" : isAimingMode ? "右侧攻击摇杆" : mode === "joystick" ? "触控摇杆" : "键盘 WASD"}
           </div>
           <button
             onClick={toggleFullscreen}
@@ -7537,7 +7660,7 @@ export default function OfflineTrainingGame({
           >
             {isFullscreen ? "▣ 退出全屏" : "⛶ 全屏"}
           </button>
-          <button
+          {!isTensaiMode && <button
             onClick={togglePause}
             style={{
               background: paused
@@ -7556,7 +7679,7 @@ export default function OfflineTrainingGame({
             }}
           >
             {paused ? "▶ 继续" : "⏸ 暂停"}
-          </button>
+          </button>}
           <button
             onClick={endTraining}
             style={{
@@ -7580,7 +7703,9 @@ export default function OfflineTrainingGame({
         <div className="training-game-over">
           <div className="training-game-over-card training-game-over-card-wide">
             <div className={`training-game-over-title ${roundResult === "victory" ? "victory" : ""}`}>
-              {isTwistFateMode
+              {isTensaiMode
+                ? roundResult === "defeat" ? "Tensai特训失败" : "Tensai特训结束"
+                : isTwistFateMode
                 ? roundResult === "victory" ? "胜利"
                   : roundResult === "defeat" ? "失败" : roundResult === "draw" ? "平局" : "本轮结束"
                 : roundResult === "victory"
@@ -7588,7 +7713,9 @@ export default function OfflineTrainingGame({
                 : isAimingMode && roundResult === "defeat" ? "人机达到 15 分，挑战失败" : "本轮结束"}
             </div>
             {!isSpikeDodgeMode && <div className="training-game-over-time">
-              {isTwistFateMode
+              {isTensaiMode
+                ? `${roundResult === "defeat" ? tensaiFailureReason : "已主动结束训练"} · 完成目标 ${score}`
+                : isTwistFateMode
                 ? roundResult === "victory" ? "敌方阵容已全部淘汰"
                   : roundResult === "defeat" ? "己方阵容已全部淘汰"
                   : roundResult === "draw" ? "双方阵容同时全部淘汰" : "本局已结束"
@@ -7602,7 +7729,7 @@ export default function OfflineTrainingGame({
                 ? `人机积分 ${aiScore.toFixed(1)} / 15`
                 : isSurvivalMode ? `最终积分 ${score.toFixed(1)}` : `本局积分 ${score.toFixed(1)}`}
             </div>}
-            {!isTrialMode && !isSpikeDodgeMode && <TrainingStatsGrid
+            {!isTrialMode && !isSpikeDodgeMode && !isTensaiMode && <TrainingStatsGrid
               snapshot={endSnapshot}
               aiming={isAimingMode}
               mode={mode}

@@ -2413,6 +2413,10 @@ input:focus {
 .tournament-waiting-panel p { color: #f3fbff; font-weight: 800; }
 .tournament-timeout { margin: 1rem; color: #ff7188; text-align: center; font-weight: 800; }
 .solo-draft-overview .solo-draft-slot.pending img { opacity: .62; filter: saturate(.72); outline: 2px dashed rgba(255,255,255,.9); outline-offset: -2px; }
+.tournament-lobby-overview { margin: 1rem 0; }
+.tournament-result-actions { display: flex; align-items: center; gap: .55rem; }
+.tournament-result-actions .btn-primary { width: auto; margin: 0; padding: .55rem .9rem; }
+.tournament-next-hint { margin: 1rem; color: var(--muted); text-align: center; font-weight: 700; }
 
 @media (max-width: 720px) {
   .tournament-teams { grid-template-columns: 1fr; }

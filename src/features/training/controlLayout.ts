@@ -24,15 +24,17 @@ const DEFAULTS: ControlLayout = {
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+export const JOYSTICK_SIZE_MIN = 0.078;
+export const ACTION_BUTTON_SIZE_MIN = 0.042;
 export const joystickDiameter = (layout: JoystickLayout, width: number, height: number) =>
-  clamp(layout.size * Math.min(width, height), 96, 220);
+  clamp(layout.size * Math.min(width, height), 57.6, 220);
 export const hyperButtonDiameter = (layout: JoystickLayout, width: number, height: number) =>
-  clamp(layout.size * Math.min(width, height), 44, 80);
+  clamp(layout.size * Math.min(width, height), 26.4, 80);
 
 export function clampJoystick(layout: JoystickLayout, width: number, height: number, id: JoystickId = "movement"): JoystickLayout {
   const isActionButton = id === "hyper" || id === "gadget";
   const size = clamp(Number.isFinite(layout.size) ? layout.size : isActionButton ? 0.085 : 0.18,
-    isActionButton ? 0.07 : 0.13, isActionButton ? 0.13 : 0.32);
+    isActionButton ? ACTION_BUTTON_SIZE_MIN : JOYSTICK_SIZE_MIN, isActionButton ? 0.13 : 0.32);
   const diameter = isActionButton
     ? hyperButtonDiameter({ ...layout, size }, width, height)
     : joystickDiameter({ ...layout, size }, width, height);
