@@ -24,10 +24,10 @@ const DEFAULTS: ControlLayout = {
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-export const JOYSTICK_SIZE_MIN = 0.078;
+export const JOYSTICK_SIZE_MIN = 0.1;
 export const ACTION_BUTTON_SIZE_MIN = 0.042;
 export const joystickDiameter = (layout: JoystickLayout, width: number, height: number) =>
-  clamp(layout.size * Math.min(width, height), 57.6, 220);
+  Math.min(layout.size * Math.min(width, height), 220);
 export const hyperButtonDiameter = (layout: JoystickLayout, width: number, height: number) =>
   clamp(layout.size * Math.min(width, height), 26.4, 80);
 

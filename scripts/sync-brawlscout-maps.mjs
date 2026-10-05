@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve, sep } from "node:path";
 
 const SOURCE_ORIGIN = "https://brawlscout.com";
@@ -14,14 +14,9 @@ const LOCALIZED_NAMES = { "15000368": "摇滚贝尔" };
 
 const projectRoot = resolve(process.cwd());
 const webPublic = join(projectRoot, "public");
-const mobilePublic = join(projectRoot, "mobile-app", "public");
 const webTarget = join(webPublic, "brawlscout", "map-img");
-const mobileTarget = join(mobilePublic, "brawlscout", "map-img");
 const staging = join(webPublic, ".brawlscout-map-img-staging");
-const oldTargets = [
-  join(webPublic, "brawl-stars", "res", "img", "maps"),
-  join(mobilePublic, "brawl-stars", "res", "img", "maps"),
-];
+const oldTarget = join(webPublic, "brawl-stars", "res", "img", "maps");
 
 function assertInside(parent, target) {
   const root = resolve(parent);
@@ -81,8 +76,7 @@ if (duplicateIds.length) throw new Error(`地图 ID 重复: ${duplicateIds.map((
 
 assertInside(webPublic, staging);
 assertInside(webPublic, webTarget);
-assertInside(mobilePublic, mobileTarget);
-for (const target of oldTargets) assertInside(target.includes("mobile-app") ? mobilePublic : webPublic, target);
+assertInside(webPublic, oldTarget);
 await rm(staging, { recursive: true, force: true });
 await mkdir(staging, { recursive: true });
 
@@ -112,20 +106,16 @@ for (const [, mode, heading] of MODE_SPECS) {
 lines.push("];\n");
 const catalogBlock = lines.join("\n");
 
-for (const relativePath of ["shared/types.ts", "mobile-app/shared/types.ts"]) {
-  const target = join(projectRoot, relativePath);
-  const source = await readFile(target, "utf8");
-  const updated = source.replace(/export const MAPS: BrawlMap\[\] = \[[\s\S]*?\n\];/, catalogBlock.trimEnd());
-  if (updated === source) throw new Error(`${relativePath} 中未找到 MAPS 数据块`);
-  await writeFile(target, updated);
-}
+const catalogPath = "shared/types.ts";
+const catalogTarget = join(projectRoot, catalogPath);
+const catalogSource = await readFile(catalogTarget, "utf8");
+const updatedCatalog = catalogSource.replace(/export const MAPS: BrawlMap\[\] = \[[\s\S]*?\n\];/, catalogBlock.trimEnd());
+if (updatedCatalog === catalogSource) throw new Error(`${catalogPath} 中未找到 MAPS 数据块`);
+await writeFile(catalogTarget, updatedCatalog);
 
 await rm(webTarget, { recursive: true, force: true });
 await mkdir(dirname(webTarget), { recursive: true });
 await rename(staging, webTarget);
-await rm(mobileTarget, { recursive: true, force: true });
-await mkdir(dirname(mobileTarget), { recursive: true });
-await cp(webTarget, mobileTarget, { recursive: true });
-for (const target of oldTargets) await rm(target, { recursive: true, force: true });
+await rm(oldTarget, { recursive: true, force: true });
 
 console.log(JSON.stringify({ source: `${SOURCE_ORIGIN}/maps`, total: maps.length, counts, excluded5v5: true }, null, 2));

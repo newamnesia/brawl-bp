@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { PIERCE_SHELL, PIERCE_SUPER } from "../src/features/training/pierceCombat.ts";
 
-test("tidal wave and character trial share Pierce shell timing and pickup geometry", () => {
+test("character trial uses Pierce shell timing and pickup geometry", () => {
   assert.deepEqual(PIERCE_SHELL, {
     lifetimeSeconds: 8,
     pickupRadius: 300,
@@ -12,7 +12,7 @@ test("tidal wave and character trial share Pierce shell timing and pickup geomet
   });
 });
 
-test("tidal wave and character trial share Pierce super phases and homing values", () => {
+test("character trial uses Pierce super phases and homing values", () => {
   assert.equal(PIERCE_SUPER.warningSeconds, 0.8);
   assert.equal(PIERCE_SUPER.lockSeconds, 0.35);
   assert.equal(PIERCE_SUPER.radius, 900);

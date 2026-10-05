@@ -49,7 +49,13 @@ export function AdjustableJoystick({ id, layout, viewport, selected, knob = { x:
     onPointerCancel={onPointerUp} onClick={onClick} aria-label={definition.label}>
     {showsSuperMeter && <div className="adjustable-super-charge-ring" />}
     <div className="adjustable-joystick-ring" />
-    <div className="adjustable-joystick-knob" style={{ width: knobSize, height: knobSize, left: radius + knob.x - knobSize / 2, top: radius + knob.y - knobSize / 2 }}>
+    <div className="adjustable-joystick-knob" style={{
+      width: knobSize,
+      height: knobSize,
+      left: `calc(50% + ${knob.x}px)`,
+      top: `calc(50% + ${knob.y}px)`,
+      transform: "translate(-50%, -50%)",
+    }}>
       {showsSuperMeter && <span className="adjustable-super-icon" aria-hidden="true">◆</span>}
     </div>
     {selected && <span className="adjustable-joystick-label">{definition.label}</span>}

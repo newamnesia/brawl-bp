@@ -10,10 +10,18 @@ test("Hypercharge uses a compact button size rather than joystick diameter", () 
 
 test("joystick size follows viewport short edge within limits", () => {
   assert.equal(joystickDiameter({ x: .5, y: .5, size: .2 }, 1000, 500), 100);
-  assert.equal(joystickDiameter({ x: .5, y: .5, size: .05 }, 1000, 500), 57.6);
-  assert.equal(joystickDiameter({ x: .5, y: .5, size: .5 }, 1000, 500), 220);
-  assert.equal(clampJoystick({ x: .5, y: .5, size: 0 }, 1000, 500).size, .078);
+  assert.equal(joystickDiameter({ x: .5, y: .5, size: .1 }, 1000, 500), 50);
+  assert.equal(joystickDiameter({ x: .5, y: .5, size: .32 }, 1000, 500), 160);
+  assert.equal(clampJoystick({ x: .5, y: .5, size: 0 }, 1000, 500).size, .1);
   assert.equal(clampJoystick({ x: .5, y: .5, size: 0 }, 1000, 500, "gadget").size, .042);
+});
+
+test("enlarging a joystick preserves its center unless it would leave the viewport", () => {
+  assert.deepEqual(clampJoystick({ x: .5, y: .5, size: .32 }, 1000, 500), { x: .5, y: .5, size: .32 });
+  const nearEdge = clampJoystick({ x: .03, y: .92, size: .32 }, 1000, 500);
+  assert.equal(nearEdge.x, .092);
+  assert.ok(Math.abs(nearEdge.y - .816) < 1e-12);
+  assert.equal(nearEdge.size, .32);
 });
 
 test("joystick remains fully inside viewport after resize", () => {

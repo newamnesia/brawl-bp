@@ -16,15 +16,13 @@
 - `combatProjectileDamage`：按弹丸种类解析命中伤害。
 - `createBrawlerCombatRuntime`：创建血量、弹药、装填和攻击冷却状态。
 - `advanceBrawlerCombatTimers`：推进普通逐发装填与攻击冷却。
-- `CombatProjectile`：训练场和小游戏共用的弹丸基础结构。
+- `CombatProjectile`：训练场共用的弹丸基础结构。
 
 自动瞄准统一使用 `src/features/training/firing.ts` 的 `nearestAutoAimTarget`，它会排除墙后目标并选取可命中的最近单位。
 
 ## 页面职责
 
-`OfflineTrainingGame.tsx` 和 `TidalWave.tsx` 负责输入、场景目标、绘制和模式规则。角色数值、普攻连射计划、通用弹丸结构、伤害解析和自动瞄准不得在页面内重新实现。
-
-特殊装填策略可以留在模式中。例如 Pierce 在潮汐波纹关卡中使用整弹匣装填，因此不调用普通逐发装填函数，但它仍从统一角色配置创建初始状态并读取弹匣容量和装填时间。
+`OfflineTrainingGame.tsx` 负责输入、训练目标、绘制和模式规则。角色数值、普攻连射计划、通用弹丸结构、伤害解析和自动瞄准不得在页面内重新实现。
 
 ## 新增角色流程
 

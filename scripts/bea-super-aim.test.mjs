@@ -21,13 +21,3 @@ test('aim leads a moving target and rejects an intercept beyond range', () => {
   for (let i = 0; i < 20; i++) result = updateBeaSuperAim(state, .05, true, 8.9, 0, 2, 0);
   assert.equal(result.fire, false);
 });
-
-test('mobile and web use the same aiming state transitions', async () => {
-  const mobile = await import('../mobile-app/src/features/training/beaSuper.ts');
-  const a = { elapsed: 0, stable: 0, angle: 1 }, b = { ...a };
-  for (let i = 0; i < 30; i++) {
-    assert.deepEqual(updateBeaSuperAim(a, 1/30, true, 5, 2, 1, 0),
-      mobile.updateBeaSuperAim(b, 1/30, true, 5, 2, 1, 0));
-    assert.deepEqual(a, b);
-  }
-});

@@ -13,10 +13,6 @@ const OfflineTrainingGame = lazy(() => import("./pages/OfflineTrainingGame"));
 const ControlLayoutEditor = lazy(() => import("./pages/ControlLayoutEditor"));
 const CharacterTrial = lazy(() => import("./pages/CharacterTrial"));
 const CharacterTrialGame = lazy(() => import("./pages/CharacterTrialGame"));
-const MiniGames = lazy(() => import("./pages/MiniGames"));
-const MiniGameThemeLevels = lazy(() => import("./pages/MiniGameThemeLevels"));
-const TidalWave = lazy(() => import("./pages/TidalWave"));
-const TwistFate = lazy(() => import("./pages/TwistFate"));
 
 export default function App() {
   return (
@@ -35,10 +31,6 @@ export default function App() {
           <Route path="/control-layout/:kind" element={<ControlLayoutEditor />} />
           <Route path="/character-trial" element={<CharacterTrial />} />
           <Route path="/character-trial/game" element={<CharacterTrialGame />} />
-          <Route path="/mini-games" element={<MiniGames />} />
-          <Route path="/mini-games/:themeId" element={<MiniGameThemeLevels />} />
-          <Route path="/mini-games/tidal-wave/1" element={<TidalWave />} />
-          <Route path="/mini-games/twist-fate/1" element={<TwistFate />} />
         </Routes>
       </Suspense>
     </>

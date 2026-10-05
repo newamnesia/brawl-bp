@@ -4,3 +4,8 @@ dist
 *.log
 .temp/
 .pnpm-store/
+.codex-pip-cache/
+.codex-pip-temp/
+.codex-video-deps/
+video_deps/
+video_analysis/

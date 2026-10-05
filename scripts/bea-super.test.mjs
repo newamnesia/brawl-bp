@@ -69,15 +69,3 @@ test('constant speed and nine-tile lifetime, independent of frame rate', () => {
   assert.equal(BEA_SUPER.slowMs, 3000);
   assert.equal(BEA_SUPER.damage, 260);
 });
-test('mobile uses identical skill parameters and trajectory implementation', async () => {
-  const mobile = await import('../mobile-app/src/features/training/beaSuper.ts');
-  assert.deepEqual(mobile.BEA_SUPER, BEA_SUPER);
-  for (const projectile of ['beaNormal', 'beaEnhanced', 'beaSuper', 'high']) {
-    for (const charge of [0, .5, .99, 1]) {
-      near(mobile.chargeBeaSuper(charge, projectile), chargeBeaSuper(charge, projectile));
-    }
-  }
-  for (const omega of BEA_SUPER.angularSpeeds) {
-    assert.deepEqual(mobile.beaSuperPosition(.9, omega), beaSuperPosition(.9, omega));
-  }
-});

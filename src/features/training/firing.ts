@@ -70,7 +70,7 @@ function segmentIntersectsRectangle(
   return exit > 0.0001 && entry < 0.9999;
 }
 
-/** 所有训练与小游戏共用的墙体视线判定。 */
+/** 训练场景共用的墙体视线判定。 */
 export function autoAimLineBlocked(
   start: { x: number; y: number },
   end: { x: number; y: number },

@@ -1,19 +1,34 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SPEED_TIERS, type SpeedTier } from "../features/training/config";
+import { clampJoystick, loadControlLayout, saveControlLayout } from "../features/training/controlLayout";
 
 type ControlMode = "joystick" | "keyboard";
 type MovementRule = "practice" | "survival" | "spikeDodge" | "tensai";
+type TensaiDifficulty = "easy" | "normal" | "hard";
+
+const TENSAI_DIFFICULTIES: Record<TensaiDifficulty, { label: string; size: number }> = {
+  easy: { label: "简单", size: 0.32 },
+  normal: { label: "普通", size: 0.2 },
+  hard: { label: "困难", size: 0.1 },
+};
 
 export default function MovementTraining() {
   const navigate = useNavigate();
   const [controlMode, setControlMode] = useState<ControlMode | null>(null);
   const [speedTier, setSpeedTier] = useState<SpeedTier>("mid");
   const [rule, setRule] = useState<MovementRule>("practice");
+  const [tensaiDifficulty, setTensaiDifficulty] = useState<TensaiDifficulty>("normal");
 
   const start = () => {
     if (rule === "tensai") {
-      navigate("/offline-training/game?mode=joystick&trainingMode=tensai");
+      const layout = loadControlLayout();
+      const movement = clampJoystick({
+        ...layout.joysticks.movement,
+        size: TENSAI_DIFFICULTIES[tensaiDifficulty].size,
+      }, window.innerWidth, window.innerHeight);
+      saveControlLayout({ ...layout, joysticks: { ...layout.joysticks, movement } });
+      navigate(`/offline-training/game?mode=joystick&trainingMode=tensai&tensaiDifficulty=${tensaiDifficulty}`);
       return;
     }
     if (!controlMode) return;
@@ -34,9 +49,20 @@ export default function MovementTraining() {
             <Choice active={rule === "practice"} onClick={() => setRule("practice")} title="无限训练" detail="100000 生命，不会回血，无限练习" />
             <Choice active={rule === "survival"} onClick={() => setRule("survival")} title="挑战模式" detail="6000 生命，无限时；每 10 秒回弹耗时与射击间隔 ×0.95" />
             <Choice active={rule === "spikeDodge"} onClick={() => setRule("spikeDodge")} title="斯派克躲避特训！" detail="在 5 格半径内移动；斯派克会在上方射程扇面内随机走位" />
-            <Choice active={rule === "tensai"} onClick={() => setRule("tensai")} title="Tensai特训！" detail="全程不能松开或拖出摇杆；到达目标后把摇杆停回中心死区" />
+            <Choice active={rule === "tensai"} onClick={() => setRule("tensai")} title="Tensai特训！" detail="全程不能松开或拖出摇杆；在目标区保持静止 2 秒，触点须停在极小死区" />
           </div>
         </div>
+        {rule === "tensai" && <div className="form-group">
+          <label>Tensai 难度（移动摇杆大小）</label>
+          <div className="toggle-group">
+            {(Object.keys(TENSAI_DIFFICULTIES) as TensaiDifficulty[]).map(difficulty => {
+              const option = TENSAI_DIFFICULTIES[difficulty];
+              return <Choice key={difficulty} active={tensaiDifficulty === difficulty}
+                onClick={() => setTensaiDifficulty(difficulty)} title={option.label}
+                detail={`${Math.round(option.size * 100)}%`} />;
+            })}
+          </div>
+        </div>}
         {rule !== "tensai" && <>
           {rule !== "spikeDodge" && <SpeedPicker value={speedTier} onChange={setSpeedTier} />}
           <div className="form-group"><label>选择操作方式</label></div>

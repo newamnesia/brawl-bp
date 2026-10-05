@@ -1,11 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { canMovementShoot, movementShotDelay, movementTimingScale } from '../src/features/training/firing.ts';
-import { readFileSync } from 'node:fs';
-
-test('mobile and web share firing policy', () => {
-  assert.equal(readFileSync('src/features/training/firing.ts', 'utf8'), readFileSync('mobile-app/src/features/training/firing.ts', 'utf8'));
-});
 
 for (const survival of [false, true]) {
   for (const isBea of [false, true]) {
