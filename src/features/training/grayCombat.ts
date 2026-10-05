@@ -1,13 +1,14 @@
 import type { WallCell } from "./movement";
+import { TRIAL_BRAWLERS } from "./characterTrial";
 
 // Gray, power 11. World distances use 300 units per tile.
 // Raw values are from the 2026-09-01 game-data mirror.
 export const GRAY = {
-  damage: 2560,
-  range: 2700,
-  projectileSpeed: 3804,
-  projectileWidth: 100,
-  aimGuideWidth: 100,
+  damage: TRIAL_BRAWLERS.gray.baseAttackDamage,
+  range: TRIAL_BRAWLERS.gray.range,
+  projectileSpeed: TRIAL_BRAWLERS.gray.projectileSpeed,
+  projectileWidth: TRIAL_BRAWLERS.gray.projectileWidth,
+  aimGuideWidth: TRIAL_BRAWLERS.gray.projectileWidth,
   superChargePerHit: 0.32,
   superRange: 2000,
   superCastSeconds: 0.3,

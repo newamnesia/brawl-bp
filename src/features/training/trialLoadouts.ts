@@ -80,7 +80,7 @@ export const TRIAL_LOADOUTS: Record<TrialBrawlerId, TrialLoadoutDefinition> = {
       { id: "rocketFuel", name: "火箭燃料", description: "强化下一枚火箭：更快、更大并能破墙。" },
     ],
     starPowers: [
-      { id: "moreRockets", name: "火箭雨", description: "大招发射更多火箭；当前试用仅复刻普攻。" },
+      { id: "moreRockets", name: "火箭雨", description: "大招由9枚增加至13枚火箭，并缩短每枚火箭的发射间隔。" },
       { id: "rocketNoFour", name: "四号火箭", description: "弹药容量增加至4发。" },
     ],
     defaultGadget: "rocketFuel", defaultStarPower: "rocketNoFour",

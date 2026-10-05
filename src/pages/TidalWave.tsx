@@ -6,26 +6,31 @@ import { TILE_SIZE, tiles } from "../features/training/config";
 import { loadControlLayout, joystickDiameter } from "../features/training/controlLayout";
 import { advanceMovement, resolveSquareMovement } from "../features/training/movement";
 import { drawTrainingUnitModel } from "../features/training/unitModel";
-import { drawPierceAimCorridor, drawPierceShell, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
+import { drawPierceAimCorridor, drawPierceShell, PIERCE_ATTACK, PIERCE_SHELL, PIERCE_SUPER } from "../features/training/pierceCombat";
 import { battleCanvasDpr } from "../features/training/performance";
+import { nearestAutoAimTarget } from "../features/training/firing";
+import { TRIAL_BRAWLERS } from "../features/training/characterTrial";
+import { createBrawlerCombatRuntime, type BrawlerCombatRuntime, type CombatProjectile } from "../features/training/brawlerCombatSystem";
 
 type Vec = { x: number; y: number };
 type TargetKind = "player" | "vault";
 type MiniBrock = { id: number; x: number; y: number; health: number; ammo: number; reload: number; state: "selecting" | "moving" | "aiming"; timer: number; target: TargetKind | null; unitClass: "hero" };
-type Shot = { id: number; owner: "player" | "enemy"; x: number; y: number; vx: number; vy: number; traveled: number; maxDistance: number; damage: number; radius: number; target?: TargetKind; createsShell?: boolean; chargeGain?: number; homingTargetId?: number; homingIgnore?: number; homingRemaining?: number };
+type Shot = CombatProjectile & { damage: number; target?: TargetKind; createsShell?: boolean; chargeGain?: number; homingTargetId?: number; homingIgnore?: number; homingRemaining?: number };
+type PlayerCombatState = Omit<BrawlerCombatRuntime, "reloadRemaining"> & { x: number; y: number; reload: number };
 type Blast = { x: number; y: number; radius: number; life: number };
 type PierceShellPickup = { id: number; x: number; y: number; remainingSeconds: number };
 type PierceSuperCast = { id: number; x: number; y: number; phase: "warning" | "locked"; remainingSeconds: number; targetIds: number[] };
 
 const PLAYER_RADIUS = tiles(0.5);
-const PLAYER_SPEED = 750;
-const PLAYER_HEALTH = 6000;
-const PLAYER_RANGE = tiles(10);
-const PLAYER_BULLET_SPEED = 4000;
-const PLAYER_BULLET_RADIUS = 100;
-const PLAYER_DAMAGE = 1900;
-const PLAYER_AMMO = 3;
-const PLAYER_RELOAD = 3;
+const PIERCE_CONFIG = TRIAL_BRAWLERS.pierce;
+const PLAYER_SPEED = PIERCE_CONFIG.moveSpeed;
+const PLAYER_HEALTH = PIERCE_CONFIG.health;
+const PLAYER_RANGE = PIERCE_CONFIG.range;
+const PLAYER_BULLET_SPEED = PIERCE_CONFIG.projectileSpeed;
+const PLAYER_BULLET_RADIUS = PIERCE_CONFIG.projectileWidth / 2;
+const PLAYER_DAMAGE = PIERCE_ATTACK.normalDamage;
+const PLAYER_AMMO = PIERCE_CONFIG.ammoCapacity;
+const PLAYER_RELOAD = PIERCE_CONFIG.reloadSeconds;
 const ENEMY_RADIUS = tiles(0.5);
 const VAULT_RADIUS = tiles(0.72);
 const WALLS = new Set(Array.from({ length: TIDAL_WAVE.mapColumns }, (_, column) => `${column},${TIDAL_WAVE.wallRow}` as const));
@@ -49,7 +54,13 @@ export default function TidalWave() {
   const exceededDeadzoneRef = useRef({ attack: false, super: false });
   const movementElapsedRef = useRef(0);
   const playerVelocityRef = useRef<Vec>({ x: 0, y: 0 });
-  const playerRef = useRef<{ x: number; y: number; health: number; ammo: number; reload: number; attackCooldown: number }>({ x: columnCenter(TIDAL_WAVE.playerSpawn.column), y: lowerRowCenter(TIDAL_WAVE.playerSpawn.rowFromBottom), health: PLAYER_HEALTH, ammo: PLAYER_AMMO, reload: PLAYER_RELOAD, attackCooldown: 0 });
+  const initialPierce = createBrawlerCombatRuntime("pierce");
+  const playerRef = useRef<PlayerCombatState>({
+    ...initialPierce,
+    x: columnCenter(TIDAL_WAVE.playerSpawn.column),
+    y: lowerRowCenter(TIDAL_WAVE.playerSpawn.rowFromBottom),
+    reload: initialPierce.reloadRemaining,
+  });
   const vaultRef = useRef<{ x: number; y: number; health: number }>({ x: columnCenter(TIDAL_WAVE.vaultSpawn.column), y: lowerRowCenter(TIDAL_WAVE.vaultSpawn.rowFromBottom), health: TIDAL_WAVE.vaultHealth });
   const enemiesRef = useRef<MiniBrock[]>([]);
   const shotsRef = useRef<Shot[]>([]);
@@ -89,13 +100,21 @@ export default function TidalWave() {
     player.ammo -= 1;
     player.attackCooldown = 0.65;
     if (player.ammo === 0) player.reload = PLAYER_RELOAD;
-    shotsRef.current.push({ id: idsRef.current++, owner: "player", x: player.x, y: player.y, vx: direction.x / length * PLAYER_BULLET_SPEED, vy: direction.y / length * PLAYER_BULLET_SPEED, traveled: 0, maxDistance: PLAYER_RANGE, damage: lastShot ? 3000 : PLAYER_DAMAGE, radius: lastShot ? 110 : PLAYER_BULLET_RADIUS, createsShell: true, chargeGain: lastShot ? 0.24375 : 0.15425 });
+    shotsRef.current.push({ id: idsRef.current++, owner: "player", x: player.x, y: player.y, vx: direction.x / length * PLAYER_BULLET_SPEED, vy: direction.y / length * PLAYER_BULLET_SPEED, traveled: 0, maxDistance: PLAYER_RANGE, damage: lastShot ? PIERCE_ATTACK.lastAmmoDamage : PLAYER_DAMAGE, radius: lastShot ? PIERCE_ATTACK.lastAmmoRadius : PLAYER_BULLET_RADIUS, createsShell: true, chargeGain: lastShot ? PIERCE_ATTACK.lastAmmoSuperCharge : PIERCE_ATTACK.normalSuperCharge });
   };
+
+  const nearestPlayerTarget = (maxDistance: number) => nearestAutoAimTarget({
+    origin: playerRef.current,
+    targets: enemiesRef.current.map((enemy) => ({ ...enemy, alive: enemy.health > 0 })),
+    maxDistance,
+    walls: WALLS,
+    tileSize: TILE_SIZE,
+  });
 
   const castSuper = (direction: Vec, rawMagnitude: number, autoAim: boolean) => {
     if (resultRef.current || countdownRef.current > 0 || superChargeRef.current < 1) return;
     const player = playerRef.current;
-    const nearest = enemiesRef.current.reduce<MiniBrock | null>((best, enemy) => !best || Math.hypot(enemy.x - player.x, enemy.y - player.y) < Math.hypot(best.x - player.x, best.y - player.y) ? enemy : best, null);
+    const nearest = nearestPlayerTarget(PIERCE_SUPER.range);
     const fallback = nearest ? { x: nearest.x - player.x, y: nearest.y - player.y } : { x: 0, y: -1 };
     const aim = autoAim ? fallback : direction;
     const length = Math.hypot(aim.x, aim.y) || 1;
@@ -149,7 +168,7 @@ export default function TidalWave() {
       if (exceededDeadzoneRef.current.attack) firePlayer(target);
       else {
         const player = playerRef.current;
-        const nearest = enemiesRef.current.reduce<MiniBrock | null>((best, enemy) => !best || Math.hypot(enemy.x - player.x, enemy.y - player.y) < Math.hypot(best.x - player.x, best.y - player.y) ? enemy : best, null);
+        const nearest = nearestPlayerTarget(PLAYER_RANGE);
         if (nearest) firePlayer({ x: nearest.x - player.x, y: nearest.y - player.y });
       }
     } else if (!cancelled && id === "super") castSuper(target, Math.min(1, length / max), !exceededDeadzoneRef.current.super);
@@ -260,10 +279,10 @@ export default function TidalWave() {
           if (Math.hypot(player.x - shell.x, player.y - shell.y) <= PIERCE_SHELL.pickupRadius) {
             shellsRef.current.splice(i, 1);
             if (player.ammo < PLAYER_AMMO) { player.ammo += 1; player.reload = PLAYER_RELOAD; }
-            const nearest = enemiesRef.current.reduce<MiniBrock | null>((best, enemy) => !best || Math.hypot(enemy.x - player.x, enemy.y - player.y) < Math.hypot(best.x - player.x, best.y - player.y) ? enemy : best, null);
+            const nearest = nearestPlayerTarget(PLAYER_RANGE);
             if (nearest) {
               const dx = nearest.x - player.x, dy = nearest.y - player.y, distance = Math.hypot(dx, dy) || 1;
-              shotsRef.current.push({ id: idsRef.current++, owner: "player", x: player.x, y: player.y, vx: dx / distance * PLAYER_BULLET_SPEED, vy: dy / distance * PLAYER_BULLET_SPEED, traveled: 0, maxDistance: PLAYER_RANGE, damage: 1200, radius: PLAYER_BULLET_RADIUS, chargeGain: 0.09 });
+              shotsRef.current.push({ id: idsRef.current++, owner: "player", x: player.x, y: player.y, vx: dx / distance * PLAYER_BULLET_SPEED, vy: dy / distance * PLAYER_BULLET_SPEED, traveled: 0, maxDistance: PLAYER_RANGE, damage: PIERCE_ATTACK.shellDamage, radius: PLAYER_BULLET_RADIUS, chargeGain: PIERCE_ATTACK.shellSuperCharge });
             }
           }
         }

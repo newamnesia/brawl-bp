@@ -1,3 +1,15 @@
+import { TRIAL_BRAWLERS } from "./characterTrial";
+
+export const PIERCE_ATTACK = {
+  normalDamage: TRIAL_BRAWLERS.pierce.baseAttackDamage,
+  lastAmmoDamage: 3000,
+  shellDamage: 1200,
+  normalSuperCharge: 0.15425,
+  lastAmmoSuperCharge: 0.24375,
+  shellSuperCharge: 0.09,
+  lastAmmoRadius: 110,
+} as const;
+
 export const PIERCE_SHELL = {
   lifetimeSeconds: 8,
   pickupRadius: 300,

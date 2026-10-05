@@ -1,18 +1,21 @@
+import { TRIAL_BRAWLERS } from "./characterTrial";
+
 export type OllieGadget = "regulate" | "allEyezOnMe";
 export type OllieStarPower = "kickPush" | "renegade";
 export type OllieCrowdControl = "stun" | "pull" | "knockback" | "slow" | "silence";
+export type OllieAttackHitLedger = Map<number, Set<string>>;
 
 export const OLLIE = {
-  health: 10800,
-  moveSpeed: 800,
-  ammoCapacity: 3,
-  reloadSeconds: 1.8,
-  reloadDelaySeconds: 0.6,
-  attackIntervalSeconds: 0.6,
+  health: TRIAL_BRAWLERS.ollie.health,
+  moveSpeed: TRIAL_BRAWLERS.ollie.moveSpeed,
+  ammoCapacity: TRIAL_BRAWLERS.ollie.ammoCapacity,
+  reloadSeconds: TRIAL_BRAWLERS.ollie.reloadSeconds,
+  reloadDelaySeconds: TRIAL_BRAWLERS.ollie.reloadDelaySeconds,
+  attackIntervalSeconds: TRIAL_BRAWLERS.ollie.attackIntervalSeconds,
   attackDamage: 2000,
-  attackRange: 1900,
-  attackProjectileSpeed: 3000,
-  attackWidth: 200,
+  attackRange: TRIAL_BRAWLERS.ollie.range,
+  attackProjectileSpeed: TRIAL_BRAWLERS.ollie.projectileSpeed,
+  attackWidth: TRIAL_BRAWLERS.ollie.projectileWidth,
   attackProjectileCount: 2,
   attackSpreadDegrees: 13.5,
   attackSuperChargePerHit: 0.16875,
@@ -63,6 +66,22 @@ export const OLLIE_DEFAULT_LOADOUT: {
 export function ollieAttackAngles(baseAngle: number): number[] {
   const halfSpread = OLLIE.attackSpreadDegrees * Math.PI / 360;
   return [baseAngle - halfSpread, baseAngle + halfSpread];
+}
+
+/**
+ * 奥利一次普攻的两道声波共享命中记录。同一施法可以分别命中多个单位，
+ * 但无论同一单位与几道声波重叠，都只结算一次伤害和充能。
+ */
+export function registerOllieAttackHit(
+  ledger: OllieAttackHitLedger,
+  castId: number,
+  targetId: string,
+): boolean {
+  const hitTargets = ledger.get(castId);
+  if (hitTargets?.has(targetId)) return false;
+  if (hitTargets) hitTargets.add(targetId);
+  else ledger.set(castId, new Set([targetId]));
+  return true;
 }
 
 export function ollieSuperIsInterruptedBy(effect: OllieCrowdControl): boolean {

@@ -93,3 +93,7 @@ npm run dev
 - React + Vite
 - Express + Socket.io
 - TypeScript
+
+## 游戏机制记录
+
+- [淘汰赛专属缩圈规则](docs/game-mechanics.md#淘汰赛专属缩圈规则)

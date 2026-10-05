@@ -1,13 +1,15 @@
+import { TRIAL_BRAWLERS } from "./characterTrial";
+
 // Colt, power 11. World distances use 300 units per tile.
 // Current mechanics checked against the September 2026 game-data references.
 export const COLT = {
-  health: 6200,
-  baseMoveSpeed: 720,
-  attackDamage: 720,
+  health: TRIAL_BRAWLERS.colt.health,
+  baseMoveSpeed: TRIAL_BRAWLERS.colt.moveSpeed,
+  attackDamage: TRIAL_BRAWLERS.colt.baseAttackDamage,
   attackBullets: 6,
-  attackRange: 2700,
-  attackProjectileSpeed: 4000,
-  attackWidth: 200,
+  attackRange: TRIAL_BRAWLERS.colt.range,
+  attackProjectileSpeed: TRIAL_BRAWLERS.colt.projectileSpeed,
+  attackWidth: TRIAL_BRAWLERS.colt.projectileWidth,
   attackBulletIntervalSeconds: 0.1,
   hyperAttackBulletIntervalSeconds: 0.07,
   attackSuperCharge: 0.0835,

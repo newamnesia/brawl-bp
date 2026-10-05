@@ -1,4 +1,11 @@
-export type TrialBrawlerId = "piper" | "bea" | "max" | "byron" | "pierce" | "brock" | "gene" | "gray" | "colt" | "mina" | "spike" | "pearl" | "ollie";
+import { HEROES, type Hero } from "../../../shared/types";
+
+export const TRIAL_BRAWLER_IDS = [
+  "piper", "bea", "max", "byron", "pierce", "brock", "gene",
+  "gray", "colt", "mina", "spike", "pearl", "ollie",
+] as const;
+
+export type TrialBrawlerId = typeof TRIAL_BRAWLER_IDS[number];
 
 export type TrialBrawlerConfig = {
   id: TrialBrawlerId;
@@ -6,6 +13,8 @@ export type TrialBrawlerConfig = {
   nameEn: string;
   color: string;
   health: number;
+  /** 基础资料中的单发/单弹丸伤害；复杂攻击的总伤害仍由角色机制模块定义。 */
+  baseAttackDamage: number;
   moveSpeed: number;
   ammoCapacity: number;
   reloadSeconds: number;
@@ -16,74 +25,69 @@ export type TrialBrawlerConfig = {
   range: number;
 };
 
-export const TRIAL_BRAWLERS: Record<TrialBrawlerId, TrialBrawlerConfig> = {
-  piper: {
-    id: "piper", name: "佩佩", nameEn: "PIPER", color: "#ffca65",
-    health: 5600, moveSpeed: 750, ammoCapacity: 3, reloadSeconds: 2.3, reloadDelaySeconds: 0.65, attackIntervalSeconds: 0.65,
-    projectileSpeed: 4000, projectileWidth: 200, range: 3000,
-  },
-  bea: {
-    id: "bea", name: "贝亚", nameEn: "BEA", color: "#ffd633",
-    health: 5600, moveSpeed: 750, ammoCapacity: 1, reloadSeconds: 0.9, reloadDelaySeconds: 0.2, attackIntervalSeconds: 0.2,
-    projectileSpeed: 3255, projectileWidth: 300, range: 3000,
-  },
-  max: {
-    id: "max", name: "麦克斯", nameEn: "MAX", color: "#ff4e54",
-    health: 7000, moveSpeed: 855, ammoCapacity: 4, reloadSeconds: 1.3, reloadDelaySeconds: 0.5, attackIntervalSeconds: 0.5,
-    projectileSpeed: 4000, projectileWidth: 100, range: 2500,
-  },
-  byron: {
-    id: "byron", name: "拜伦", nameEn: "BYRON", color: "#b45cff",
-    health: 5200, moveSpeed: 750, ammoCapacity: 3, reloadSeconds: 1.45, reloadDelaySeconds: 0.65, attackIntervalSeconds: 0.65,
-    projectileSpeed: 4000, projectileWidth: 300, range: 3000,
-  },
-  pierce: {
-    id: "pierce", name: "皮尔斯", nameEn: "PIERCE", color: "#55d9ff",
-    health: 6000, moveSpeed: 750, ammoCapacity: 3, reloadSeconds: 3, reloadDelaySeconds: 0.65, attackIntervalSeconds: 0.65,
-    projectileSpeed: 4000, projectileWidth: 200, range: 3000,
-  },
-  brock: {
-    id: "brock", name: "布洛克", nameEn: "BROCK", color: "#ff7043",
-    health: 6000, moveSpeed: 720, ammoCapacity: 3, reloadSeconds: 1.95, reloadDelaySeconds: 0.4, attackIntervalSeconds: 0.5,
-    projectileSpeed: 2700, projectileWidth: 200, range: 2700,
-  },
-  gene: {
-    id: "gene", name: "吉恩", nameEn: "GENE", color: "#b964dc",
-    health: 7600, moveSpeed: 750, ammoCapacity: 3, reloadSeconds: 2, reloadDelaySeconds: 0.4, attackIntervalSeconds: 0.65,
-    projectileSpeed: 3200, projectileWidth: 300, range: 3400,
-  },
-  gray: {
-    id: "gray", name: "格雷", nameEn: "GRAY", color: "#9aa0a8",
-    health: 6800, moveSpeed: 750, ammoCapacity: 3, reloadSeconds: 1.4, reloadDelaySeconds: 0.65, attackIntervalSeconds: 0.75,
-    projectileSpeed: 3804, projectileWidth: 100, range: 2700,
-  },
-  colt: {
-    id: "colt", name: "柯尔特", nameEn: "COLT", color: "#ef5350",
-    health: 6200, moveSpeed: 720, ammoCapacity: 3, reloadSeconds: 1.3, reloadDelaySeconds: 0.55, attackIntervalSeconds: 0.55,
-    projectileSpeed: 4000, projectileWidth: 200, range: 2700,
-  },
-  mina: {
-    id: "mina", name: "蜜娜", nameEn: "MINA", color: "#62d69b",
-    health: 7200, moveSpeed: 800, ammoCapacity: 3, reloadSeconds: 1.4, reloadDelaySeconds: 0.45, attackIntervalSeconds: 0.45,
-    projectileSpeed: 3000, projectileWidth: 300, range: 2400,
-  },
-  spike: {
-    id: "spike", name: "斯派克", nameEn: "SPIKE", color: "#78d33d",
-    health: 6000, moveSpeed: 750, ammoCapacity: 3, reloadSeconds: 2, reloadDelaySeconds: 0.25, attackIntervalSeconds: 0.25,
-    projectileSpeed: 2174, projectileWidth: 300, range: 2300,
-  },
-  pearl: {
-    id: "pearl", name: "珀尔", nameEn: "PEARL", color: "#f29b55",
-    health: 8600, moveSpeed: 750, ammoCapacity: 3, reloadSeconds: 1.5, reloadDelaySeconds: 0.7, attackIntervalSeconds: 0.7,
-    projectileSpeed: 4000, projectileWidth: 200, range: 2700,
-  },
-  ollie: {
-    id: "ollie", name: "奥利", nameEn: "OLLIE", color: "#6fd2cf",
-    health: 10800, moveSpeed: 800, ammoCapacity: 3, reloadSeconds: 1.8, reloadDelaySeconds: 0.6, attackIntervalSeconds: 0.6,
-    projectileSpeed: 3000, projectileWidth: 200, range: 1900,
-  },
+type TrialSimulationOverrides = Pick<TrialBrawlerConfig,
+  "color" | "reloadDelaySeconds" | "attackIntervalSeconds" | "projectileSpeed" | "projectileWidth">
+  & { range?: number };
+
+const WORLD_UNITS_PER_TILE = 300;
+
+/**
+ * 这里只保存训练模拟器独有的弹道和操作手感数据。
+ * 血量、移速、弹药、装填、名称和普通射程统一来自 shared/types.ts 的 HEROES。
+ */
+const TRIAL_SIMULATION_OVERRIDES: Record<TrialBrawlerId, TrialSimulationOverrides> = {
+  piper: { color: "#ffca65", reloadDelaySeconds: 0.65, attackIntervalSeconds: 0.65, projectileSpeed: 4000, projectileWidth: 200 },
+  bea: { color: "#ffd633", reloadDelaySeconds: 0.2, attackIntervalSeconds: 0.2, projectileSpeed: 3255, projectileWidth: 300 },
+  max: { color: "#ff4e54", reloadDelaySeconds: 0.5, attackIntervalSeconds: 0.5, projectileSpeed: 4000, projectileWidth: 100 },
+  byron: { color: "#b45cff", reloadDelaySeconds: 0.65, attackIntervalSeconds: 0.65, projectileSpeed: 4000, projectileWidth: 300 },
+  pierce: { color: "#55d9ff", reloadDelaySeconds: 0.65, attackIntervalSeconds: 0.65, projectileSpeed: 4000, projectileWidth: 200 },
+  brock: { color: "#ff7043", reloadDelaySeconds: 0.4, attackIntervalSeconds: 0.5, projectileSpeed: 2700, projectileWidth: 200 },
+  // Gene 的基础表射程只表示直射段；模拟器射程需要覆盖分裂后的总距离。
+  gene: { color: "#b964dc", reloadDelaySeconds: 0.4, attackIntervalSeconds: 0.65, projectileSpeed: 3200, projectileWidth: 300, range: 3400 },
+  gray: { color: "#9aa0a8", reloadDelaySeconds: 0.65, attackIntervalSeconds: 0.75, projectileSpeed: 3804, projectileWidth: 100 },
+  colt: { color: "#ef5350", reloadDelaySeconds: 0.55, attackIntervalSeconds: 0.55, projectileSpeed: 4000, projectileWidth: 200 },
+  mina: { color: "#62d69b", reloadDelaySeconds: 0.45, attackIntervalSeconds: 0.45, projectileSpeed: 3000, projectileWidth: 300 },
+  spike: { color: "#78d33d", reloadDelaySeconds: 0.25, attackIntervalSeconds: 0.25, projectileSpeed: 2174, projectileWidth: 300 },
+  pearl: { color: "#f29b55", reloadDelaySeconds: 0.7, attackIntervalSeconds: 0.7, projectileSpeed: 4000, projectileWidth: 200 },
+  ollie: { color: "#6fd2cf", reloadDelaySeconds: 0.6, attackIntervalSeconds: 0.6, projectileSpeed: 3000, projectileWidth: 200 },
 };
 
+const HERO_BY_ID = new Map(HEROES.map(hero => [hero.id, hero]));
+
+type CombatHero = Hero & {
+  stats: NonNullable<Hero["stats"]> & { reloadMs: number; range: number };
+};
+
+function requireCombatHero(id: TrialBrawlerId): CombatHero {
+  const hero = HERO_BY_ID.get(id);
+  if (!hero?.stats || hero.stats.reloadMs === undefined || hero.stats.range === undefined) {
+    throw new Error(`Missing base combat stats for trial brawler: ${id}`);
+  }
+  return hero as CombatHero;
+}
+
+function createTrialBrawler(id: TrialBrawlerId): TrialBrawlerConfig {
+  const hero = requireCombatHero(id);
+  const overrides = TRIAL_SIMULATION_OVERRIDES[id];
+  return {
+    id,
+    name: hero.name,
+    nameEn: hero.enName.toUpperCase(),
+    health: hero.stats.health,
+    baseAttackDamage: Number(hero.stats.attack),
+    moveSpeed: hero.stats.moveSpeed,
+    ammoCapacity: hero.stats.ammo,
+    reloadSeconds: hero.stats.reloadMs / 1000,
+    range: overrides.range
+      ?? Math.round(hero.stats.range * WORLD_UNITS_PER_TILE / 100) * 100,
+    ...overrides,
+  };
+}
+
+export const TRIAL_BRAWLERS = Object.fromEntries(
+  TRIAL_BRAWLER_IDS.map(id => [id, createTrialBrawler(id)]),
+) as Record<TrialBrawlerId, TrialBrawlerConfig>;
+
 export function isTrialBrawler(value: string | null): value is TrialBrawlerId {
-  return value === "piper" || value === "bea" || value === "max" || value === "byron" || value === "pierce" || value === "brock" || value === "gene" || value === "gray" || value === "colt" || value === "mina" || value === "spike" || value === "pearl" || value === "ollie";
+  return value !== null && (TRIAL_BRAWLER_IDS as readonly string[]).includes(value);
 }

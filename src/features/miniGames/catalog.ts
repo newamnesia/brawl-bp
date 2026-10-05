@@ -2,6 +2,7 @@ import type { MiniGameProgress } from "./tidalWave";
 
 export type MiniGameLevel = {
   title: string;
+  displayNumber?: number;
   description: string;
   completed: (progress: MiniGameProgress) => boolean;
 };
@@ -24,8 +25,9 @@ export const MINI_GAME_THEMES: readonly MiniGameTheme[] = [
     description: "操控基恩，在摇滚贝尔打破敌方阵型",
     levels: [
       {
-        title: "残局初阵",
-        description: "摇滚贝尔 · 基础地图与静止角色木偶",
+        title: "第0关",
+        displayNumber: 0,
+        description: "摇滚贝尔 · 淘汰赛残局",
         completed: () => false,
       },
     ],

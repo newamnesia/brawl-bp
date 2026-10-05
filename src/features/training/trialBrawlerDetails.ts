@@ -1,4 +1,5 @@
 import { BEA_SUPER, BEA_SUPER_AIM_SECONDS } from "./beaSuper";
+import { BROCK } from "./brockCombat";
 import { COLT } from "./coltCombat";
 import { MAX_PROJECTILE_INTERVAL_SECONDS } from "./config";
 import { GENE } from "./geneCombat";
@@ -244,7 +245,23 @@ export const TRIAL_BRAWLER_DETAILS: Partial<Record<TrialBrawlerId, TrialBrawlerD
         { label: "燃烧持续", value: "2.9 秒" },
       ],
     },
-    notImplemented("大招、妙具、星辉、超充与巴菲"),
+    {
+      title: "大招 · 火箭雨",
+      rows: [
+        { label: "瞄准距离", value: units(BROCK.superRange) },
+        { label: "普通火箭数", value: `${BROCK.superRocketCount} 枚` },
+        { label: "火箭雨星辉", value: `${BROCK.moreRocketsCount} 枚`, note: "增加4枚，发射间隔缩短25%。" },
+        { label: "普通发射间隔", value: seconds(BROCK.superLaunchIntervalSeconds) },
+        { label: "星辉发射间隔", value: seconds(BROCK.moreRocketsLaunchIntervalSeconds) },
+        { label: "固定落点", value: "5 个", note: "中心→左上→右上→右下→左下循环；瞄准中心时只有中心点火箭命中。" },
+        { label: "单枚伤害", value: String(BROCK.superDamage) },
+        { label: "单枚爆炸半径", value: units(BROCK.superExplosionRadius), note: "1.5格；每枚火箭独立判定。" },
+        { label: "单枚大招充能", value: percent(BROCK.superChargePerHit) },
+        { label: "地形", value: "每枚火箭分别破坏爆炸范围内的普通墙和草丛；钢墙不受影响。" },
+        { label: "移动跟随", value: "施法期间后续火箭的覆盖中心随布洛克移动。" },
+      ],
+    },
+    notImplemented("超充与巴菲"),
   ],
   gene: [
     base("gene"),

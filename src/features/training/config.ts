@@ -1,3 +1,5 @@
+import { TRIAL_BRAWLERS, type TrialBrawlerId } from "./characterTrial";
+
 export type SpeedTier = "mid" | "high" | "max";
 export type AimReactionTier = "diamond" | "legendary" | "master";
 export type AimingRule = "infinite" | "challenge";
@@ -19,7 +21,7 @@ export const tiles = (count: number) => count * TILE_SIZE;
 // Max 的四颗子弹依次出膛；0.10 秒间隔使末弹在攻击开始后约 0.30 秒发射。
 export const MAX_PROJECTILE_INTERVAL_SECONDS = 0.10;
 
-export const SPEED_TIERS: Record<SpeedTier, {
+type SpeedTierConfig = {
   label: string;
   value: number; // 子弹速度，单位/秒
   reloadSeconds: number;
@@ -28,11 +30,33 @@ export const SPEED_TIERS: Record<SpeedTier, {
   range: number; // 射程，单位
   magazineCapacity: number;
   moveSpeed: number;
-}> = {
-  mid: { label: "贝亚", value: 3255, reloadSeconds: 0.9, attackIntervalSeconds: 0.2, bulletWidth: 300, range: 3000, magazineCapacity: 1, moveSpeed: CHARACTER_MOVE_SPEED },
-  high: { label: "佩佩", value: 4000, reloadSeconds: 2.3, attackIntervalSeconds: 0.65, bulletWidth: 200, range: 3000, magazineCapacity: 3, moveSpeed: CHARACTER_MOVE_SPEED },
-  // Max 的攻击宽度为 0.33 格，按每格 300 单位换算为约 100 单位。
-  max: { label: "Max", value: 4000, reloadSeconds: 1.3, attackIntervalSeconds: 0.5, bulletWidth: 100, range: 2500, magazineCapacity: 4, moveSpeed: MOVEMENT_SPEED_TIERS.veryFast.value },
+};
+
+const SPEED_TIER_BRAWLERS: Record<SpeedTier, TrialBrawlerId> = {
+  mid: "bea",
+  high: "piper",
+  max: "max",
+};
+
+function speedTierConfig(id: TrialBrawlerId): SpeedTierConfig {
+  const brawler = TRIAL_BRAWLERS[id];
+  return {
+    label: id === "max" ? "Max" : brawler.name,
+    value: brawler.projectileSpeed,
+    reloadSeconds: brawler.reloadSeconds,
+    attackIntervalSeconds: brawler.attackIntervalSeconds,
+    bulletWidth: brawler.projectileWidth,
+    range: brawler.range,
+    magazineCapacity: brawler.ammoCapacity,
+    moveSpeed: brawler.moveSpeed,
+  };
+}
+
+/** 训练入口的三档选择只映射角色，不再复制角色战斗数值。 */
+export const SPEED_TIERS: Record<SpeedTier, SpeedTierConfig> = {
+  mid: speedTierConfig(SPEED_TIER_BRAWLERS.mid),
+  high: speedTierConfig(SPEED_TIER_BRAWLERS.high),
+  max: speedTierConfig(SPEED_TIER_BRAWLERS.max),
 };
 
 export const AIM_REACTION_TIERS: Record<AimReactionTier, {

@@ -1,11 +1,13 @@
+import { TRIAL_BRAWLERS } from "./characterTrial";
+
 export const SPIKE = {
-  attackDamage: 1080,
-  attackRange: 2300,
-  attackProjectileSpeed: 2174,
-  attackWidth: 300,
+  attackDamage: TRIAL_BRAWLERS.spike.baseAttackDamage,
+  attackRange: TRIAL_BRAWLERS.spike.range,
+  attackProjectileSpeed: TRIAL_BRAWLERS.spike.projectileSpeed,
+  attackWidth: TRIAL_BRAWLERS.spike.projectileWidth,
   explosionRadius: 300,
   shardCount: 6,
-  shardDamage: 1080,
+  shardDamage: TRIAL_BRAWLERS.spike.baseAttackDamage,
   shardSpeed: 3261,
   shardWidth: 100,
   shardBaseRange: 1300,

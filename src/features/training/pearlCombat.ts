@@ -1,20 +1,22 @@
+import { TRIAL_BRAWLERS } from "./characterTrial";
+
 export type PearlGadget = "overcooked" | "madeWithLove";
 export type PearlStarPower = "heatRetention" | "heatShield";
 export type PearlCrowdControl = "stun" | "pull" | "knockback" | "slow";
 
 export const PEARL = {
-  health: 8600,
-  moveSpeed: 750,
-  ammoCapacity: 3,
-  reloadSeconds: 1.5,
-  reloadDelaySeconds: 0.7,
-  attackIntervalSeconds: 0.7,
+  health: TRIAL_BRAWLERS.pearl.health,
+  moveSpeed: TRIAL_BRAWLERS.pearl.moveSpeed,
+  ammoCapacity: TRIAL_BRAWLERS.pearl.ammoCapacity,
+  reloadSeconds: TRIAL_BRAWLERS.pearl.reloadSeconds,
+  reloadDelaySeconds: TRIAL_BRAWLERS.pearl.reloadDelaySeconds,
+  attackIntervalSeconds: TRIAL_BRAWLERS.pearl.attackIntervalSeconds,
   attackBullets: 6,
-  attackMinDamage: 560,
+  attackMinDamage: TRIAL_BRAWLERS.pearl.baseAttackDamage,
   attackMaxDamage: 980,
-  attackRange: 2700,
-  attackProjectileSpeed: 4000,
-  attackWidth: 200,
+  attackRange: TRIAL_BRAWLERS.pearl.range,
+  attackProjectileSpeed: TRIAL_BRAWLERS.pearl.projectileSpeed,
+  attackWidth: TRIAL_BRAWLERS.pearl.projectileWidth,
   attackSpreadDegrees: 20,
   attackBulletIntervalSeconds: 0.1,
   attackSuperChargePerHit: 0.065,

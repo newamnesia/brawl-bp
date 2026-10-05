@@ -1,8 +1,10 @@
+import { TRIAL_BRAWLERS } from "./characterTrial";
+
 // Gene, power 11. Distances use 300 world units per tile.
 // https://brawlstars.fandom.com/wiki/Gene (damage table, widths and charge)
 // https://brawltime.ninja/tier-list/brawler/gene (ranges, spread and speeds)
 export const GENE = {
-  directDamage: 2000,
+  directDamage: TRIAL_BRAWLERS.gene.baseAttackDamage,
   splitDamage: 326,
   directRange: 1700,
   totalRange: 3400,

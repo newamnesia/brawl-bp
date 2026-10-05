@@ -1,16 +1,18 @@
+import { TRIAL_BRAWLERS } from "./characterTrial";
+
 // Mina, power 11. World distances use 300 units per tile.
 export const MINA = {
-  health: 7200,
-  moveSpeed: 800,
-  ammoCapacity: 3,
-  reloadSeconds: 1.4,
+  health: TRIAL_BRAWLERS.mina.health,
+  moveSpeed: TRIAL_BRAWLERS.mina.moveSpeed,
+  ammoCapacity: TRIAL_BRAWLERS.mina.ammoCapacity,
+  reloadSeconds: TRIAL_BRAWLERS.mina.reloadSeconds,
   comboWindowSeconds: 1.35,
   dashDistance: 549,
   dashSpeed: 2500,
-  projectileSpeed: 3000,
-  attackDamage: [1600, 2000, 3600] as const,
-  attackRange: [2400, 1800, 1400] as const,
-  attackWidth: [300, 400] as const,
+  projectileSpeed: TRIAL_BRAWLERS.mina.projectileSpeed,
+  attackDamage: [TRIAL_BRAWLERS.mina.baseAttackDamage, 2000, 3600] as const,
+  attackRange: [TRIAL_BRAWLERS.mina.range, 1800, 1400] as const,
+  attackWidth: [TRIAL_BRAWLERS.mina.projectileWidth, 400] as const,
   thirdAttackProjectileCount: 3,
   // Game data: DancerProjectileTriple radius 150; DancerWeaponTriple casting
   // range 14, which maps to 1400 world units in this simulation.
