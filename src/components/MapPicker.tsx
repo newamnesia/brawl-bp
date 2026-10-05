@@ -1,11 +1,16 @@
 import { useMemo, useState } from "react";
 import {
   GAME_MODES,
-  GAME_MODES as _GM,
   MAPS,
   type GameMode,
 } from "../../shared/types";
-import { MAP_MAP, mapThumbnailUrl, modeIconUrl } from "../../shared/catalog";
+import {
+  MAP_MAP,
+  compareMapsByLocalization,
+  mapDisplayName,
+  mapThumbnailUrl,
+  modeIconUrl,
+} from "../../shared/catalog";
 
 interface MapPickerProps {
   gameMode: GameMode | null;
@@ -32,14 +37,19 @@ export default function MapPicker({
   const opponentMapId = myRole === "host" ? guestMapId : myRole === "guest" ? hostMapId : null;
 
   const modeMaps = useMemo(
-    () => (gameMode ? MAPS.filter((m) => m.mode === gameMode) : []),
+    () => (gameMode
+      ? MAPS.filter((map) => map.mode === gameMode).sort(compareMapsByLocalization)
+      : []),
     [gameMode],
   );
 
   const filteredMaps = useMemo(() => {
     if (!search.trim()) return modeMaps;
     const q = search.trim().toLowerCase();
-    return modeMaps.filter((m) => m.name.toLowerCase().includes(q));
+    return modeMaps.filter((map) =>
+      map.name.toLowerCase().includes(q)
+      || map.localizedName?.toLowerCase().includes(q),
+    );
   }, [modeMaps, search]);
 
   const confirmedMap = confirmedMapId ? MAP_MAP[confirmedMapId] : null;
@@ -84,7 +94,7 @@ export default function MapPicker({
               <span className="map-selection-role">选手1</span>
               {hostMapId ? (
                 <span className="map-selection-name">
-                  {MAP_MAP[hostMapId]?.name ?? "—"}
+                  {MAP_MAP[hostMapId] ? mapDisplayName(MAP_MAP[hostMapId]) : "—"}
                 </span>
               ) : (
                 <span className="map-selection-empty">未选择</span>
@@ -94,7 +104,7 @@ export default function MapPicker({
               <span className="map-selection-role">选手2</span>
               {guestMapId ? (
                 <span className="map-selection-name">
-                  {MAP_MAP[guestMapId]?.name ?? "—"}
+                  {MAP_MAP[guestMapId] ? mapDisplayName(MAP_MAP[guestMapId]) : "—"}
                 </span>
               ) : (
                 <span className="map-selection-empty">未选择</span>
@@ -107,9 +117,9 @@ export default function MapPicker({
               <img
                 className="map-confirmed-img"
                 src={mapThumbnailUrl(confirmedMap)}
-                alt={confirmedMap.name}
+                alt={mapDisplayName(confirmedMap)}
               />
-              <span className="map-confirmed-name">{confirmedMap.name}</span>
+              <span className="map-confirmed-name">{mapDisplayName(confirmedMap)}</span>
             </div>
           )}
 
@@ -147,11 +157,11 @@ export default function MapPicker({
                       <img
                         className="map-thumbnail"
                         src={mapThumbnailUrl(map)}
-                        alt={map.name}
+                        alt={mapDisplayName(map)}
                         loading="lazy"
                         draggable={false}
                       />
-                      <span className="map-name">{map.name}</span>
+                      <span className="map-name">{mapDisplayName(map)}</span>
                       {isSelected && <span className="map-card-badge mine">我选的</span>}
                       {isOpponent && <span className="map-card-badge opp">对手选的</span>}
                     </div>
@@ -179,14 +189,14 @@ export function MapBanner({ confirmedMapId }: { confirmedMapId: string | null })
       <img
         className="map-banner-img"
         src={mapThumbnailUrl(map)}
-        alt={map.name}
+        alt={mapDisplayName(map)}
         draggable={false}
       />
       <div className="map-banner-info">
         <span className="map-banner-mode">
           {GAME_MODES.find((m) => m.id === map.mode)?.name ?? ""}
         </span>
-        <span className="map-banner-name">{map.name}</span>
+        <span className="map-banner-name">{mapDisplayName(map)}</span>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import {
   MAPS,
   type GameMode,
 } from "../../shared/types";
-import { mapDisplayName, mapThumbnailUrl } from "../../shared/catalog";
+import { compareMapsByLocalization, mapDisplayName, mapThumbnailUrl } from "../../shared/catalog";
 
 export default function MapPreview() {
   const navigate = useNavigate();
@@ -15,7 +15,7 @@ export default function MapPreview() {
 
   const visible = (filter === "all" ? MAPS : MAPS.filter((m) => m.mode === filter))
     .slice()
-    .sort((a, b) => Number(Boolean(b.localizedName)) - Number(Boolean(a.localizedName)));
+    .sort(compareMapsByLocalization);
 
   const modeName = (mode: GameMode) =>
     GAME_MODES.find((m) => m.id === mode)?.name ?? mode;

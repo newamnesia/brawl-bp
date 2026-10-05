@@ -11,6 +11,10 @@ export function mapDisplayName(map: BrawlMap): string {
   return map.localizedName ? `${map.localizedName}（${map.name}）` : map.name;
 }
 
+export function compareMapsByLocalization(a: BrawlMap, b: BrawlMap): number {
+  return Number(Boolean(b.localizedName)) - Number(Boolean(a.localizedName));
+}
+
 export function modeIconUrl(mode: Pick<{ id: GameMode; name: string; icon: string }, "icon">): string {
   return mode.icon;
 }

@@ -13,7 +13,13 @@ import {
   type TournamentRoomState,
   type TournamentTeam,
 } from "../../shared/types";
-import { MAP_MAP, mapThumbnailUrl, modeIconUrl } from "../../shared/catalog";
+import {
+  MAP_MAP,
+  compareMapsByLocalization,
+  mapDisplayName,
+  mapThumbnailUrl,
+  modeIconUrl,
+} from "../../shared/catalog";
 
 function SeatGrid({ state }: { state: TournamentRoomState }) {
   const tester = state.isSoloTest ? state.players[0] : null;
@@ -70,7 +76,17 @@ export default function TournamentRoom() {
     setPickSeconds(String(state.pickDurationSeconds));
   }, [state?.banDurationSeconds, state?.pickDurationSeconds]);
 
-  const modeMaps = useMemo(() => state?.gameMode ? MAPS.filter((map) => map.mode === state.gameMode && (!mapSearch.trim() || map.name.toLowerCase().includes(mapSearch.trim().toLowerCase()) || map.localizedName?.includes(mapSearch.trim()))) : [], [state?.gameMode, mapSearch]);
+  const modeMaps = useMemo(() => {
+    if (!state?.gameMode) return [];
+    const query = mapSearch.trim().toLowerCase();
+    return MAPS
+      .filter((map) => map.mode === state.gameMode && (
+        !query
+        || map.name.toLowerCase().includes(query)
+        || map.localizedName?.toLowerCase().includes(query)
+      ))
+      .sort(compareMapsByLocalization);
+  }, [state?.gameMode, mapSearch]);
 
   if (!state) return <div className="app-shell"><div className="card waiting-text">正在连接赛事房…{error && <p className="error-msg">{error}</p>}</div></div>;
 
@@ -123,6 +139,8 @@ export default function TournamentRoom() {
         <div className="card">
           <p className="waiting-text">{state.isSoloTest ? "完成双方地图确认并设置先后手后，即可开始单人测试。" : "双方各至少 1 名选手、所有在席选手准备后即可开始；空席的操作由队友代管。"}</p>
           {!state.isSpectator && !state.isSoloTest && <div className="invite-box"><input readOnly value={inviteUrl} /><button className="btn-secondary" onClick={async () => { await navigator.clipboard.writeText(inviteUrl); setCopied(true); }}>{copied ? "已复制" : "复制邀请链接"}</button></div>}
+          {!state.isSpectator && <button className="btn-primary tournament-ready" disabled={!canReady} onClick={() => socket.emit("set_tournament_ready", !me?.ready)}>{state.isSoloTest ? "开始单人测试" : me?.ready ? "取消准备" : "准备就绪"}</button>}
+          <button className="btn-secondary" style={{ marginTop: ".75rem", width: "100%" }} onClick={leave}>退出赛事房</button>
 
           <div className="time-limit-settings">
             <p className="time-limit-title">BP 时间限制</p>
@@ -132,15 +150,11 @@ export default function TournamentRoom() {
           <p className="map-picker-label">比赛模式（房主设置）</p>
           <div className="mode-grid">{GAME_MODES.map((mode) => <button key={mode.id} className={`mode-card ${state.gameMode === mode.id ? "active" : ""}`} disabled={!isHost} onClick={() => socket.emit("set_tournament_mode", state.gameMode === mode.id ? null : mode.id)}><img className="mode-icon" src={modeIconUrl(mode)} alt="" /><span>{mode.name}</span></button>)}</div>
 
-          {state.gameMode && <><p className="map-picker-label">双方共同确认地图</p><div className="map-selection-status"><div className={`map-selection-slot ${state.confirmedMapId ? "confirmed" : ""}`}><span className="map-selection-role">蓝方</span><span className="map-selection-name">{state.teamMapIds.blue ? MAP_MAP[state.teamMapIds.blue]?.name : "未选择"}</span></div><div className={`map-selection-slot ${state.confirmedMapId ? "confirmed" : ""}`}><span className="map-selection-role">红方</span><span className="map-selection-name">{state.teamMapIds.red ? MAP_MAP[state.teamMapIds.red]?.name : "未选择"}</span></div></div>{!state.isSpectator && <><div className="map-search"><input value={mapSearch} onChange={(event) => setMapSearch(event.target.value)} placeholder="搜索地图名称" /></div><div className="map-grid tournament-map-grid">{modeMaps.map((map) => <div key={map.id} className={`map-card ${state.myTeam && state.teamMapIds[state.myTeam] === map.id ? "selected" : ""}`} onClick={() => socket.emit("set_tournament_map", state.myTeam && state.teamMapIds[state.myTeam] === map.id ? null : map.id)}><img className="map-thumbnail" src={mapThumbnailUrl(map)} alt={map.name} /><span className="map-name">{map.localizedName ?? map.name}</span></div>)}</div></>}</>}
+          {state.gameMode && <><p className="map-picker-label">双方共同确认地图</p><div className="map-selection-status"><div className={`map-selection-slot ${state.confirmedMapId ? "confirmed" : ""}`}><span className="map-selection-role">蓝方</span><span className="map-selection-name">{state.teamMapIds.blue && MAP_MAP[state.teamMapIds.blue] ? mapDisplayName(MAP_MAP[state.teamMapIds.blue]) : "未选择"}</span></div><div className={`map-selection-slot ${state.confirmedMapId ? "confirmed" : ""}`}><span className="map-selection-role">红方</span><span className="map-selection-name">{state.teamMapIds.red && MAP_MAP[state.teamMapIds.red] ? mapDisplayName(MAP_MAP[state.teamMapIds.red]) : "未选择"}</span></div></div>{!state.isSpectator && <><div className="map-search"><input value={mapSearch} onChange={(event) => setMapSearch(event.target.value)} placeholder="搜索地图名称" /></div><div className="map-grid tournament-map-grid">{modeMaps.map((map) => <div key={map.id} className={`map-card ${state.myTeam && state.teamMapIds[state.myTeam] === map.id ? "selected" : ""}`} onClick={() => socket.emit("set_tournament_map", state.myTeam && state.teamMapIds[state.myTeam] === map.id ? null : map.id)}><img className="map-thumbnail" src={mapThumbnailUrl(map)} alt={mapDisplayName(map)} /><span className="map-name">{mapDisplayName(map)}</span></div>)}</div></>}</>}
 
           {isHost && <><p className="map-picker-label">确定先后手</p><div className="toggle-group"><button className={state.firstPickTeam === "blue" ? "active" : ""} onClick={() => socket.emit("set_tournament_first_picker", "blue")}>蓝方先手</button><button className={state.firstPickTeam === "red" ? "active" : ""} onClick={() => socket.emit("set_tournament_first_picker", "red")}>红方先手</button></div></>}
         </div>
 
-        {!state.isSpectator && <div className={`card tournament-global-ban ${state.myTeam}`}><h2>本队全局 Ban（队内共享，敌方不可见）</h2><p>{state.globalBansLocked ? "全局 Ban 已在首局开赛时锁定，后续对局不可更改。" : "单击预选或撤销，最多 2 个；预选会半透明显示在上方 BP 栏，开赛后锁定并公开。"}</p><div className="picked-row">{state.myGlobalBans.length ? state.myGlobalBans.map((id) => <HeroChip key={id} heroId={id} variant="ban" />) : <span className="empty-slot">可留空</span>}</div>{!state.globalBansLocked && <HeroGrid mode="ban" selectedIds={state.myGlobalBans} disabledIds={[...DISABLED_HERO_IDS]} onToggle={(id) => socket.emit("toggle_tournament_global_ban", id)} />}</div>}
-
-        {!state.isSpectator && <button className="btn-primary tournament-ready" disabled={!canReady} onClick={() => socket.emit("set_tournament_ready", !me?.ready)}>{state.isSoloTest ? "开始单人测试" : me?.ready ? "取消准备" : "准备就绪"}</button>}
-        <button className="btn-secondary" style={{ marginTop: ".75rem", width: "100%" }} onClick={leave}>退出赛事房</button>
       </div>
     );
   }
